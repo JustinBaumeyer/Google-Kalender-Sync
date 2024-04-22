@@ -122,7 +122,7 @@ function deleteAllTriggers() {
 function parseShiftToCal(shift) {
     var ret = "";
     shift.data.rosterDetails.entries.forEach(dienst => {
-        if (dienst.shortName !== "-" && dienst.shortName !== "UL") {
+        if (!rosterIgnoreList.includes(dienst.shortName)) {
             var start = dienst.from.replace(/[\-,\:]/g, '')
             var end = dienst.to.replace(/[\-,\:]/g, '')
             ret += "BEGIN:VEVENT\nUID:" + dienst.shortName + start + "\nSEQUENCE:0\nDTSTAMP:" + new Date().toISOString() + "\nDTSTART:" + start + "\nDTEND:" + end + "\nSUMMARY:" + dienst.shortName + " | " + dienst.nameWorkplace + "\nDESCRIPTION:\nEND:VEVENT\n";
