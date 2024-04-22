@@ -25,7 +25,7 @@ var overrideVisibility = "";              // Changes the visibility of the event
 var addTasks = false;
 
 var addRosterToCal = true;
-var addRosterSinceStart = true;
+var addRosterSinceStart = false;
 var rosterUrl = "https://dienstplan.drk-aachen.de:6100";
 var rosterIgnoreList = ["-","UL"]
 

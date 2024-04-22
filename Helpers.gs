@@ -121,12 +121,24 @@ function deleteAllTriggers() {
 
 function parseShiftToCal(shift) {
     var ret = "";
+    const dienste = new Map();
     shift.data.rosterDetails.entries.forEach(dienst => {
         if (!rosterIgnoreList.includes(dienst.shortName)) {
-            var start = dienst.from.replace(/[\-,\:]/g, '')
-            var end = dienst.to.replace(/[\-,\:]/g, '')
-            ret += "BEGIN:VEVENT\nUID:" + dienst.shortName + start + "\nSEQUENCE:0\nDTSTAMP:" + new Date().toISOString() + "\nDTSTART:" + start + "\nDTEND:" + end + "\nSUMMARY:" + dienst.shortName + " | " + dienst.nameWorkplace + "\nDESCRIPTION:\nEND:VEVENT\n";
+            var start = new Date(dienst.from)
+            var end = new Date(dienst.to)
+            if(dienste.has(dienst.shortName)) {
+              var d = dienste.get(dienst.shortName)
+              if(d.start > start) d.start = start;
+              if(d.end < end) d.end = end;
+              dienste.set(dienst.shortName,d);
+            } else dienste.set(dienst.shortName,{"start":start,"end":end,"nameWorkplace":dienst.nameWorkplace,"shortName": dienst.shortName})
+            
         }
+    })
+    dienste.forEach(dienst => {
+      var start = Utilities.formatDate(new Date(dienst.start),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
+      var end = Utilities.formatDate(new Date(dienst.end),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
+      ret += "BEGIN:VEVENT\nUID:" + dienst.shortName + start + "\nSEQUENCE:0\nDTSTAMP:" + new Date().toISOString() + "\nDTSTART:" + start + "\nDTEND:" + end + "\nSUMMARY:" + dienst.shortName + " | " + dienst.nameWorkplace + "\nDESCRIPTION:\nEND:VEVENT\n";
     })
     return ret;
 }
