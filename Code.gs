@@ -47,6 +47,7 @@ function install() {
 
   scriptPrp.setProperty('rosterUserId', defaultRosterId)
   scriptPrp.setProperty('rosterUserToken', defaultRosterToken)
+  if (addRosterToCal) Logger.log("Make sure to set rosterUserId and rosterUserToken in application settings!")
 
   // Schedule sync routine to explicitly repeat and schedule the initial sync
   var adjustedMinutes = getValidTriggerFrequency(howFrequent);
