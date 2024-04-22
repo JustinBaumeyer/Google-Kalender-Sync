@@ -27,9 +27,6 @@ var addTasks = false;
 var addRosterToCal = true;
 var addRosterSinceStart = true;
 var rosterUrl = "https://dienstplan.drk-aachen.de:6100";
-var scriptPrp = PropertiesService.getScriptProperties()
-var rosterUserId = scriptPrp.getProperty("rosterUserId");
-var rosterUserToken = scriptPrp.getProperty("rosterUserToken");
 
 
 //=====================================================================================================
@@ -37,13 +34,18 @@ var rosterUserToken = scriptPrp.getProperty("rosterUserToken");
 //=====================================================================================================
 
 var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
+var scriptPrp = PropertiesService.getScriptProperties()
+var rosterUserId = scriptPrp.getProperty("rosterUserId");
+var rosterUserToken = scriptPrp.getProperty("rosterUserToken");
+var defaultRosterId = "ID";
+var defaultRosterToken = "TOKEN";
 
 function install() {
   // Delete any already existing triggers so we don't create excessive triggers
   uninstall();
 
-  scriptPrp.setProperty('rosterUserId', "ID")
-  scriptPrp.setProperty('rosterUserToken', "TOKEN")
+  scriptPrp.setProperty('rosterUserId', defaultRosterId)
+  scriptPrp.setProperty('rosterUserToken', defaultRosterToken)
 
   // Schedule sync routine to explicitly repeat and schedule the initial sync
   var adjustedMinutes = getValidTriggerFrequency(howFrequent);
@@ -78,8 +80,12 @@ var targetCalendarId;
 var targetCalendarName;
 
 function startSync(){
-  if ( false && PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
+  if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
+    return;
+  }
+  if (addRosterToCal && (rosterUserId == defaultRosterId || rosterUserToken == defaultRosterToken)) {
+    Logger.log("Please add your roster credentials to properties! Exiting...");
     return;
   }
 
