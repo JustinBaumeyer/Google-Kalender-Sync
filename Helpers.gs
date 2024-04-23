@@ -119,6 +119,10 @@ function deleteAllTriggers() {
     }
 }
 
+function generateICalEntry(uid, start,end,summary,description) {
+  return "BEGIN:VEVENT\nUID:" + uid + "\nSEQUENCE:0\nDTSTAMP:" + new Date().toISOString() + "\nDTSTART:" + start + "\nDTEND:" + end + "\nSUMMARY:" + summary + "\nDESCRIPTION:"+description+"\nEND:VEVENT\n";
+}
+
 function parseShiftToCal(shift) {
     var ret = "";
     const dienste = new Map();
@@ -135,12 +139,15 @@ function parseShiftToCal(shift) {
             
         }
     })
+    var summary = [];
     dienste.forEach(dienst => {
       var start = Utilities.formatDate(new Date(dienst.start),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
       var end = Utilities.formatDate(new Date(dienst.end),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
-      ret += "BEGIN:VEVENT\nUID:" + dienst.shortName + start + "\nSEQUENCE:0\nDTSTAMP:" + new Date().toISOString() + "\nDTSTART:" + start + "\nDTEND:" + end + "\nSUMMARY:" + dienst.shortName + " | " + dienst.nameWorkplace + "\nDESCRIPTION:\nEND:VEVENT\n";
+      ret += generateICalEntry(dienst.shortName + start, start,end,dienst.shortName + " | " + dienst.nameWorkplace,"")
+
+      summary.push(dienst.shortName);
     })
-    return ret;
+    return {"ical": ret, "list": summary};
 }
 
 function refreshRosterToken() {
@@ -220,10 +227,30 @@ function getRosterICal() {
             var jsonResponse = JSON.parse(urlResponse.getContentText())
             var icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//GoogleKalenderSync/EN\nMETHOD:REQUEST\nNAME:Roster\nX-WR-CALNAME:Roster\n";
             jsonResponse.forEach(month => {
+                const dienstCount = new Map();
                 month.rosterDetails.forEach(shift => {
-                    icsContent += parseShiftToCal(shift)
+                  var data = parseShiftToCal(shift)
+                    icsContent += data.ical
+                    if (addMonthSummary) {
+                        data.list.forEach(d => {
+                            if(dienstCount.has(d)) {
+                                dienstCount.set(d, dienstCount.get(d)+1)
+                            } else {
+                                dienstCount.set(d, 1)
+                            }
+                        })
+                    }
                 })
+                if (addMonthSummary) {
+                  Logger.log("Month: " + new Date(month.key.begin).toLocaleString('de-de',{month:'long', year:'numeric'}));
+                  var loggerText = ""
+                  dienstCount.forEach((key, value) => {
+                      loggerText += value + ": " + key + ","
+                  })
+                  Logger.log(loggerText.slice(0,-1))
+                }
             });
+
             icsContent += "END:VCALENDAR"
             return icsContent;
         } else { //Throw here to make callWithBackoff run again
@@ -469,7 +496,7 @@ function createEvent(event, calendarTz) {
 
     var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, icalEvent.toString()).toString();
     if (calendarEventsMD5s.indexOf(digest) >= 0) {
-        Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('uid').toString());
+        showSkipMessage && Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('uid').toString());
         return;
     }
 

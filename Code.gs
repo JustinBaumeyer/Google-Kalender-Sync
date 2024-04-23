@@ -20,12 +20,14 @@ var descriptionAsTitles = false;          // Whether to use the ics/ical descrip
 var addCalToTitle = false;                // Whether to add the source calendar to title
 var addAttendees = false;                 // Whether to add the attendee list. If true, duplicate events will be automatically added to the attendees' calendar.
 var defaultAllDayReminder = -1;           // Default reminder for all day events in minutes before the day of the event (-1 = no reminder, the value has to be between 0 and 40320)
+var showSkipMessage = false
 
 var overrideVisibility = "";              // Changes the visibility of the event ("default", "public", "private", "confidential"). Anything else will revert to the class value of the ICAL event.
 var addTasks = false;
 
 var addRosterToCal = true;
-var addRosterSinceStart = false;
+var addRosterSinceStart = true;
+var addMonthSummary = true;
 var rosterUrl = "https://dienstplan.drk-aachen.de:6100";
 var rosterIgnoreList = ["-","UL"]
 
@@ -47,6 +49,7 @@ function install() {
 
   scriptPrp.setProperty('rosterUserId', defaultRosterId)
   scriptPrp.setProperty('rosterUserToken', defaultRosterToken)
+  
   if (addRosterToCal) Logger.log("Make sure to set rosterUserId and rosterUserToken in application settings!")
 
   // Schedule sync routine to explicitly repeat and schedule the initial sync
