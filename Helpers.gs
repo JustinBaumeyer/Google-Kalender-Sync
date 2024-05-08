@@ -241,6 +241,24 @@ function getRosterICal() {
                         })
                     }
                 })
+                if(addRosterRequests) {
+                  month.rosterUrlaubEinsatzwunsch.data.data[0].item2.data.forEach(day => {
+                    if(day.einsatzwunsch) {
+                      var date = Utilities.formatDate(new Date(day.day.date),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
+                      var summary = "Einsatzwunsch: " + (function(ew){
+                        switch(ew){
+                          case 1: return "Frei";
+                          case 2: return "Beliebiger Dienst";
+                          case 3: return "Bestimmter Dienst";
+                          case 4: return "Dienst ausschließen";
+                          default: return "Frei";
+                        }})(day.einsatzwunschWunsch);
+                      summary += " " + day.shortName;
+                      
+                      icsContent += generateICalEntry(day.einsatzwunschWunsch+"-"+day.shortName+"-"+date,date,date,summary,day.kommentar)
+                    }
+                  })
+                }
                 if (addMonthSummary) {
                   Logger.log("Month: " + new Date(month.key.begin).toLocaleString('de-de',{month:'long', year:'numeric'}));
                   var loggerText = ""
