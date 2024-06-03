@@ -189,7 +189,7 @@ function getRosterStartDate() {
     },defaultMaxRetries);
 }
 
-function generateRosterPayload() {
+function generateRosterPayload(userId) {
     var payload = "["
     var startDate = new Date();
     refreshRosterToken();
@@ -200,7 +200,7 @@ function generateRosterPayload() {
     nextMonth.setMonth(nextMonth.getMonth() + 1);
     while ((startDate.getMonth() <= nextMonth.getMonth()) || startDate.getFullYear() < nextMonth.getFullYear()) {
         startDate.setDate(1);
-        payload += "{\"employeeId\":" + rosterUserId + ",\"begin\":\"" + startDate.toISOString() + "\",\"end\":\"";
+        payload += "{\"employeeId\":" + userId + ",\"begin\":\"" + startDate.toISOString() + "\",\"end\":\"";
         startDate.setMonth(startDate.getMonth() + 1, 0);
         payload += startDate.toISOString() + "\",\"rosterViewMode\":4},"
         startDate.setDate(startDate.getDate() + 1)
@@ -211,7 +211,7 @@ function generateRosterPayload() {
     return payload;
 }
 
-function getRosterICal() {
+function getRosterICal(userId) {
     return callWithBackoff(function() {
         var urlResponse = UrlFetchApp.fetch(rosterUrl+"/api/-/rosters/preload", {
             'validateHttpsCertificates': false,
@@ -220,7 +220,7 @@ function getRosterICal() {
                 "authorization": "Bearer " + rosterUserToken,
                 "content-type": "application/json",
             },
-            "payload": generateRosterPayload(),
+            "payload": generateRosterPayload(userId),
             "method": "POST"
         });
         if (urlResponse.getResponseCode() == 200) {
@@ -289,9 +289,9 @@ function fetchSourceCalendars(sourceCalendarURLs) {
         var url = source[0].replace("webcal://", "https://");
         var colorId = source[1];
 
-        if (addRosterToCal && url == "ROSTER") {
+        if (addRosterToCal && url.startsWith("ROSTER")) {
             callWithBackoff(function() {
-              result.push([getRosterICal(), colorId]);
+              result.push([getRosterICal(url.split("-")[1]), colorId]);
               return;
             },defaultMaxRetries);
         } else {

@@ -5,7 +5,7 @@
 */
 
 var sourceCalendars = [
-  ["ROSTER", "ROSTER",5]
+  ["ROSTER-xxxx", "ROSTER",5]
 ];
 
 var howFrequent = 15;                     // What interval (minutes) to run this script on to check for new events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.
@@ -39,7 +39,6 @@ var rosterIgnoreList = ["-","UL"]
 
 var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
 var scriptPrp = PropertiesService.getScriptProperties()
-var rosterUserId = scriptPrp.getProperty("rosterUserId");
 var rosterUserToken = scriptPrp.getProperty("rosterUserToken");
 var defaultRosterId = "ID";
 var defaultRosterToken = "TOKEN";
@@ -48,10 +47,9 @@ function install() {
   // Delete any already existing triggers so we don't create excessive triggers
   uninstall();
 
-  scriptPrp.setProperty('rosterUserId', defaultRosterId)
   scriptPrp.setProperty('rosterUserToken', defaultRosterToken)
   
-  if (addRosterToCal) Logger.log("Make sure to set rosterUserId and rosterUserToken in application settings!")
+  if (addRosterToCal) Logger.log("Make sure to set rosterUserToken in application settings!")
 
   // Schedule sync routine to explicitly repeat and schedule the initial sync
   var adjustedMinutes = getValidTriggerFrequency(howFrequent);
@@ -90,7 +88,7 @@ function startSync(){
     Logger.log("Another iteration is currently running! Exiting...");
     return;
   }
-  if (addRosterToCal && (rosterUserId == defaultRosterId || rosterUserToken == defaultRosterToken)) {
+  if (addRosterToCal && (rosterUserToken == defaultRosterToken)) {
     Logger.log("Please add your roster credentials to properties! Exiting...");
     return;
   }
