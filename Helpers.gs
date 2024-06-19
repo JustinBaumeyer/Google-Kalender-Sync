@@ -130,12 +130,19 @@ function parseShiftToCal(shift) {
         if (!rosterIgnoreList.includes(dienst.shortName)) {
             var start = new Date(dienst.from)
             var end = new Date(dienst.to)
-            if(dienste.has(dienst.shortName)) {
+            var mapName = dienst.shortName;
+            if(dienste.has(mapName)) {
               var d = dienste.get(dienst.shortName)
-              if(d.start > start) d.start = start;
-              if(d.end < end) d.end = end;
-              dienste.set(dienst.shortName,d);
-            } else dienste.set(dienst.shortName,{"start":start,"end":end,"nameWorkplace":dienst.nameWorkplace,"shortName": dienst.shortName})
+              if (dienst.start == d.end || dienst.end == d.start) {
+                 mapName = dienst.shortName+dienst.start;
+              } else {
+                if(d.start > start) d.start = start;
+                if(d.end < end) d.end = end;
+                dienste.set(mapName,d);
+              }
+            } 
+            if(!dienste.has(mapName))
+              dienste.set(mapName,{"start":start,"end":end,"nameWorkplace":dienst.nameWorkplace,"shortName": dienst.shortName})
             
         }
     })
@@ -143,7 +150,7 @@ function parseShiftToCal(shift) {
     dienste.forEach(dienst => {
       var start = Utilities.formatDate(new Date(dienst.start),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
       var end = Utilities.formatDate(new Date(dienst.end),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
-      ret += generateICalEntry(dienst.shortName + start, start,end,dienst.shortName + " | " + dienst.nameWorkplace,"")
+      ret += generateICalEntry(dienst.shortName + start+end, start,end,dienst.shortName + " | " + dienst.nameWorkplace,"")
 
       summary.push(dienst.shortName);
     })
