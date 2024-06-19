@@ -5,9 +5,7 @@
 */
 
 var sourceCalendars = [
-  ["www.hiorg-server.de/myical.php?ov=mhac&lab=22VTiyNDJnHCy%2Bw0%2B0lVBTp78EkzN4QaPrrhQwml6vDuQ9biqD3vSOgaw8kGkrOt", "Justin & Laura",11],
-  ["eseventsanitater.smartplanapp.io/feeds/person/93skueipmVG6LXQcCm5SFg/?alarm=false","Justin & Laura",12],
-  ["ROSTER-2692", "ROSTER",5]
+  ["ROSTER-xxxx", "ROSTER",5]
 ];
 
 var howFrequent = 15;                     // What interval (minutes) to run this script on to check for new events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.
@@ -86,7 +84,7 @@ var targetCalendarId;
 var targetCalendarName;
 
 function startSync(){
-  if (false && PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
+  if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
     return;
   }
