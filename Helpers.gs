@@ -205,7 +205,7 @@ function generateRosterPayload(userId) {
     }
     var nextMonth = new Date();
     nextMonth.setMonth(nextMonth.getMonth() + 1);
-    while ((startDate.getMonth() <= nextMonth.getMonth()) || startDate.getFullYear() < nextMonth.getFullYear()) {
+    while (endDate - startDate > 0) {
         startDate.setDate(1);
         payload += "{\"employeeId\":" + userId + ",\"begin\":\"" + startDate.toISOString() + "\",\"end\":\"";
         startDate.setMonth(startDate.getMonth() + 1, 0);
