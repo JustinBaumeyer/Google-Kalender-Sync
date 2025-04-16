@@ -119,171 +119,6 @@ function deleteAllTriggers() {
     }
 }
 
-function generateICalEntry(uid, start,end,summary,description) {
-  return "BEGIN:VEVENT\nUID:" + uid + "\nSEQUENCE:0\nDTSTAMP:" + new Date().toISOString() + "\nDTSTART:" + start + "\nDTEND:" + end + "\nSUMMARY:" + summary + "\nDESCRIPTION:"+description+"\nEND:VEVENT\n";
-}
-
-function parseShiftToCal(shift) {
-    var ret = "";
-    const dienste = new Map();
-    shift.data.rosterDetails.entries.forEach(dienst => {
-        if (!rosterIgnoreList.includes(dienst.shortName)) {
-            var start = new Date(dienst.from)
-            var end = new Date(dienst.to)
-            var mapName = dienst.shortName;
-            if(dienste.has(mapName)) {
-              var d = dienste.get(dienst.shortName)
-              if (dienst.start == d.end || dienst.end == d.start) {
-                 mapName = dienst.shortName+dienst.start;
-              } else {
-                if(d.start > start) d.start = start;
-                if(d.end < end) d.end = end;
-                dienste.set(mapName,d);
-              }
-            } 
-            if(!dienste.has(mapName))
-              dienste.set(mapName,{"start":start,"end":end,"nameWorkplace":dienst.nameWorkplace,"shortName": dienst.shortName})
-            
-        }
-    })
-    var summary = [];
-    dienste.forEach(dienst => {
-      var start = Utilities.formatDate(new Date(dienst.start),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
-      var end = Utilities.formatDate(new Date(dienst.end),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
-      ret += generateICalEntry(dienst.shortName + start+end, start,end,dienst.shortName + " | " + dienst.nameWorkplace,"")
-
-      summary.push(dienst.shortName);
-    })
-    return {"ical": ret, "list": summary};
-}
-
-function refreshRosterToken() {
-    var urlResponse = UrlFetchApp.fetch(rosterUrl+"/api/-/auth/refreshToken", {
-        'validateHttpsCertificates': false,
-        'muteHttpExceptions': true,
-        "headers": {
-            "authorization": "Bearer " + rosterUserToken,
-            "content-type": "application/json",
-        },
-        "method": "GET"
-    });
-    if (urlResponse.getResponseCode() == 200) {
-        rosterUserToken = JSON.parse(urlResponse.getContentText()).data;
-        scriptPrp.setProperty('rosterUserToken', rosterUserToken);
-    } else { //Throw here to make callWithBackoff run again
-        throw "Error: Encountered HTTP error " + urlResponse.getContentText() + " when accessing refreshToken";
-    }
-}
-
-function getRosterStartDate() {
-    return callWithBackoff(function() {
-      var urlResponse = UrlFetchApp.fetch(rosterUrl+"/api/-/app/initial-preload", {
-          'validateHttpsCertificates': false,
-          'muteHttpExceptions': true,
-          "headers": {
-              "authorization": "Bearer " + rosterUserToken,
-              "content-type": "application/json",
-          },
-          "method": "POST"
-      });
-      if (urlResponse.getResponseCode() == 200) {
-          var jsonResponse = JSON.parse(urlResponse.getContentText())
-          var date = jsonResponse.contracts.data[0].eingestellt.split(".");
-          return new Date(date[2], date[1] - 1, date[0])
-      } else { //Throw here to make callWithBackoff run again
-          throw "Error: Encountered HTTP error " + urlResponse.getContentText() + " when accessing initial-preload";
-      }
-    },defaultMaxRetries);
-}
-
-function generateRosterPayload(userId) {
-    var payload = "["
-    var startDate = new Date();
-    refreshRosterToken();
-    if (addRosterSinceStart) {
-        startDate = getRosterStartDate();
-    }
-    var endDate = new Date();
-    endDate.setMonth(endDate.getMonth() + 2);
-    while (endDate - startDate > 0) {
-        startDate.setDate(1);
-        payload += "{\"employeeId\":" + userId + ",\"begin\":\"" + startDate.toISOString() + "\",\"end\":\"";
-        startDate.setMonth(startDate.getMonth() + 1, 0);
-        payload += startDate.toISOString() + "\",\"rosterViewMode\":4},"
-        startDate.setDate(startDate.getDate() + 1)
-    }
-    payload.slice(0, -1);
-    payload += "]"
-
-    return payload;
-}
-
-function getRosterICal(userId) {
-    return callWithBackoff(function() {
-        var urlResponse = UrlFetchApp.fetch(rosterUrl+"/api/-/rosters/preload", {
-            'validateHttpsCertificates': false,
-            'muteHttpExceptions': true,
-            "headers": {
-                "authorization": "Bearer " + rosterUserToken,
-                "content-type": "application/json",
-            },
-            "payload": generateRosterPayload(userId),
-            "method": "POST"
-        });
-        if (urlResponse.getResponseCode() == 200) {
-            var jsonResponse = JSON.parse(urlResponse.getContentText())
-            var icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//GoogleKalenderSync/EN\nMETHOD:REQUEST\nNAME:Roster\nX-WR-CALNAME:Roster\n";
-            jsonResponse.forEach(month => {
-                const dienstCount = new Map();
-                month.rosterDetails.forEach(shift => {
-                  var data = parseShiftToCal(shift)
-                    icsContent += data.ical
-                    if (addMonthSummary) {
-                        data.list.forEach(d => {
-                            if(dienstCount.has(d)) {
-                                dienstCount.set(d, dienstCount.get(d)+1)
-                            } else {
-                                dienstCount.set(d, 1)
-                            }
-                        })
-                    }
-                })
-                if(addRosterRequests) {
-                  month.rosterUrlaubEinsatzwunsch.data.data[0].item2.data.forEach(day => {
-                    if(day.einsatzwunsch) {
-                      var date = Utilities.formatDate(new Date(day.day.date),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
-                      var summary = "Einsatzwunsch: " + (function(ew){
-                        switch(ew){
-                          case 1: return "Frei";
-                          case 2: return "Beliebiger Dienst";
-                          case 3: return "Bestimmter Dienst";
-                          case 4: return "Dienst ausschließen";
-                          default: return "Frei";
-                        }})(day.einsatzwunschWunsch);
-                      summary += " " + day.shortName;
-                      
-                      icsContent += generateICalEntry(day.einsatzwunschWunsch+"-"+day.shortName+"-"+date,date,date,summary,day.kommentar)
-                    }
-                  })
-                }
-                if (addMonthSummary) {
-                  Logger.log("Month: " + new Date(month.key.begin).toLocaleString('de-de',{month:'long', year:'numeric'}));
-                  var loggerText = ""
-                  dienstCount.forEach((key, value) => {
-                      loggerText += value + ": " + key + ","
-                  })
-                  Logger.log(loggerText.slice(0,-1))
-                }
-            });
-
-            icsContent += "END:VCALENDAR"
-            return icsContent;
-        } else { //Throw here to make callWithBackoff run again
-            throw "Error: Encountered HTTP error " + urlResponse.getContentText() + " when accessing " + url;
-        }
-    }, defaultMaxRetries);
-}
-
 /**
  * Gets the ressource from the specified URLs.
  *
@@ -570,34 +405,6 @@ function createEvent(event, calendarTz) {
         };
     }
 
-    if (addAttendees && event.hasProperty('attendee')) {
-        newEvent.attendees = [];
-        for (var att of icalEvent.attendees) {
-            var mail = parseAttendeeMail(att.toICALString());
-            if (mail != null) {
-                var newAttendee = {
-                    'email': mail
-                };
-
-                var name = parseAttendeeName(att.toICALString());
-                if (name != null)
-                    newAttendee['displayName'] = name;
-
-                var resp = parseAttendeeResp(att.toICALString());
-                if (resp != null)
-                    newAttendee['responseStatus'] = resp;
-
-                newEvent.attendees.push(newAttendee);
-            }
-        }
-    }
-
-    if (event.hasProperty('status')) {
-        var status = event.getFirstPropertyValue('status').toString().toLowerCase();
-        if (["confirmed", "tentative", "cancelled"].indexOf(status) > -1)
-            newEvent.status = status;
-    }
-
     if (event.hasProperty('url') && event.getFirstPropertyValue('url').toString().substring(0, 4) == 'http') {
         newEvent.source = callWithBackoff(function() {
             return Calendar.newEventSource();
@@ -606,30 +413,8 @@ function createEvent(event, calendarTz) {
         newEvent.source.title = 'link';
     }
 
-    if (event.hasProperty('sequence')) {
-        //newEvent.sequence = icalEvent.sequence; Currently disabled as it is causing issues with recurrence exceptions
-    }
-
-    if (descriptionAsTitles && event.hasProperty('description'))
-        newEvent.summary = icalEvent.description;
-    else if (event.hasProperty('summary'))
+    if (event.hasProperty('summary'))
         newEvent.summary = icalEvent.summary;
-
-    if (event.hasProperty('organizer')) {
-        var organizerName = event.getFirstProperty('organizer').getParameter('cn');
-        var organizerMail = event.getFirstProperty('organizer').getParameter('mailto');
-        newEvent.organizer = callWithBackoff(function() {
-            return Calendar.newEventOrganizer();
-        }, defaultMaxRetries);
-        if (organizerName)
-            newEvent.organizer.displayName = organizerName.toString();
-        if (organizerMail)
-            newEvent.organizer.email = organizerMail.toString();
-
-        if (addOrganizerToTitle && organizerName) {
-            newEvent.summary = organizerName + ": " + newEvent.summary;
-        }
-    }
 
     if (addCalToTitle && event.hasProperty('parentCal')) {
         var calName = event.getFirstPropertyValue('parentCal');
@@ -649,12 +434,6 @@ function createEvent(event, calendarTz) {
         var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
         if (validVisibilityValues.includes(classString))
             newEvent.visibility = classString;
-    }
-
-    if (event.hasProperty('transp')) {
-        var transparency = event.getFirstPropertyValue('transp').toString().toLowerCase();
-        if (["opaque", "transparent"].indexOf(transparency) > -1)
-            newEvent.transparency = transparency;
     }
 
     if (icalEvent.startDate.isDate) {
@@ -679,49 +458,10 @@ function createEvent(event, calendarTz) {
         }; //will set the default reminders as set at calendar.google.com
     }
 
-    switch (addAlerts) {
-        case "yes":
-            var valarms = event.getAllSubcomponents('valarm');
-            if (valarms.length > 0) {
-                var overrides = [];
-                for (var valarm of valarms) {
-                    var trigger = valarm.getFirstPropertyValue('trigger').toString();
-                    try {
-                        var alarmTime = new ICAL.Time.fromString(trigger);
-                        trigger = alarmTime.subtractDateTz(icalEvent.startDate).toString();
-                    } catch (e) {}
-                    if (overrides.length < 5) { //Google supports max 5 reminder-overrides
-                        var timer = parseNotificationTime(trigger);
-                        if (0 <= timer && timer <= 40320)
-                            overrides.push({
-                                'method': 'popup',
-                                'minutes': timer
-                            });
-                    }
-                }
-
-                if (overrides.length > 0) {
-                    newEvent.reminders = {
-                        'useDefault': false,
-                        'overrides': overrides
-                    };
-                }
-            }
-            break;
-        case "no":
-            newEvent.reminders = {
-                'useDefault': false,
-                'overrides': []
-            };
-            break;
-        default:
-        case "default":
-            newEvent.reminders = {
-                'useDefault': true,
-                'overrides': []
-            };
-            break;
-    }
+    newEvent.reminders = {
+      'useDefault': true,
+      'overrides': []
+    };
 
     if (icalEvent.isRecurring()) {
         // Calculate targetTZ's UTC-Offset
@@ -958,67 +698,6 @@ function processEventCleanup() {
 }
 
 /**
- * Processes and adds all vtodo components as Tasks to the user's Google Account
- *
- * @param {Array.string} responses - Array with all ical sources
- */
-function processTasks(responses) {
-    var taskLists = Tasks.Tasklists.list().items;
-    var taskList = taskLists[0];
-
-    var existingTasks = Tasks.Tasks.list(taskList.id).items || [];
-    var existingTasksIds = []
-    Logger.log("Fetched " + existingTasks.length + " existing tasks from " + taskList.title);
-    for (var i = 0; i < existingTasks.length; i++) {
-        existingTasksIds[i] = existingTasks[i].id;
-    }
-
-    var icsTasksIds = [];
-    var vtasks = [];
-
-    for (var resp of responses) {
-        var jcalData = ICAL.parse(resp);
-        var component = new ICAL.Component(jcalData);
-
-        vtasks = [].concat(component.getAllSubcomponents("vtodo"), vtasks);
-    }
-
-    vtasks.forEach(function(task) {
-        icsTasksIds.push(task.getFirstPropertyValue('uid').toString());
-    });
-
-    Logger.log("\tProcessing " + vtasks.length + " tasks");
-    for (var task of vtasks) {
-        var newtask = Tasks.newTask();
-        newtask.id = task.getFirstPropertyValue("uid").toString();
-        newtask.title = task.getFirstPropertyValue("summary").toString();
-        var dueDate = task.getFirstPropertyValue("due").toJSDate();
-        newtask.due = (dueDate.getFullYear()) + "-" + ("0" + (dueDate.getMonth() + 1)).slice(-2) + "-" + ("0" + dueDate.getDate()).slice(-2) + "T" + ("0" + dueDate.getHours()).slice(-2) + ":" + ("0" + dueDate.getMinutes()).slice(-2) + ":" + ("0" + dueDate.getSeconds()).slice(-2) + "Z";
-
-        Tasks.Tasks.insert(newtask, taskList.id);
-    }
-    Logger.log("\tDone processing tasks");
-
-    //-------------- Remove old Tasks -----------
-    // ID can't be used as identifier as the API reassignes a random id at task creation
-    if (removeEventsFromCalendar) {
-        Logger.log("Checking " + existingTasksIds.length + " tasks for removal");
-        for (var i = 0; i < existingTasksIds.length; i++) {
-            var currentID = existingTasks[i].id;
-            var feedIndex = icsTasksIds.indexOf(currentID);
-
-            if (feedIndex == -1) {
-                Logger.log("Deleting old task " + currentID);
-                Tasks.Tasks.remove(taskList.id, currentID);
-            }
-        }
-
-        Logger.log("Done removing tasks");
-    }
-    //----------------------------------------------------------------
-}
-
-/**
  * Parses the provided ICAL.Component to find all recurrence rules.
  *
  * @param {ICAL.Component} vevent - The event to parse
@@ -1059,103 +738,6 @@ function parseRecurrenceRule(vevent, utcOffset) {
     }
 
     return recurrence;
-}
-
-/**
- * Parses the provided string to find the name of an Attendee.
- * Will return null if no name is found.
- *
- * @param {string} veventString - The string to parse
- * @return {?String} The Attendee's name found in the string, null if no name was found
- */
-function parseAttendeeName(veventString) {
-    var nameMatch = RegExp("(cn=)([^;$:]*)", "gi").exec(veventString);
-    if (nameMatch != null && nameMatch.length > 1)
-        return nameMatch[2];
-    else
-        return null;
-}
-
-/**
- * Parses the provided string to find the mail adress of an Attendee.
- * Will return null if no mail adress is found.
- *
- * @param {string} veventString - The string to parse
- * @return {?String} The Attendee's mail adress found in the string, null if nothing was found
- */
-function parseAttendeeMail(veventString) {
-    var mailMatch = RegExp("(:mailto:)([^;$:]*)", "gi").exec(veventString);
-    if (mailMatch != null && mailMatch.length > 1)
-        return mailMatch[2];
-    else
-        return null;
-}
-
-/**
- * Parses the provided string to find the response of an Attendee.
- * Will return null if no response is found or the response string is not supported by google calendar.
- *
- * @param {string} veventString - The string to parse
- * @return {?String} The Attendee's response found in the string, null if nothing was found or unsupported
- */
-function parseAttendeeResp(veventString) {
-    var respMatch = RegExp("(partstat=)([^;$:]*)", "gi").exec(veventString);
-    if (respMatch != null && respMatch.length > 1) {
-        if (['NEEDS-ACTION'].indexOf(respMatch[2].toUpperCase()) > -1) {
-            respMatch[2] = 'needsAction';
-        } else if (['ACCEPTED', 'COMPLETED'].indexOf(respMatch[2].toUpperCase()) > -1) {
-            respMatch[2] = 'accepted';
-        } else if (['DECLINED'].indexOf(respMatch[2].toUpperCase()) > -1) {
-            respMatch[2] = 'declined';
-        } else if (['DELEGATED', 'IN-PROCESS', 'TENTATIVE'].indexOf(respMatch[2].toUpperCase())) {
-            respMatch[2] = 'tentative';
-        } else {
-            respMatch[2] = null;
-        }
-        return respMatch[2];
-    } else {
-        return null;
-    }
-}
-
-/**
- * Parses the provided string to find the notification time of an event.
- * Will return 0 by default.
- *
- * @param {string} notificationString - The string to parse
- * @return {number} The notification time in minutes
- */
-function parseNotificationTime(notificationString) {
-    //https://www.kanzaki.com/docs/ical/duration-t.html
-    var reminderTime = 0;
-
-    //We will assume all notifications are BEFORE the event
-    if (notificationString[0] == "+" || notificationString[0] == "-")
-        notificationString = notificationString.substr(1);
-
-    notificationString = notificationString.substr(1); //Remove "P" character
-
-    var minuteMatch = RegExp("\\d+M", "g").exec(notificationString);
-    var hourMatch = RegExp("\\d+H", "g").exec(notificationString);
-    var dayMatch = RegExp("\\d+D", "g").exec(notificationString);
-    var weekMatch = RegExp("\\d+W", "g").exec(notificationString);
-
-    if (weekMatch != null) {
-        reminderTime += parseInt(weekMatch[0].slice(0, -1)) & 7 * 24 * 60; //Remove the "W" off the end
-
-        return reminderTime; //Return the notification time in minutes
-    } else {
-        if (minuteMatch != null)
-            reminderTime += parseInt(minuteMatch[0].slice(0, -1)); //Remove the "M" off the end
-
-        if (hourMatch != null)
-            reminderTime += parseInt(hourMatch[0].slice(0, -1)) * 60; //Remove the "H" off the end
-
-        if (dayMatch != null)
-            reminderTime += parseInt(dayMatch[0].slice(0, -1)) * 24 * 60; //Remove the "D" off the end
-
-        return reminderTime; //Return the notification time in minutes
-    }
 }
 
 /**

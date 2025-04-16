@@ -14,21 +14,19 @@ var addEventsToCalendar = true;           // If you turn this to "false", you ca
 var modifyExistingEvents = true;          // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;      // If you turn this to "true", any event created by the script that is not found in the feed will be removed.
 var removePastEventsFromCalendar = true;  // If you turn this to "false", any event that is in the past will not be removed.
-var addAlerts = "yes";                    // Whether to add the ics/ical alerts as notifications on the Google Calendar events or revert to the calendar's default reminders ("yes", "no", "default").
-var addOrganizerToTitle = false;          // Whether to prefix the event name with the event organiser for further clarity
-var descriptionAsTitles = false;          // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
 var addCalToTitle = false;                // Whether to add the source calendar to title
-var addAttendees = false;                 // Whether to add the attendee list. If true, duplicate events will be automatically added to the attendees' calendar.
 var defaultAllDayReminder = -1;           // Default reminder for all day events in minutes before the day of the event (-1 = no reminder, the value has to be between 0 and 40320)
 var showSkipMessage = false
 
 var overrideVisibility = "";              // Changes the visibility of the event ("default", "public", "private", "confidential"). Anything else will revert to the class value of the ICAL event.
-var addTasks = false;
+
 
 var addRosterToCal = true;
+var addTeamMemberToDescription = false;
 var addRosterSinceStart = true;
 var addRosterRequests = true;
-var addMonthSummary = false;
+var addYearSummary = false;
+var summaryYear = "2024";
 var rosterUrl = "https://dienstplan.drk-aachen.de:6100";
 var rosterIgnoreList = ["-","UL"]
 
@@ -40,7 +38,6 @@ var rosterIgnoreList = ["-","UL"]
 var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
 var scriptPrp = PropertiesService.getScriptProperties()
 var rosterUserToken = scriptPrp.getProperty("rosterUserToken");
-var defaultRosterId = "ID";
 var defaultRosterToken = "TOKEN";
 
 function install() {
@@ -84,7 +81,7 @@ var targetCalendarId;
 var targetCalendarName;
 
 function startSync(){
-  if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
+  if (false && PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
     return;
   }
@@ -171,11 +168,6 @@ function startSync(){
         Logger.log("Checking " + calendarEvents.length + " events for removal");
         processEventCleanup();
         Logger.log("Done checking events for removal");
-      }
-
-      //------------------------ Process Tasks ------------------------
-      if (addTasks){
-        processTasks(responses);
       }
 
       //------------------------ Add Recurring Event Instances ------------------------
