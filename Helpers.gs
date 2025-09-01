@@ -133,7 +133,7 @@ function fetchSourceCalendars(sourceCalendarURLs) {
 
         if (addRosterToCal && url.startsWith("ROSTER")) {
             callWithBackoff(function() {
-              result.push([getRosterICal(url.split("-")[1]), colorId]);
+              result.push([getRosterICal(), colorId]);
               return;
             },defaultMaxRetries);
         } else {

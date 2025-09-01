@@ -55,7 +55,7 @@ function parseShiftToCal(shift, others) {
 }
 
 function refreshRosterToken() {
-    var urlResponse = UrlFetchApp.fetch(rosterUrl+"/api/-/auth/refreshToken", {
+    var urlResponse = UrlFetchApp.fetch(rosterUrl+"auth/refreshToken", {
         'validateHttpsCertificates': false,
         'muteHttpExceptions': true,
         "headers": {
@@ -74,7 +74,7 @@ function refreshRosterToken() {
 
 function getRosterStartDate() {
     return callWithBackoff(function() {
-      var urlResponse = UrlFetchApp.fetch(rosterUrl+"/api/-/app/initial-preload", {
+      var urlResponse = UrlFetchApp.fetch(rosterUrl+"app/initial-preload", {
           'validateHttpsCertificates': false,
           'muteHttpExceptions': true,
           "headers": {
@@ -93,13 +93,13 @@ function getRosterStartDate() {
     },defaultMaxRetries);
 }
 
-function getDepartmentPlan(userId) {
+function getDepartmentPlan() {
     return callWithBackoff(function() {
 
       var res = [];
       addTeamMemberToDescription && ["335","767","29"].forEach(teamDuty => {
         res.push(callWithBackoff(function() {
-          var urlResponse = UrlFetchApp.fetch(rosterUrl+"/api/-/team-duty/roster/"+userId, {
+          var urlResponse = UrlFetchApp.fetch(rosterUrl+"team-duty/roster/"+rosterUserId, {
               'validateHttpsCertificates': false,
               'muteHttpExceptions': true,
               "headers": {
@@ -124,7 +124,7 @@ function getDepartmentPlan(userId) {
 var globalStartDate = null;
 var globalEndDate = null;
 
-function generateRosterPayload(userId) {
+function generateRosterPayload() {
     var payload = "["
     var startDate = new Date();
     var endDate = new Date();
@@ -141,7 +141,7 @@ function generateRosterPayload(userId) {
     globalEndDate = endDate.toISOString();
     while (endDate - startDate > 0) {
         startDate.setDate(1);
-        payload += "{\"employeeId\":" + userId + ",\"begin\":\"" + startDate.toISOString() + "\",\"end\":\"";
+        payload += "{\"employeeId\":" + rosterUserId + ",\"begin\":\"" + startDate.toISOString() + "\",\"end\":\"";
         startDate.setMonth(startDate.getMonth() + 1, 0);
         payload += startDate.toISOString() + "\",\"rosterViewMode\":4},"
         startDate.setDate(startDate.getDate() + 1)
@@ -152,23 +152,23 @@ function generateRosterPayload(userId) {
     return payload;
 }
 
-function getRosterICal(userId) {
+function getRosterICal() {
     return callWithBackoff(function() {
-        var urlResponse = UrlFetchApp.fetch(rosterUrl+"/api/-/rosters/preload", {
+        var urlResponse = UrlFetchApp.fetch(rosterUrl+"rosters/preload", {
             'validateHttpsCertificates': false,
             'muteHttpExceptions': true,
             "headers": {
                 "authorization": "Bearer " + rosterUserToken,
                 "content-type": "application/json",
             },
-            "payload": generateRosterPayload(userId),
+            "payload": generateRosterPayload(),
             "method": "POST"
         });
         if (urlResponse.getResponseCode() == 200) {
             var jsonResponse = JSON.parse(urlResponse.getContentText())
             var icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//GoogleKalenderSync/EN\nMETHOD:REQUEST\nNAME:Roster\nX-WR-CALNAME:Roster\n";
             
-            var others = getDepartmentPlan(userId);
+            var others = getDepartmentPlan();
             var dienstCount = new Map();
             jsonResponse.forEach(month => {
                 month.rosterDetails.forEach(shift => {

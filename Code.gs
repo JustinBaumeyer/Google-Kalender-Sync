@@ -5,7 +5,7 @@
 */
 
 var sourceCalendars = [
-  ["ROSTER-xxxx", "ROSTER",5]
+  ["ROSTER", "Dienstplan",5]
 ];
 
 var howFrequent = 15;                     // What interval (minutes) to run this script on to check for new events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.
@@ -27,7 +27,7 @@ var addRosterSinceStart = true;
 var addRosterRequests = true;
 var addYearSummary = false;
 var summaryYear = "2024";
-var rosterUrl = "https://dienstplan.drk-aachen.de:6100";
+var rosterUrl = "https://dienstplan.drk-aachen.de:6100/api/";
 var rosterIgnoreList = ["-","UL"]
 
 
@@ -38,15 +38,18 @@ var rosterIgnoreList = ["-","UL"]
 var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
 var scriptPrp = PropertiesService.getScriptProperties()
 var rosterUserToken = scriptPrp.getProperty("rosterUserToken");
+var rosterUserId = scriptPrp.getProperty("rosterUserId");
 var defaultRosterToken = "TOKEN";
+var defaultRosterId = "ID";
 
 function install() {
   // Delete any already existing triggers so we don't create excessive triggers
   uninstall();
 
   scriptPrp.setProperty('rosterUserToken', defaultRosterToken)
+  scriptPrp.setProperty('rosterUserId', defaultRosterId)
   
-  if (addRosterToCal) Logger.log("Make sure to set rosterUserToken in application settings!")
+  if (addRosterToCal) Logger.log("Make sure to set rosterUserToken and rosterUserId in application settings!")
 
   // Schedule sync routine to explicitly repeat and schedule the initial sync
   var adjustedMinutes = getValidTriggerFrequency(howFrequent);
@@ -81,7 +84,7 @@ var targetCalendarId;
 var targetCalendarName;
 
 function startSync(){
-  if (false && PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
+  if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
     return;
   }
