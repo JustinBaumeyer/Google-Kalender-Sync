@@ -2,7 +2,7 @@ function generateICalEntry(uid, start,end,summary,description) {
   return "BEGIN:VEVENT\nUID:" + uid + "\nSEQUENCE:0\nDTSTAMP:" + new Date().toISOString() + "\nDTSTART:" + start + "\nDTEND:" + end + "\nSUMMARY:" + summary + "\nDESCRIPTION:"+(description==""?"":"")+"\nEND:VEVENT\n";
 }
 
-function parseShiftToCal(shift, others) {
+function parseShiftToCal(shift) {
     var ret = "";
     const dienste = new Map();
     shift.data.rosterDetails.entries.forEach(dienst => {
@@ -19,36 +19,17 @@ function parseShiftToCal(shift, others) {
                 if(d.end < end) d.end = end;
                 dienste.set(mapName,d);
               }
-            } 
-            if(!dienste.has(mapName)) {
-              var team = [];
-              others.forEach(area => {
-                for (var i = 1; i < area.length; i++)
-                {
-                  var user = area[i];
-                  user.item2.data.forEach(foreignUserShift => {
-                      if(foreignUserShift.shortName == dienst.shortName) {
-                        var d = Utilities.formatDate(new Date(foreignUserShift.day.date),"GMT","yyyy-MM-dd").replace(/[\-,\:]/g, '')
-                        var s = Utilities.formatDate(start,"GMT","yyyy-MM-dd").replace(/[\-,\:]/g, '')
-                        Logger.log(d + " " + s)
-                        if(d == s){
-                          team.push(user.item1.name);
-                        }
-                      }
-                  })
-                }
-              })
-              team.sort();
-              dienste.set(mapName,{"start":start,"end":end,"nameWorkplace":dienst.nameWorkplace,"shortName": dienst.shortName,"team": team})
             }
-            
+        }
+        if(!dienste.has(mapName)) {                     
+          dienste.set(mapName,{"start":start,"end":end,"nameWorkplace":dienst.nameWorkplace,"shortName": dienst.shortName});            
         }
     })
     var summary = [];
     dienste.forEach(dienst => {
       var start = Utilities.formatDate(new Date(dienst.start),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
       var end = Utilities.formatDate(new Date(dienst.end),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
-      ret += generateICalEntry(dienst.shortName + start+end, start,end,dienst.shortName + " | " + dienst.nameWorkplace,dienst.team.join("\n"))
+      ret += generateICalEntry(dienst.shortName + start+end, start,end,dienst.shortName + " | " + dienst.nameWorkplace,"")
       summary.push(dienst.shortName);
     })
     return {"ical": ret, "list": summary};
@@ -93,34 +74,6 @@ function getRosterStartDate() {
     },defaultMaxRetries);
 }
 
-function getDepartmentPlan() {
-    return callWithBackoff(function() {
-
-      var res = [];
-      addTeamMemberToDescription && ["335","767","29"].forEach(teamDuty => {
-        res.push(callWithBackoff(function() {
-          var urlResponse = UrlFetchApp.fetch(rosterUrl+"team-duty/roster/"+rosterUserId, {
-              'validateHttpsCertificates': false,
-              'muteHttpExceptions': true,
-              "headers": {
-                  "authorization": "Bearer " + rosterUserToken,
-                  "content-type": "application/json",
-              },
-              "method": "POST",
-              "payload": "{\"teamDuty\":{\"idPlanninggroup\":"+teamDuty+",\"from\":\""+globalStartDate+"\",\"to\":\""+globalEndDate+"\"},\"filterEmployee\":2}",
-          });
-          if (urlResponse.getResponseCode() == 200) {
-              var jsonResponse = JSON.parse(urlResponse.getContentText())
-              return jsonResponse.data.data;
-          } else { //Throw here to make callWithBackoff run again
-              throw "Error: Encountered HTTP error " + urlResponse.getContentText() + " when accessing team-duty/preload";
-          }
-          },defaultMaxRetries));
-        });
-      return res;
-    },defaultMaxRetries);
-}
-
 var globalStartDate = null;
 var globalEndDate = null;
 
@@ -129,7 +82,6 @@ function generateRosterPayload() {
     var startDate = new Date();
     var endDate = new Date();
     endDate.setMonth(endDate.getMonth() + 2);
-    refreshRosterToken();
     if (addRosterSinceStart) {
         startDate = getRosterStartDate();
     }
@@ -153,10 +105,14 @@ function generateRosterPayload() {
 }
 
 function getRosterICal() {
+    callWithBackoff(function() {
+        refreshRosterToken();
+        return;
+    },defaultMaxRetries);
     return callWithBackoff(function() {
         var urlResponse = UrlFetchApp.fetch(rosterUrl+"rosters/preload", {
             'validateHttpsCertificates': false,
-            'muteHttpExceptions': true,
+            'muteHttpExceptions': false,
             "headers": {
                 "authorization": "Bearer " + rosterUserToken,
                 "content-type": "application/json",
@@ -164,15 +120,14 @@ function getRosterICal() {
             "payload": generateRosterPayload(),
             "method": "POST"
         });
-        if (urlResponse.getResponseCode() == 200) {
+      if (urlResponse.getResponseCode() == 200) {
             var jsonResponse = JSON.parse(urlResponse.getContentText())
             var icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//GoogleKalenderSync/EN\nMETHOD:REQUEST\nNAME:Roster\nX-WR-CALNAME:Roster\n";
             
-            var others = getDepartmentPlan();
             var dienstCount = new Map();
             jsonResponse.forEach(month => {
                 month.rosterDetails.forEach(shift => {
-                  var data = parseShiftToCal(shift,others)
+                  var data = parseShiftToCal(shift)
                     icsContent += data.ical
                     if (addYearSummary) {
                         data.list.forEach(d => {

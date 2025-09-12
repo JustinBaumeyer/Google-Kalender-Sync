@@ -131,7 +131,7 @@ function fetchSourceCalendars(sourceCalendarURLs) {
         var url = source[0].replace("webcal://", "https://");
         var colorId = source[1];
 
-        if (addRosterToCal && url.startsWith("ROSTER")) {
+        if (addRosterToCal && source[0] == "ROSTER") {
             callWithBackoff(function() {
               result.push([getRosterICal(), colorId]);
               return;
@@ -254,15 +254,6 @@ function parseResponses(responses) {
             }
         });
     }
-
-    //No need to process calcelled events as they will be added to gcal's trash anyway
-    result = result.filter(function(event) {
-        try {
-            return (event.getFirstPropertyValue('status').toString().toLowerCase() != "cancelled");
-        } catch (e) {
-            return true;
-        }
-    });
 
     result.forEach(function(event) {
         if (!event.hasProperty('uid')) {
@@ -764,10 +755,7 @@ function callWithBackoff(func, maxRetries) {
             return result;
         } catch (err) {
             err = err.message || err;
-            if (err.includes("HTTP error")) {
-                Logger.log(err);
-                return null;
-            } else if (err.includes("is not a function") || !backoffRecoverableErrors.some(function(e) {
+            if (err.includes("is not a function") || !backoffRecoverableErrors.some(function(e) {
                     return err.toLowerCase().includes(e);
                 })) {
                 throw err;
