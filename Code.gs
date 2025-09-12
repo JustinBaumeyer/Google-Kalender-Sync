@@ -22,7 +22,6 @@ var overrideVisibility = "";              // Changes the visibility of the event
 
 
 var addRosterToCal = true;
-var addTeamMemberToDescription = false;
 var addRosterSinceStart = true;
 var addRosterRequests = true;
 var addYearSummary = false;
