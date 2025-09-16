@@ -1,5 +1,5 @@
 function generateICalEntry(uid, start,end,summary,description) {
-  return "BEGIN:VEVENT\nUID:" + uid + "\nSEQUENCE:0\nDTSTAMP:" + new Date().toISOString() + "\nDTSTART:" + start + "\nDTEND:" + end + "\nSUMMARY:" + summary + "\nDESCRIPTION:"+(description==""?"":"")+"\nEND:VEVENT\n";
+  return "BEGIN:VEVENT\nUID:" + uid + "\nSEQUENCE:0\nDTSTAMP:" + new Date().toISOString() + "\nDTSTART:" + start + "\nDTEND:" + end + "\nSUMMARY:" + summary + "\nDESCRIPTION:"+(description)+"\nEND:VEVENT\n";
 }
 
 function parseShiftToCal(shift) {
@@ -167,6 +167,11 @@ function getRosterICal() {
                   loggerText += value + ": " + key + ","
               })
               Logger.log(loggerText.slice(0,-1))
+            }
+            if(updateAvailable== "true") {
+              var date = Utilities.formatDate(new Date(),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
+              icsContent += generateICalEntry(date+"-updateNotification",date,date,"Dienstplan Update verfügbar","Es ist ein Update für das Dienstplanprogramm verfügbar. Bitte den Updateanweisungen in der Gruppe folgen.");
+              Logger.log("update updateAvailable " + updateAvailable)
             }
 
             icsContent += "END:VCALENDAR"

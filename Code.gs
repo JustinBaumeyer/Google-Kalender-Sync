@@ -34,12 +34,14 @@ var rosterIgnoreList = ["-","UL"]
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
 
+var version = 1;
 var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
 var scriptPrp = PropertiesService.getScriptProperties()
 var rosterUserToken = scriptPrp.getProperty("rosterUserToken");
 var rosterUserId = scriptPrp.getProperty("rosterUserId");
 var defaultRosterToken = "TOKEN";
 var defaultRosterId = "ID";
+var updateAvailable = scriptPrp.getProperty("updateAvailable");
 
 function install() {
   // Delete any already existing triggers so we don't create excessive triggers
@@ -64,6 +66,7 @@ function install() {
       .create();
   }
   ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
+  ScriptApp.newTrigger("checkForUpdates").timeBased().everyDays(1).create();
 }
 
 function uninstall(){
@@ -81,6 +84,28 @@ var calendarEventsMD5s = [];
 var recurringEvents = [];
 var targetCalendarId;
 var targetCalendarName;
+
+function checkForUpdates () {
+  var result = false;
+  var urlResponse = UrlFetchApp.fetch("https://raw.githubusercontent.com/JustinBaumeyer/Google-Kalender-Sync/refs/heads/main/Code.gs", {
+      'validateHttpsCertificates': false,
+      'muteHttpExceptions': true,
+      "method": "GET"
+  });
+  if (urlResponse.getResponseCode() == 200) {
+    var content = urlResponse.getContentText().trim().split("\n").map((x) => x.trim().replace("var ", "").replace(" ", ""));
+    var val = 0;
+    content.some((item) => {
+      if(item.startsWith("version")) {
+        val = item.split("=")[1].trim();
+        return true;
+      }
+    });
+    if(val < version) result = true;
+    Logger.log(result)
+  }
+  scriptPrp.setProperty('updateAvailable', result)
+}
 
 function startSync(){
   if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
