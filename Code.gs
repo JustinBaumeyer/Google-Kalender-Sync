@@ -101,7 +101,7 @@ function checkForUpdates () {
         return true;
       }
     });
-    if(val < version) result = true;
+    if(version < val) result = true;
     Logger.log(result)
   }
   scriptPrp.setProperty('updateAvailable', result)
