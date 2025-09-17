@@ -667,6 +667,8 @@ function processEventCleanup() {
     for (var i = 0; i < calendarEvents.length; i++) {
         var currentID = calendarEventsIds[i];
         var feedIndex = icsEventsIds.indexOf(currentID);
+        var compareDate = new Date();
+        compareDate.setDate(compareDate.getDate() - 5);
 
         if (feedIndex == -1 // Event is no longer in source
             &&
@@ -675,9 +677,9 @@ function processEventCleanup() {
             ( // And one of:
                 removePastEventsFromCalendar // We want to remove past events
                 ||
-                new Date(calendarEvents[i].start.dateTime) > new Date() // Or the event is in the future
+                new Date(calendarEvents[i].start.dateTime) > compareDate // Or the event is in the future
                 ||
-                new Date(calendarEvents[i].start.date) > new Date() // (2 different ways event start can be stored)
+                new Date(calendarEvents[i].start.date) > compareDate // (2 different ways event start can be stored)
             )
         ) {
             Logger.log("Deleting old event " + currentID);
