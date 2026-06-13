@@ -93,7 +93,85 @@ function rosterFetch(endpoint, method, payload) {
     return response.getContentText();
 }
 
-function parseShiftToCal(shift, legend) {
+/**
+ * Derives a "vehicle key" from a duty legend entry: the vehicle name (everything
+ * up to and including the RTW/KTW unit number) plus a day/night marker. Returns
+ * null for duties with no associated vehicle (on-call, training, admin, ...), so
+ * those never produce team-partner matches.
+ *
+ * @param {Object} legendEntry - A legendDuties entry ({longName, shiftTypeName, ...}).
+ * @return {?string} e.g. "Würs 2 RTW 2|N", or null.
+ */
+function vehicleKeyFromLegend(legendEntry) {
+    if (!legendEntry || !legendEntry.longName) return null;
+    var match = legendEntry.longName.match(/^(.*?(?:RTW|KTW)\s*\d+)/);
+    if (!match) return null;
+    var isNight = legendEntry.shiftTypeName == "Nachtdienst";
+    return match[1].trim() + "|" + (isNight ? "N" : "T");
+}
+
+/**
+ * Builds an index of which colleagues are on each vehicle on each day.
+ *
+ * Planning groups are discovered via team-duty/preload (planningGroup:null returns
+ * the list of all groups the user can see) unless rosterPlanningGroups is set, then
+ * each group's full roster is fetched from team-duty/roster/<employeeId> over the
+ * given date range.
+ *
+ * @param {string} monthParam - A local month-start timestamp (for group discovery).
+ * @param {string} from - Range start (local-midnight ISO with millis).
+ * @param {string} to - Range end (local-midnight ISO with millis).
+ * @return {Object} { <dayTime>: { <vehicleKey>: [ {name, id}, ... ] } }
+ */
+function getTeamDutyIndex(monthParam, from, to) {
+    var index = {};
+
+    function ingest(response) {
+        var roster = response && response.data;
+        if (!roster || !roster.data) return;
+        var legend = {};
+        if (roster.legendDuties && roster.legendDuties.entries)
+            roster.legendDuties.entries.forEach(e => { legend[e.shortName] = e; });
+
+        roster.data.forEach(person => {
+            var emp = person.item1;
+            ((person.item2 && person.item2.data) || []).forEach(d => {
+                // A day can hold several comma-joined codes (e.g. "B24,W2N").
+                String(d.shortName).split(",").forEach(code => {
+                    var vehicleKey = vehicleKeyFromLegend(legend[code.trim()]);
+                    if (!vehicleKey) return;
+                    var dayKey = new Date(d.day.date).getTime();
+                    var daySlot = (index[dayKey] = index[dayKey] || {});
+                    var crew = (daySlot[vehicleKey] = daySlot[vehicleKey] || []);
+                    if (!crew.some(p => p.id == emp.id))
+                        crew.push({ name: String(emp.name).replace(/\s+/g, " ").trim(), id: emp.id });
+                });
+            });
+        });
+    }
+
+    // Determine which planning groups to query.
+    var groups = (typeof rosterPlanningGroups !== "undefined" && rosterPlanningGroups && rosterPlanningGroups.length)
+        ? rosterPlanningGroups
+        : [];
+    if (!groups.length) {
+        var pre = JSON.parse(rosterFetch("team-duty/preload", "POST", JSON.stringify({
+            employeeId: rosterUserId, planningGroup: null, filterEmployee: 0, month: monthParam
+        })));
+        groups = (((pre.teamDuties || {}).data || {}).data || []).map(g => g.idPlanninggroup);
+    }
+
+    groups.forEach(groupId => {
+        ingest(JSON.parse(rosterFetch("team-duty/roster/" + rosterUserId, "POST", JSON.stringify({
+            teamDuty: { idPlanninggroup: groupId, from: from, to: to },
+            filterEmployee: 0
+        }))));
+    });
+
+    return index;
+}
+
+function parseShiftToCal(shift, legend, teamIndex) {
     legend = legend || {};
     // Merge consecutive entries that share the same shift and are time-contiguous
     // (the end of one equals the start of the next) into a single block.
@@ -139,6 +217,18 @@ function parseShiftToCal(shift, legend) {
         if (typeAndDuration) descLines.push(typeAndDuration);
         if (block.remark) descLines.push(block.remark);
         if (tagesbemerkung) descLines.push(tagesbemerkung);
+
+        // Colleagues on the same vehicle that day (day vs. night respected), excluding self.
+        if (addTeamPartner && teamIndex) {
+            var vehicleKey = vehicleKeyFromLegend(leg);
+            var dayKey = shift.data.key && shift.data.key.day ? new Date(shift.data.key.day).getTime() : null;
+            if (vehicleKey && dayKey != null && teamIndex[dayKey] && teamIndex[dayKey][vehicleKey]) {
+                var partners = teamIndex[dayKey][vehicleKey]
+                    .filter(p => p.id != rosterUserId)
+                    .map(p => p.name);
+                if (partners.length) descLines.push("Team: " + partners.join(", "));
+            }
+        }
 
         // On-call (Rufbereitschaft) standby should not block availability.
         var transparent = oncallAsFree && shiftType == "Rufbereitschaft";
@@ -202,6 +292,26 @@ function getRosterICal() {
             
             var dienstCount = new Map();
             var seenAbsences = {}; // fehlzeiten are repeated in every month, so dedupe by approvalId
+
+            // Optionally look up which colleagues share each vehicle (team partners).
+            var teamIndex = {};
+            if (addTeamPartner) {
+                try {
+                    // Collect every day across all months to span the full team-duty range.
+                    var allDays = [];
+                    jsonResponse.forEach(m => {
+                        ((((m.rosterUrlaubEinsatzwunsch || {}).data || {}).data || [])[0] || {}).item2 &&
+                            m.rosterUrlaubEinsatzwunsch.data.data[0].item2.data.forEach(d => allDays.push(d.day.date));
+                    });
+                    allDays.sort();
+                    var from = new Date(allDays[0]).toISOString();
+                    var to = new Date(allDays[allDays.length - 1]).toISOString();
+                    teamIndex = getTeamDutyIndex(from, from, to);
+                } catch (e) {
+                    Logger.log("Could not build team-duty index: " + (e.message || e));
+                }
+            }
+
             jsonResponse.forEach(month => {
                 // Build a lookup of shift code -> {longName, shiftTypeName, ...} for this month.
                 var legend = {};
@@ -210,7 +320,7 @@ function getRosterICal() {
                     legendData.entries.forEach(e => { legend[e.shortName] = e; });
 
                 month.rosterDetails.forEach(shift => {
-                  var data = parseShiftToCal(shift, legend)
+                  var data = parseShiftToCal(shift, legend, teamIndex)
                     icsContent += data.ical
                     if (addYearSummary) {
                         data.list.forEach(d => {
