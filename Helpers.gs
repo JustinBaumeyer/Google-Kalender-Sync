@@ -379,6 +379,12 @@ function createEvent(event, calendarTz) {
             newEvent.visibility = classString;
     }
 
+    if (event.hasProperty('transp')) {
+        var transpValue = event.getFirstPropertyValue('transp').toString().toLowerCase();
+        if (transpValue == "transparent" || transpValue == "opaque")
+            newEvent.transparency = transpValue;
+    }
+
     if (icalEvent.startDate.isDate) {
         if (0 <= defaultAllDayReminder && defaultAllDayReminder <= 40320) {
             newEvent.reminders = {

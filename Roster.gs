@@ -16,13 +16,25 @@ function icalEscape(text) {
 
 /**
  * Builds a timed VEVENT. start/end are pre-formatted iCal UTC timestamps.
+ * If transparent is true the event is marked as free (TRANSP:TRANSPARENT).
  */
-function generateICalEntry(uid, start, end, summary, description) {
+function generateICalEntry(uid, start, end, summary, description, transparent) {
   return "BEGIN:VEVENT\nUID:" + uid +
     "\nSEQUENCE:0\nDTSTAMP:" + toICalDate(new Date()) +
     "\nDTSTART:" + start + "\nDTEND:" + end +
+    (transparent ? "\nTRANSP:TRANSPARENT" : "") +
     "\nSUMMARY:" + icalEscape(summary) +
     "\nDESCRIPTION:" + icalEscape(description) + "\nEND:VEVENT\n";
+}
+
+/**
+ * Formats the span between two dates as a roster-style duration (e.g. "08h30", "24h00").
+ */
+function formatDuration(startDate, endDate) {
+  var totalMinutes = Math.round((endDate - startDate) / 60000);
+  var hours = Math.floor(totalMinutes / 60);
+  var minutes = totalMinutes % 60;
+  return String(hours).padStart(2, '0') + "h" + String(minutes).padStart(2, '0');
 }
 
 /**
@@ -81,7 +93,8 @@ function rosterFetch(endpoint, method, payload) {
     return response.getContentText();
 }
 
-function parseShiftToCal(shift) {
+function parseShiftToCal(shift, legend) {
+    legend = legend || {};
     // Merge consecutive entries that share the same shift and are time-contiguous
     // (the end of one equals the start of the next) into a single block.
     var blocks = [];
@@ -97,19 +110,40 @@ function parseShiftToCal(shift) {
                 shortName: dienst.shortName,
                 nameWorkplace: dienst.nameWorkplace,
                 nameRole: dienst.nameRole,
+                nameShiftType: dienst.nameShiftType,
+                remark: dienst.bemerkungDienstelement,
                 start: start,
                 end: end
             });
         }
     });
 
+    var tagesbemerkung = shift.data.rosterDetails.tagesbemerkung; // day-level note, applies to every block
+
     var ret = "";
     var summary = [];
     blocks.forEach(block => {
+        var leg = legend[block.shortName] || {};
+        var shiftType = leg.shiftTypeName || block.nameShiftType || "";
         var start = toICalDate(block.start);
         var end = toICalDate(block.end);
-        var title = block.shortName + " | " + block.nameWorkplace + (block.nameRole ? " (" + block.nameRole + ")" : "");
-        ret += generateICalEntry(block.shortName + start + end, start, end, title, "");
+
+        // Title: "<code> | <workplace> (<type>, <role>)"
+        var tags = [shiftType, block.nameRole].filter(Boolean);
+        var title = block.shortName + " | " + block.nameWorkplace + (tags.length ? " (" + tags.join(", ") + ")" : "");
+
+        // Description: full shift name, then "<type> · <duration>", then any remarks.
+        var descLines = [];
+        if (leg.longName) descLines.push(leg.longName);
+        var typeAndDuration = [shiftType, formatDuration(block.start, block.end)].filter(Boolean).join(" · ");
+        if (typeAndDuration) descLines.push(typeAndDuration);
+        if (block.remark) descLines.push(block.remark);
+        if (tagesbemerkung) descLines.push(tagesbemerkung);
+
+        // On-call (Rufbereitschaft) standby should not block availability.
+        var transparent = oncallAsFree && shiftType == "Rufbereitschaft";
+
+        ret += generateICalEntry(block.shortName + start + end, start, end, title, descLines.join("\n"), transparent);
         summary.push(block.shortName);
     });
     return {"ical": ret, "list": summary};
@@ -169,8 +203,14 @@ function getRosterICal() {
             var dienstCount = new Map();
             var seenAbsences = {}; // fehlzeiten are repeated in every month, so dedupe by approvalId
             jsonResponse.forEach(month => {
+                // Build a lookup of shift code -> {longName, shiftTypeName, ...} for this month.
+                var legend = {};
+                var legendData = month.rosterUrlaubEinsatzwunsch && month.rosterUrlaubEinsatzwunsch.data && month.rosterUrlaubEinsatzwunsch.data.legendDuties;
+                if (legendData && legendData.entries)
+                    legendData.entries.forEach(e => { legend[e.shortName] = e; });
+
                 month.rosterDetails.forEach(shift => {
-                  var data = parseShiftToCal(shift)
+                  var data = parseShiftToCal(shift, legend)
                     icsContent += data.ical
                     if (addYearSummary) {
                         data.list.forEach(d => {
