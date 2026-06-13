@@ -1,5 +1,46 @@
-function generateICalEntry(uid, start,end,summary,description) {
-  return "BEGIN:VEVENT\nUID:" + uid + "\nSEQUENCE:0\nDTSTAMP:" + new Date().toISOString() + "\nDTSTART:" + start + "\nDTEND:" + end + "\nSUMMARY:" + summary + "\nDESCRIPTION:"+(description)+"\nEND:VEVENT\n";
+/**
+ * Escapes a value for use in an iCal TEXT field per RFC 5545
+ * (backslash, semicolon, comma and newlines must be escaped).
+ *
+ * @param {*} text - The value to escape (null/undefined become "").
+ * @return {string} The escaped text.
+ */
+function icalEscape(text) {
+  if (text == null) return "";
+  return String(text)
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
+}
+
+/**
+ * Builds a timed VEVENT. start/end are pre-formatted iCal UTC timestamps.
+ */
+function generateICalEntry(uid, start, end, summary, description) {
+  return "BEGIN:VEVENT\nUID:" + uid +
+    "\nSEQUENCE:0\nDTSTAMP:" + toICalDate(new Date()) +
+    "\nDTSTART:" + start + "\nDTEND:" + end +
+    "\nSUMMARY:" + icalEscape(summary) +
+    "\nDESCRIPTION:" + icalEscape(description) + "\nEND:VEVENT\n";
+}
+
+/**
+ * Builds an all-day VEVENT. endDate is exclusive per RFC 5545, so pass the
+ * day after the last day that should be covered.
+ *
+ * @param {string} uid - Unique identifier for the event.
+ * @param {Date} startDate - First day of the event.
+ * @param {Date} endDate - Day after the last day of the event (exclusive).
+ */
+function generateAllDayICalEntry(uid, startDate, endDate, summary, description) {
+  function asDate(d) { return Utilities.formatDate(d, "GMT", "yyyyMMdd"); }
+  return "BEGIN:VEVENT\nUID:" + uid +
+    "\nSEQUENCE:0\nDTSTAMP:" + toICalDate(new Date()) +
+    "\nDTSTART;VALUE=DATE:" + asDate(startDate) +
+    "\nDTEND;VALUE=DATE:" + asDate(endDate) +
+    "\nSUMMARY:" + icalEscape(summary) +
+    "\nDESCRIPTION:" + icalEscape(description) + "\nEND:VEVENT\n";
 }
 
 /**
@@ -41,35 +82,36 @@ function rosterFetch(endpoint, method, payload) {
 }
 
 function parseShiftToCal(shift) {
-    var ret = "";
-    const dienste = new Map();
+    // Merge consecutive entries that share the same shift and are time-contiguous
+    // (the end of one equals the start of the next) into a single block.
+    var blocks = [];
     shift.data.rosterDetails.entries.forEach(dienst => {
-        if (!rosterIgnoreList.includes(dienst.shortName)) {
-            var start = new Date(dienst.from)
-            var end = new Date(dienst.to)
-            var mapName = dienst.shortName;
-            if(dienste.has(mapName)) {
-              var d = dienste.get(dienst.shortName)
-              if (dienst.start == d.end || dienst.end == d.start) {
-                 mapName = dienst.shortName+dienst.start;
-              } else {
-                if(d.start > start) d.start = start;
-                if(d.end < end) d.end = end;
-                dienste.set(mapName,d);
-              }
-            }
+        if (rosterIgnoreList.includes(dienst.shortName)) return;
+        var start = new Date(dienst.from);
+        var end = new Date(dienst.to);
+        var prev = blocks[blocks.length - 1];
+        if (prev && prev.shortName == dienst.shortName && prev.end.getTime() == start.getTime()) {
+            prev.end = end;
+        } else {
+            blocks.push({
+                shortName: dienst.shortName,
+                nameWorkplace: dienst.nameWorkplace,
+                nameRole: dienst.nameRole,
+                start: start,
+                end: end
+            });
         }
-        if(!dienste.has(mapName)) {                     
-          dienste.set(mapName,{"start":start,"end":end,"nameWorkplace":dienst.nameWorkplace,"shortName": dienst.shortName});            
-        }
-    })
+    });
+
+    var ret = "";
     var summary = [];
-    dienste.forEach(dienst => {
-      var start = toICalDate(dienst.start)
-      var end = toICalDate(dienst.end)
-      ret += generateICalEntry(dienst.shortName + start+end, start,end,dienst.shortName + " | " + dienst.nameWorkplace,"")
-      summary.push(dienst.shortName);
-    })
+    blocks.forEach(block => {
+        var start = toICalDate(block.start);
+        var end = toICalDate(block.end);
+        var title = block.shortName + " | " + block.nameWorkplace + (block.nameRole ? " (" + block.nameRole + ")" : "");
+        ret += generateICalEntry(block.shortName + start + end, start, end, title, "");
+        summary.push(block.shortName);
+    });
     return {"ical": ret, "list": summary};
 }
 
@@ -125,6 +167,7 @@ function getRosterICal() {
             var icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//GoogleKalenderSync/EN\nMETHOD:REQUEST\nNAME:Roster\nX-WR-CALNAME:Roster\n";
             
             var dienstCount = new Map();
+            var seenAbsences = {}; // fehlzeiten are repeated in every month, so dedupe by approvalId
             jsonResponse.forEach(month => {
                 month.rosterDetails.forEach(shift => {
                   var data = parseShiftToCal(shift)
@@ -155,6 +198,17 @@ function getRosterICal() {
                       
                       icsContent += generateICalEntry(day.einsatzwunschWunsch+"-"+day.shortName+"-"+date,date,date,summary,day.kommentar)
                     }
+                  })
+                }
+                if (addAbsences && month.fehlzeiten && month.fehlzeiten.data) {
+                  month.fehlzeiten.data.data.forEach(abs => {
+                    if (seenAbsences[abs.approvalId] || rosterIgnoreList.includes(abs.absenceName)) return;
+                    seenAbsences[abs.approvalId] = true;
+                    var startDate = new Date(abs.von.date);
+                    var endDate = new Date(abs.bis.date);
+                    endDate.setDate(endDate.getDate() + 1); // DTEND is exclusive for all-day events
+                    var summary = "Abwesenheit: " + abs.absenceName + (abs.status != 0 ? " (beantragt)" : "");
+                    icsContent += generateAllDayICalEntry("absence-" + abs.approvalId, startDate, endDate, summary, "");
                   })
                 }
             });

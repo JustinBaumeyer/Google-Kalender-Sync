@@ -81,6 +81,7 @@ To stop the script, run `uninstall` — it removes all triggers and script prope
 | `addRosterToCal` | Enable the DRK Aachen roster sync. |
 | `addRosterSinceStart` | Sync the full history from your contract start date. |
 | `addRosterRequests` | Include shift-requests (*Einsatzwünsche*). |
+| `addAbsences` | Add approved/requested absences (vacation etc.) as all-day events. Names in `rosterIgnoreList` are skipped; pending requests are marked *(beantragt)*. |
 | `addYearSummary` / `summaryYear` | Log a per-shift count summary for the given year. |
 | `rosterUrl` | Base URL of the roster API. |
 | `rosterIgnoreList` | Shift short-names to skip (e.g. `["-","UL"]`). |

@@ -26,6 +26,7 @@ var errorNotificationEmail = false;       // Set to true to email the script own
 var addRosterToCal = true;
 var addRosterSinceStart = false;
 var addRosterRequests = true;
+var addAbsences = false;                  // If "true", approved/requested absences (vacation etc.) are added as all-day events. Names listed in rosterIgnoreList are skipped.
 var addYearSummary = false;
 var summaryYear = "2024";
 var rosterUrl = "https://dienstplan.drk-aachen.de:6100/api/";
