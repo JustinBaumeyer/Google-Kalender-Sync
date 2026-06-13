@@ -201,8 +201,11 @@ function getRosterICal() {
                   })
                 }
                 if (addAbsences && month.fehlzeiten && month.fehlzeiten.data) {
+                  // Absences come from fehlzeiten, not rosterDetails, so rosterIgnoreList
+                  // (which suppresses the duplicate UL day-blocks in rosterDetails) does
+                  // not apply here.
                   month.fehlzeiten.data.data.forEach(abs => {
-                    if (seenAbsences[abs.approvalId] || rosterIgnoreList.includes(abs.absenceName)) return;
+                    if (seenAbsences[abs.approvalId]) return;
                     seenAbsences[abs.approvalId] = true;
                     var startDate = new Date(abs.von.date);
                     var endDate = new Date(abs.bis.date);
