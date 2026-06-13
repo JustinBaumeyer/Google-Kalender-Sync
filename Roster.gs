@@ -102,6 +102,19 @@ function rosterFetch(endpoint, method, payload) {
  * @param {Object} legendEntry - A legendDuties entry ({longName, shiftTypeName, ...}).
  * @return {?string} e.g. "Würs 2 RTW 2|N", or null.
  */
+/**
+ * Reformats a roster name from "Lastname,  Firstname" to "Firstname Lastname" so
+ * a comma-separated list of names is unambiguous.
+ */
+function formatName(raw) {
+    var name = String(raw).replace(/\s+/g, " ").trim();
+    var comma = name.indexOf(",");
+    if (comma == -1) return name;
+    var last = name.slice(0, comma).trim();
+    var first = name.slice(comma + 1).trim();
+    return (first + " " + last).trim();
+}
+
 function vehicleKeyFromLegend(legendEntry) {
     if (!legendEntry || !legendEntry.longName) return null;
     var match = legendEntry.longName.match(/^(.*?(?:RTW|KTW)\s*\d+)/);
@@ -144,7 +157,7 @@ function getTeamDutyIndex(monthParam, from, to) {
                     var daySlot = (index[dayKey] = index[dayKey] || {});
                     var crew = (daySlot[vehicleKey] = daySlot[vehicleKey] || []);
                     if (!crew.some(p => p.id == emp.id))
-                        crew.push({ name: String(emp.name).replace(/\s+/g, " ").trim(), id: emp.id });
+                        crew.push({ name: formatName(emp.name), id: emp.id });
                 });
             });
         });
