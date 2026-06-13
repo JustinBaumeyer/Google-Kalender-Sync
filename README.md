@@ -82,6 +82,9 @@ To stop the script, run `uninstall` — it removes all triggers and script prope
 | `addRosterSinceStart` | Sync the full history from your contract start date. |
 | `addRosterRequests` | Include shift-requests (*Einsatzwünsche*). |
 | `addAbsences` | Add absences (vacation etc.) as consolidated all-day events from the roster's *fehlzeiten* list; pending requests are marked *(beantragt)*. The roster also lists absences as per-day blocks under their short code (e.g. `UL`); keep that code in `rosterIgnoreList` so those daily blocks aren't synced in addition to the consolidated events. |
+| `oncallAsFree` | Mark on-call shifts (*Rufbereitschaft*) as free/available so they don't block your calendar like a regular shift. |
+
+Roster shift events are titled `<code> | <workplace> (<shift type>, <role>)` and their description carries the full shift name, type, duration, and any remarks.
 | `addYearSummary` / `summaryYear` | Log a per-shift count summary for the given year. |
 | `rosterUrl` | Base URL of the roster API. |
 | `rosterIgnoreList` | Shift short-names to skip (e.g. `["-","UL"]`). |
