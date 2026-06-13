@@ -49,8 +49,8 @@ so the script only ever touches its own events and leaves manually-added events 
 1. Create a new project at [script.google.com](https://script.google.com).
 2. Add each `*.gs` file from this repository to the project (and `appsscript.json` under
    **Project Settings → "Show appsscript.json manifest file in editor"**).
-3. Make sure the **Calendar** and **Tasks** advanced services are enabled — they are
-   declared in `appsscript.json`, so they are added automatically when you paste it in.
+3. Make sure the **Calendar** advanced service is enabled — it is declared in
+   `appsscript.json`, so it is added automatically when you paste it in.
 4. Edit `settings.gs` to configure your source calendars and options (see below).
 5. Run the `install` function once. Authorize the requested permissions when prompted.
    This creates the time-based triggers and (if roster sync is enabled) initializes the

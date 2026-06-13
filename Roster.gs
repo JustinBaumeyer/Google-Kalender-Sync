@@ -2,6 +2,44 @@ function generateICalEntry(uid, start,end,summary,description) {
   return "BEGIN:VEVENT\nUID:" + uid + "\nSEQUENCE:0\nDTSTAMP:" + new Date().toISOString() + "\nDTSTART:" + start + "\nDTEND:" + end + "\nSUMMARY:" + summary + "\nDESCRIPTION:"+(description)+"\nEND:VEVENT\n";
 }
 
+/**
+ * Formats a date as a compact iCal UTC timestamp (e.g. 20240131T080000Z).
+ *
+ * @param {Date|string|number} date - The date to format.
+ * @return {string} The iCal-formatted timestamp.
+ */
+function toICalDate(date) {
+    return Utilities.formatDate(new Date(date), "GMT", "yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[-:]/g, '');
+}
+
+/**
+ * Performs an authenticated request against the roster API and returns the response body.
+ * Throws on any non-200 status so callWithBackoff can retry.
+ *
+ * @param {string} endpoint - Path appended to rosterUrl (e.g. "auth/refreshToken").
+ * @param {string} method - HTTP method ("GET" or "POST").
+ * @param {string} [payload] - Optional request body.
+ * @return {string} The response body text.
+ */
+function rosterFetch(endpoint, method, payload) {
+    var options = {
+        'validateHttpsCertificates': false,
+        'muteHttpExceptions': true,
+        "method": method,
+        "headers": {
+            "authorization": "Bearer " + rosterUserToken,
+            "content-type": "application/json",
+        }
+    };
+    if (payload != null)
+        options.payload = payload;
+
+    var response = UrlFetchApp.fetch(rosterUrl + endpoint, options);
+    if (response.getResponseCode() != 200) //Throw here to make callWithBackoff run again
+        throw "Error: Encountered HTTP error " + response.getContentText() + " when accessing " + endpoint;
+    return response.getContentText();
+}
+
 function parseShiftToCal(shift) {
     var ret = "";
     const dienste = new Map();
@@ -27,8 +65,8 @@ function parseShiftToCal(shift) {
     })
     var summary = [];
     dienste.forEach(dienst => {
-      var start = Utilities.formatDate(new Date(dienst.start),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
-      var end = Utilities.formatDate(new Date(dienst.end),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
+      var start = toICalDate(dienst.start)
+      var end = toICalDate(dienst.end)
       ret += generateICalEntry(dienst.shortName + start+end, start,end,dienst.shortName + " | " + dienst.nameWorkplace,"")
       summary.push(dienst.shortName);
     })
@@ -36,41 +74,15 @@ function parseShiftToCal(shift) {
 }
 
 function refreshRosterToken() {
-    var urlResponse = UrlFetchApp.fetch(rosterUrl+"auth/refreshToken", {
-        'validateHttpsCertificates': false,
-        'muteHttpExceptions': true,
-        "headers": {
-            "authorization": "Bearer " + rosterUserToken,
-            "content-type": "application/json",
-        },
-        "method": "GET"
-    });
-    if (urlResponse.getResponseCode() == 200) {
-        rosterUserToken = JSON.parse(urlResponse.getContentText()).data;
-        scriptPrp.setProperty('rosterUserToken', rosterUserToken);
-    } else { //Throw here to make callWithBackoff run again
-        throw "Error: Encountered HTTP error " + urlResponse.getContentText() + " when accessing refreshToken";
-    }
+    rosterUserToken = JSON.parse(rosterFetch("auth/refreshToken", "GET")).data;
+    scriptPrp.setProperty('rosterUserToken', rosterUserToken);
 }
 
 function getRosterStartDate() {
     return callWithBackoff(function() {
-      var urlResponse = UrlFetchApp.fetch(rosterUrl+"app/initial-preload", {
-          'validateHttpsCertificates': false,
-          'muteHttpExceptions': true,
-          "headers": {
-              "authorization": "Bearer " + rosterUserToken,
-              "content-type": "application/json",
-          },
-          "method": "POST"
-      });
-      if (urlResponse.getResponseCode() == 200) {
-          var jsonResponse = JSON.parse(urlResponse.getContentText())
-          var date = jsonResponse.contracts.data[0].eingestellt.split(".");
-          return new Date(date[2], date[1] - 1, date[0])
-      } else { //Throw here to make callWithBackoff run again
-          throw "Error: Encountered HTTP error " + urlResponse.getContentText() + " when accessing initial-preload";
-      }
+      var jsonResponse = JSON.parse(rosterFetch("app/initial-preload", "POST"));
+      var date = jsonResponse.contracts.data[0].eingestellt.split(".");
+      return new Date(date[2], date[1] - 1, date[0])
     },defaultMaxRetries);
 }
 
@@ -98,8 +110,7 @@ function generateRosterPayload() {
         payload += startDate.toISOString() + "\",\"rosterViewMode\":4},"
         startDate.setDate(startDate.getDate() + 1)
     }
-    payload.slice(0, -1);
-    payload += "]"
+    payload = payload.replace(/,$/, "") + "]"
 
     return payload;
 }
@@ -110,18 +121,7 @@ function getRosterICal() {
         return;
     },defaultMaxRetries);
     return callWithBackoff(function() {
-        var urlResponse = UrlFetchApp.fetch(rosterUrl+"rosters/preload", {
-            'validateHttpsCertificates': false,
-            'muteHttpExceptions': false,
-            "headers": {
-                "authorization": "Bearer " + rosterUserToken,
-                "content-type": "application/json",
-            },
-            "payload": generateRosterPayload(),
-            "method": "POST"
-        });
-      if (urlResponse.getResponseCode() == 200) {
-            var jsonResponse = JSON.parse(urlResponse.getContentText())
+            var jsonResponse = JSON.parse(rosterFetch("rosters/preload", "POST", generateRosterPayload()))
             var icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//GoogleKalenderSync/EN\nMETHOD:REQUEST\nNAME:Roster\nX-WR-CALNAME:Roster\n";
             
             var dienstCount = new Map();
@@ -142,7 +142,7 @@ function getRosterICal() {
                 if(addRosterRequests) {
                   month.rosterUrlaubEinsatzwunsch.data.data[0].item2.data.forEach(day => {
                     if(day.einsatzwunsch) {
-                      var date = Utilities.formatDate(new Date(day.day.date),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
+                      var date = toICalDate(day.day.date)
                       var summary = "Einsatzwunsch: " + (function(ew){
                         switch(ew){
                           case 1: return "Frei";
@@ -169,15 +169,12 @@ function getRosterICal() {
               Logger.log(loggerText.slice(0,-1))
             }
             if(updateAvailable== "true") {
-              var date = Utilities.formatDate(new Date(),"GMT","yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[\-,\:]/g, '')
+              var date = toICalDate(new Date())
               icsContent += generateICalEntry(date+"-updateNotification",date,date,"Dienstplan Update verfügbar","Es ist ein Update für das Dienstplanprogramm verfügbar. Bitte den Updateanweisungen in der Gruppe folgen.");
               Logger.log("update updateAvailable " + updateAvailable)
             }
 
             icsContent += "END:VCALENDAR"
             return icsContent;
-        } else { //Throw here to make callWithBackoff run again
-            throw "Error: Encountered HTTP error " + urlResponse.getContentText() + " when accessing " + rosterUrl + "rosters/preload";
-        }
     }, defaultMaxRetries);
 }

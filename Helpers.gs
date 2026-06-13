@@ -1,47 +1,4 @@
 /**
- * Formats the date and time according to the format specified in the configuration.
- *
- * @param {string} date The date to be formatted.
- * @return {string} The formatted date string.
- */
-function formatDate(date) {
-    const year = date.slice(0, 4);
-    const month = date.slice(5, 7);
-    const day = date.slice(8, 10);
-    let formattedDate;
-
-    if (dateFormat == "YYYY/MM/DD") {
-        formattedDate = year + "/" + month + "/" + day
-    } else if (dateFormat == "DD/MM/YYYY") {
-        formattedDate = day + "/" + month + "/" + year
-    } else if (dateFormat == "MM/DD/YYYY") {
-        formattedDate = month + "/" + day + "/" + year
-    } else if (dateFormat == "YYYY-MM-DD") {
-        formattedDate = year + "-" + month + "-" + day
-    } else if (dateFormat == "DD-MM-YYYY") {
-        formattedDate = day + "-" + month + "-" + year
-    } else if (dateFormat == "MM-DD-YYYY") {
-        formattedDate = month + "-" + day + "-" + year
-    } else if (dateFormat == "YYYY.MM.DD") {
-        formattedDate = year + "." + month + "." + day
-    } else if (dateFormat == "DD.MM.YYYY") {
-        formattedDate = day + "." + month + "." + year
-    } else if (dateFormat == "MM.DD.YYYY") {
-        formattedDate = month + "." + day + "." + year
-    }
-
-    if (date.length < 11) {
-        return formattedDate
-    }
-
-    const time = date.slice(11, 16)
-    const timeZone = date.slice(19)
-
-    return formattedDate + " at " + time + " (UTC" + (timeZone == "Z" ? "" : timeZone) + ")"
-}
-
-
-/**
  * Takes an intended frequency in minutes and adjusts it to be the closest
  * acceptable value to use Google "everyMinutes" trigger setting (i.e. one of
  * the following values: 1, 5, 10, 15, 30).
@@ -71,10 +28,6 @@ function getValidTriggerFrequency(origFrequency) {
         "Intended frequency = " + origFrequency + ", Adjusted frequency = " + roundedUpValue
     );
     return roundedUpValue;
-}
-
-String.prototype.includes = function(phrase) {
-    return this.indexOf(phrase) > -1;
 }
 
 /**
@@ -308,7 +261,6 @@ function processEvent(event, calendarTz) {
         //------------------------ Send event object to gcal ------------------------
         if (needsUpdate) {
             if (modifyExistingEvents) {
-                oldEvent = calendarEvents[index]
                 Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
                 newEvent = callWithBackoff(function() {
                     return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
