@@ -83,7 +83,8 @@ To stop the script, run `uninstall` — it removes all triggers and script prope
 | `addRosterRequests` | Include shift-requests (*Einsatzwünsche*). |
 | `addAbsences` | Add absences (vacation etc.) as consolidated all-day events from the roster's *fehlzeiten* list; pending requests are marked *(beantragt)*. The roster also lists absences as per-day blocks under their short code (e.g. `UL`); keep that code in `rosterIgnoreList` so those daily blocks aren't synced in addition to the consolidated events. |
 | `oncallAsFree` | Mark on-call shifts (*Rufbereitschaft*) as free/available so they don't block your calendar like a regular shift. |
-| `addTeamPartner` | List the colleagues sharing your vehicle that day in the shift description (`Team: …`). Matches by vehicle (derived from the duty's full name) on the same day, day vs. night respected. Costs extra *team-duty* API calls per month/planning group and writes colleagues' names into your calendar. |
+| `addTeamPartner` | List the colleagues sharing your vehicle that day in the shift description (`Team: …`). Matches by vehicle (derived from the duty's full name) on the same day, day vs. night respected. Fetches the team roster per planning group and writes colleagues' names into your calendar. |
+| `rosterPlanningGroups` | Planning group IDs to query for team partners (e.g. `[335]`). Leave empty to auto-discover the groups you can see. |
 
 Roster shift events are titled `<code> | <workplace> (<shift type>, <role>)` and their description carries the full shift name, type, duration, and any remarks.
 | `addYearSummary` / `summaryYear` | Log a per-shift count summary for the given year. |
