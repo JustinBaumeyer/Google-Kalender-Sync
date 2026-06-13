@@ -20,6 +20,8 @@ var showSkipMessage = false
 
 var overrideVisibility = "";              // Changes the visibility of the event ("default", "public", "private", "confidential"). Anything else will revert to the class value of the ICAL event.
 
+var errorNotificationEmail = false;       // Set to true to email the script owner when a sync run fails, or set a specific address (e.g. "me@example.com"). false disables notifications. Limited to one email per hour.
+
 
 var addRosterToCal = true;
 var addRosterSinceStart = false;

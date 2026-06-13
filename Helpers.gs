@@ -449,11 +449,6 @@ function createEvent(event, calendarTz) {
         }; //will set the default reminders as set at calendar.google.com
     }
 
-    newEvent.reminders = {
-      'useDefault': true,
-      'overrides': []
-    };
-
     if (icalEvent.isRecurring()) {
         // Calculate targetTZ's UTC-Offset
         var calendarUTCOffset = 0;
