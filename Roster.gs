@@ -233,9 +233,8 @@ function parseShiftToCal(shift, legend, teamIndex) {
         var start = toICalDate(block.start);
         var end = toICalDate(block.end);
 
-        // Title: "<code> | <workplace> (<type>, <role>)"
-        var tags = [shiftType, block.nameRole].filter(Boolean);
-        var title = block.shortName + " | " + block.nameWorkplace + (tags.length ? " (" + tags.join(", ") + ")" : "");
+        // Title: "<code> | <workplace> (<role>)" — shift type lives in the description.
+        var title = block.shortName + " | " + block.nameWorkplace + (block.nameRole ? " (" + block.nameRole + ")" : "");
 
         // Description: full shift name, then "<type> · <duration>", then any remarks.
         var descLines = [];

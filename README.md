@@ -87,7 +87,7 @@ To stop the script, run `uninstall` — it removes all triggers and script prope
 | `rosterPlanningGroups` | Planning group IDs to query for team partners (e.g. `[335]`). Leave empty to auto-discover the groups you can see. |
 | `addRelief` | Show who relieves you (`Ablösung: …`): for a day shift, the night crew on the same vehicle that day; for a night shift, the day crew the next day. Uses the same team-duty data as `addTeamPartner`. |
 
-Roster shift events are titled `<code> | <workplace> (<shift type>, <role>)` and their description carries the full shift name, type, duration, and any remarks.
+Roster shift events are titled `<code> | <workplace> (<role>)` and their description carries the full shift name, type, duration, and any remarks.
 | `addYearSummary` / `summaryYear` | Log a per-shift count summary for the given year. |
 | `rosterUrl` | Base URL of the roster API. |
 | `rosterIgnoreList` | Shift short-names to skip (e.g. `["-","UL"]`). |
