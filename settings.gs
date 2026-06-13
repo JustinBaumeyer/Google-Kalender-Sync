@@ -30,6 +30,7 @@ var addAbsences = true;                   // If "true", absences (vacation etc.)
 var oncallAsFree = true;                   // If "true", on-call shifts (Rufbereitschaft) are marked as free/available (TRANSP:TRANSPARENT) so they don't block your calendar like a regular shift.
 var addTeamPartner = false;                // If "true", lists the colleagues sharing your vehicle that day in the shift description ("Team: ..."). Requires extra team-duty API calls and writes colleagues' names into your calendar.
 var rosterPlanningGroups = [];             // Planning group IDs to query for team partners (e.g. [335]). Leave empty to auto-discover the groups you can see.
+var addRelief = false;                     // If "true", shows who relieves you ("Ablösung: ..."): for a day shift the night crew on the same vehicle that day, for a night shift the day crew the next day. Uses the same team-duty data as addTeamPartner.
 var addYearSummary = false;
 var summaryYear = "2024";
 var rosterUrl = "https://dienstplan.drk-aachen.de:6100/api/";

@@ -85,8 +85,9 @@ To stop the script, run `uninstall` — it removes all triggers and script prope
 | `oncallAsFree` | Mark on-call shifts (*Rufbereitschaft*) as free/available so they don't block your calendar like a regular shift. |
 | `addTeamPartner` | List the colleagues sharing your vehicle that day in the shift description (`Team: …`). Matches by vehicle (derived from the duty's full name) on the same day, day vs. night respected. Fetches the team roster per planning group and writes colleagues' names into your calendar. |
 | `rosterPlanningGroups` | Planning group IDs to query for team partners (e.g. `[335]`). Leave empty to auto-discover the groups you can see. |
+| `addRelief` | Show who relieves you (`Ablösung: …`): for a day shift, the night crew on the same vehicle that day; for a night shift, the day crew the next day. Uses the same team-duty data as `addTeamPartner`. |
 
-Roster shift events are titled `<code> | <workplace> (<shift type>, <role>)` and their description carries the full shift name, type, duration, and any remarks.
+Roster shift events are titled `<code> | <workplace> (<role>)` and their description carries the full shift name, type, duration, and any remarks.
 | `addYearSummary` / `summaryYear` | Log a per-shift count summary for the given year. |
 | `rosterUrl` | Base URL of the roster API. |
 | `rosterIgnoreList` | Shift short-names to skip (e.g. `["-","UL"]`). |
