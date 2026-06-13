@@ -124,6 +124,20 @@ function vehicleKeyFromLegend(legendEntry) {
 }
 
 /**
+ * Returns the smallest day-key in the index strictly after the given one (i.e. the
+ * next calendar day present), or null. Derived from the index rather than adding
+ * 24h so DST transitions don't matter.
+ */
+function nextDayKey(teamIndex, dayKey) {
+    var next = null;
+    for (var key in teamIndex) {
+        var k = Number(key);
+        if (k > dayKey && (next === null || k < next)) next = k;
+    }
+    return next;
+}
+
+/**
  * Builds an index of which colleagues are on each vehicle on each day.
  *
  * Planning groups are discovered via team-duty/preload (planningGroup:null returns
@@ -231,16 +245,29 @@ function parseShiftToCal(shift, legend, teamIndex) {
         if (block.remark) descLines.push(block.remark);
         if (tagesbemerkung) descLines.push(tagesbemerkung);
 
+        // Vehicle + day used for both team-partner and relief lookups.
+        var vehicleKey = teamIndex ? vehicleKeyFromLegend(leg) : null;
+        var dayKey = (shift.data.key && shift.data.key.day) ? new Date(shift.data.key.day).getTime() : null;
+        var crewNames = function(dKey, vKey) {
+            var crew = (teamIndex && teamIndex[dKey] || {})[vKey];
+            return crew ? crew.filter(p => p.id != rosterUserId).map(p => p.name) : [];
+        };
+
         // Colleagues on the same vehicle that day (day vs. night respected), excluding self.
-        if (addTeamPartner && teamIndex) {
-            var vehicleKey = vehicleKeyFromLegend(leg);
-            var dayKey = shift.data.key && shift.data.key.day ? new Date(shift.data.key.day).getTime() : null;
-            if (vehicleKey && dayKey != null && teamIndex[dayKey] && teamIndex[dayKey][vehicleKey]) {
-                var partners = teamIndex[dayKey][vehicleKey]
-                    .filter(p => p.id != rosterUserId)
-                    .map(p => p.name);
-                if (partners.length) descLines.push("Team: " + partners.join(", "));
-            }
+        if (addTeamPartner && vehicleKey && dayKey != null) {
+            var partners = crewNames(dayKey, vehicleKey);
+            if (partners.length) descLines.push("Team: " + partners.join(", "));
+        }
+
+        // Relief crew: a day shift is relieved by the night crew the same day; a
+        // night shift by the day crew the next day (same vehicle).
+        if (addRelief && vehicleKey && dayKey != null) {
+            var pipe = vehicleKey.lastIndexOf("|");
+            var vehicle = vehicleKey.slice(0, pipe);
+            var relief = (vehicleKey.slice(pipe + 1) == "N")
+                ? crewNames(nextDayKey(teamIndex, dayKey), vehicle + "|T")
+                : crewNames(dayKey, vehicle + "|N");
+            if (relief.length) descLines.push("Ablösung: " + relief.join(", "));
         }
 
         // On-call (Rufbereitschaft) standby should not block availability.
@@ -308,7 +335,7 @@ function getRosterICal() {
 
             // Optionally look up which colleagues share each vehicle (team partners).
             var teamIndex = {};
-            if (addTeamPartner) {
+            if (addTeamPartner || addRelief) {
                 try {
                     // Collect every day across all months to span the full team-duty range.
                     var allDays = [];
