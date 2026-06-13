@@ -177,7 +177,7 @@ function getRosterICal() {
             icsContent += "END:VCALENDAR"
             return icsContent;
         } else { //Throw here to make callWithBackoff run again
-            throw "Error: Encountered HTTP error " + urlResponse.getContentText() + " when accessing " + url;
+            throw "Error: Encountered HTTP error " + urlResponse.getContentText() + " when accessing " + rosterUrl + "rosters/preload";
         }
     }, defaultMaxRetries);
 }

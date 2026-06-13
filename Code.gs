@@ -83,6 +83,24 @@ function startSync(){
 
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
 
+  try {
+    runSync();
+  } catch (err) {
+    var message = err.message || err;
+    Logger.log("Sync failed: " + message);
+    notifyError(message);
+    throw err;
+  } finally {
+    // Always clear the lock, even if the sync threw, so the next run isn't blocked.
+    PropertiesService.getUserProperties().setProperty('LastRun', 0);
+  }
+}
+
+/**
+ * Performs the actual synchronization of all configured source calendars.
+ * Separated from startSync() so the run lock can be released reliably in a finally block.
+ */
+function runSync(){
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
 
@@ -168,5 +186,37 @@ function startSync(){
       }
   }
   Logger.log("Sync finished!");
-  PropertiesService.getUserProperties().setProperty('LastRun', 0);
+}
+
+/**
+ * Sends an email notification when a sync run fails, if errorNotificationEmail is configured.
+ * Notifications are rate-limited to one per hour to avoid mailbox flooding on repeated failures.
+ *
+ * @param {string} message - The error message describing the failure.
+ */
+function notifyError(message){
+  if (typeof errorNotificationEmail === "undefined" || !errorNotificationEmail)
+    return;
+
+  var recipient = (errorNotificationEmail === true)
+    ? Session.getActiveUser().getEmail()
+    : errorNotificationEmail;
+  if (!recipient)
+    return;
+
+  var lastNotified = Number(scriptPrp.getProperty('lastErrorNotification')) || 0;
+  if (new Date().getTime() - lastNotified < 3600000){
+    Logger.log("Skipping error email (already notified within the last hour)");
+    return;
+  }
+
+  try {
+    MailApp.sendEmail(recipient,
+      "Google-Kalender-Sync: sync failed",
+      "The calendar sync run failed with the following error:\n\n" + message +
+      "\n\nCheck the Apps Script execution log for details.");
+    scriptPrp.setProperty('lastErrorNotification', new Date().getTime());
+  } catch (e) {
+    Logger.log("Could not send error notification email: " + (e.message || e));
+  }
 }
