@@ -26,6 +26,7 @@ var errorNotificationEmail = false;       // Set to true to email the script own
 var addRosterToCal = true;
 var addRosterSinceStart = false;
 var addRosterRequests = true;
+var addAbsences = true;                   // If "true", absences (vacation etc.) are added as consolidated all-day events from the fehlzeiten list. Keep the matching code (e.g. "UL") in rosterIgnoreList so the per-day blocks in the roster aren't duplicated.
 var addYearSummary = false;
 var summaryYear = "2024";
 var rosterUrl = "https://dienstplan.drk-aachen.de:6100/api/";
