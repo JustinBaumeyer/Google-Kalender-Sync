@@ -164,16 +164,19 @@ function userVehicleKeyForDay(teamIndex, dayKey, isNight) {
  * Builds an index of which colleagues are on each vehicle on each day.
  *
  * Planning groups are discovered via team-duty/preload (planningGroup:null returns
- * the list of all groups the user can see) unless rosterPlanningGroups is set, then
- * each group's full roster is fetched from team-duty/roster/<employeeId> over the
- * given date range.
+ * the groups the user can see) unless rosterPlanningGroups is set, then each group's
+ * full roster is fetched from team-duty/roster/<employeeId> over the given date range.
  *
- * @param {string} monthParam - A local month-start timestamp (for group discovery).
+ * Discovery is run for every month in the sync window and the results are unioned:
+ * team-duty/preload only reports the groups planned for the month it is asked about,
+ * so a one-off shift in another group in a later month would otherwise be missed.
+ *
+ * @param {Array.<string>} monthParams - One month-start timestamp per synced month (for group discovery).
  * @param {string} from - Range start (local-midnight ISO with millis).
  * @param {string} to - Range end (local-midnight ISO with millis).
  * @return {Object} { <dayTime>: { <vehicleKey>: [ {name, id}, ... ] } }
  */
-function getTeamDutyIndex(monthParam, from, to) {
+function getTeamDutyIndex(monthParams, from, to) {
     var index = {};
 
     function ingest(response) {
@@ -202,13 +205,28 @@ function getTeamDutyIndex(monthParam, from, to) {
 
     // Determine which planning groups to query.
     var groups = (typeof rosterPlanningGroups !== "undefined" && rosterPlanningGroups && rosterPlanningGroups.length)
-        ? rosterPlanningGroups
+        ? rosterPlanningGroups.slice()
         : [];
     if (!groups.length) {
-        var pre = JSON.parse(rosterFetch("team-duty/preload", "POST", JSON.stringify({
-            employeeId: rosterUserId, planningGroup: null, filterEmployee: 0, month: monthParam
-        })));
-        groups = (((pre.teamDuties || {}).data || {}).data || []).map(g => g.idPlanninggroup);
+        // Ask preload about every month: it only reports the groups planned for the
+        // month it is given, so querying just one month misses groups the user works
+        // in only in other months. Union the group ids across all months, deduped.
+        var seen = {};
+        (monthParams || []).forEach(month => {
+            try {
+                var pre = JSON.parse(rosterFetch("team-duty/preload", "POST", JSON.stringify({
+                    employeeId: rosterUserId, planningGroup: null, filterEmployee: 0, month: month
+                })));
+                (((pre.teamDuties || {}).data || {}).data || []).forEach(g => {
+                    if (g.idPlanninggroup != null && !seen[g.idPlanninggroup]) {
+                        seen[g.idPlanninggroup] = true;
+                        groups.push(g.idPlanninggroup);
+                    }
+                });
+            } catch (e) {
+                Logger.log("Team-duty preload failed for month " + month + ": " + (e.message || e));
+            }
+        });
     }
 
     Logger.log("Team-duty planning groups: " + (groups.length ? groups.join(", ") : "(none)"));
@@ -372,16 +390,22 @@ function getRosterICal() {
             var teamIndex = {};
             if (addTeamPartner || addRelief) {
                 try {
-                    // Collect every day across all months to span the full team-duty range.
+                    // Collect every day across all months to span the full team-duty range,
+                    // plus one month-start per month so group discovery covers every month
+                    // (groups the user works in only in a later month would otherwise be missed).
                     var allDays = [];
+                    var monthParams = [];
                     jsonResponse.forEach(m => {
-                        ((((m.rosterUrlaubEinsatzwunsch || {}).data || {}).data || [])[0] || {}).item2 &&
-                            m.rosterUrlaubEinsatzwunsch.data.data[0].item2.data.forEach(d => allDays.push(d.day.date));
+                        var item2 = ((((m.rosterUrlaubEinsatzwunsch || {}).data || {}).data || [])[0] || {}).item2;
+                        if (item2 && item2.data && item2.data.length) {
+                            monthParams.push(new Date(item2.data[0].day.date).toISOString());
+                            item2.data.forEach(d => allDays.push(d.day.date));
+                        }
                     });
                     allDays.sort();
                     var from = new Date(allDays[0]).toISOString();
                     var to = new Date(allDays[allDays.length - 1]).toISOString();
-                    teamIndex = getTeamDutyIndex(from, from, to);
+                    teamIndex = getTeamDutyIndex(monthParams, from, to);
                 } catch (e) {
                     Logger.log("Could not build team-duty index: " + (e.message || e));
                 }
