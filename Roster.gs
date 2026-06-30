@@ -138,6 +138,29 @@ function nextDayKey(teamIndex, dayKey) {
 }
 
 /**
+ * Finds the vehicle the current user is on for a given day by locating their own
+ * employee id inside the fetched team rosters. Because both the user and their
+ * colleagues are then read from the same planning group's legend, this works even
+ * when the vehicle belongs to a planning group whose legend names it differently
+ * than the user's personal legend does (the case plain legend matching misses).
+ *
+ * @param {Object} teamIndex - Index from getTeamDutyIndex.
+ * @param {number} dayKey - Day timestamp to look up.
+ * @param {boolean} isNight - Whether the user's shift is a night shift.
+ * @return {?string} The matching vehicleKey (e.g. "Würs 2 RTW 2|N"), or null.
+ */
+function userVehicleKeyForDay(teamIndex, dayKey, isNight) {
+    var slot = teamIndex && teamIndex[dayKey];
+    if (!slot) return null;
+    var suffix = isNight ? "N" : "T";
+    for (var vehicleKey in slot) {
+        if (vehicleKey.slice(vehicleKey.lastIndexOf("|") + 1) != suffix) continue;
+        if (slot[vehicleKey].some(p => p.id == rosterUserId)) return vehicleKey;
+    }
+    return null;
+}
+
+/**
  * Builds an index of which colleagues are on each vehicle on each day.
  *
  * Planning groups are discovered via team-duty/preload (planningGroup:null returns
@@ -188,11 +211,19 @@ function getTeamDutyIndex(monthParam, from, to) {
         groups = (((pre.teamDuties || {}).data || {}).data || []).map(g => g.idPlanninggroup);
     }
 
+    Logger.log("Team-duty planning groups: " + (groups.length ? groups.join(", ") : "(none)"));
+
     groups.forEach(groupId => {
-        ingest(JSON.parse(rosterFetch("team-duty/roster/" + rosterUserId, "POST", JSON.stringify({
-            teamDuty: { idPlanninggroup: groupId, from: from, to: to },
-            filterEmployee: 0
-        }))));
+        // Isolate each group: a single group that errors (e.g. one the user can see
+        // but not fully query) must not abort the others and wipe out every partner.
+        try {
+            ingest(JSON.parse(rosterFetch("team-duty/roster/" + rosterUserId, "POST", JSON.stringify({
+                teamDuty: { idPlanninggroup: groupId, from: from, to: to },
+                filterEmployee: 0
+            }))));
+        } catch (e) {
+            Logger.log("Team-duty roster fetch failed for planning group " + groupId + ": " + (e.message || e));
+        }
     });
 
     return index;
@@ -244,9 +275,14 @@ function parseShiftToCal(shift, legend, teamIndex) {
         if (block.remark) descLines.push(block.remark);
         if (tagesbemerkung) descLines.push(tagesbemerkung);
 
-        // Vehicle + day used for both team-partner and relief lookups.
-        var vehicleKey = teamIndex ? vehicleKeyFromLegend(leg) : null;
+        // Vehicle + day used for both team-partner and relief lookups. Prefer locating
+        // the user inside the fetched team rosters (works across planning groups whose
+        // legends name the vehicle differently); fall back to the user's own legend.
         var dayKey = (shift.data.key && shift.data.key.day) ? new Date(shift.data.key.day).getTime() : null;
+        var isNight = shiftType == "Nachtdienst";
+        var vehicleKey = null;
+        if (teamIndex && dayKey != null)
+            vehicleKey = userVehicleKeyForDay(teamIndex, dayKey, isNight) || vehicleKeyFromLegend(leg);
         var crewNames = function(dKey, vKey) {
             var crew = (teamIndex && teamIndex[dKey] || {})[vKey];
             return crew ? crew.filter(p => p.id != rosterUserId).map(p => p.name) : [];
