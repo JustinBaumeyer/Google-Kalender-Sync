@@ -94,14 +94,40 @@ function rosterFetch(endpoint, method, payload) {
 }
 
 /**
- * Derives a "vehicle key" from a duty legend entry: the vehicle name (everything
- * up to and including the RTW/KTW unit number) plus a day/night marker. Returns
- * null for duties with no associated vehicle (on-call, training, admin, ...), so
- * those never produce team-partner matches.
+ * Performs several authenticated roster API requests in parallel via
+ * UrlFetchApp.fetchAll (one round-trip instead of one per request).
+ * Failed requests are logged and returned as null so one bad request
+ * doesn't abort the others.
  *
- * @param {Object} legendEntry - A legendDuties entry ({longName, shiftTypeName, ...}).
- * @return {?string} e.g. "Würs 2 RTW 2|N", or null.
+ * @param {Array.<{endpoint: string, method: string, payload: ?string}>} calls - Requests to perform.
+ * @return {Array.<?string>} One response body per request, null where the request failed.
  */
+function rosterFetchAll(calls) {
+    if (!calls.length) return [];
+    var requests = calls.map(function(call) {
+        var request = {
+            url: rosterUrl + call.endpoint,
+            method: call.method,
+            validateHttpsCertificates: false,
+            muteHttpExceptions: true,
+            headers: {
+                "authorization": "Bearer " + rosterUserToken,
+                "content-type": "application/json",
+            }
+        };
+        if (call.payload != null)
+            request.payload = call.payload;
+        return request;
+    });
+    return UrlFetchApp.fetchAll(requests).map(function(response, i) {
+        if (response.getResponseCode() != 200) {
+            Logger.log("Roster API call to " + calls[i].endpoint + " failed with HTTP " + response.getResponseCode());
+            return null;
+        }
+        return response.getContentText();
+    });
+}
+
 /**
  * Reformats a roster name from "Lastname,  Firstname" to "Firstname Lastname" so
  * a comma-separated list of names is unambiguous.
@@ -115,6 +141,15 @@ function formatName(raw) {
     return (first + " " + last).trim();
 }
 
+/**
+ * Derives a "vehicle key" from a duty legend entry: the vehicle name (everything
+ * up to and including the RTW/KTW unit number) plus a day/night marker. Returns
+ * null for duties with no associated vehicle (on-call, training, admin, ...), so
+ * those never produce team-partner matches.
+ *
+ * @param {Object} legendEntry - A legendDuties entry ({longName, shiftTypeName, ...}).
+ * @return {?string} e.g. "Würs 2 RTW 2|N", or null.
+ */
 function vehicleKeyFromLegend(legendEntry) {
     if (!legendEntry || !legendEntry.longName) return null;
     var match = legendEntry.longName.match(/^(.*?(?:RTW|KTW)\s*\d+)/);
@@ -211,12 +246,17 @@ function getTeamDutyIndex(monthParams, from, to) {
         // Ask preload about every month: it only reports the groups planned for the
         // month it is given, so querying just one month misses groups the user works
         // in only in other months. Union the group ids across all months, deduped.
+        // All months are queried in parallel; a failed month is logged and skipped.
         var seen = {};
-        (monthParams || []).forEach(month => {
+        var months = monthParams || [];
+        rosterFetchAll(months.map(month => ({
+            endpoint: "team-duty/preload",
+            method: "POST",
+            payload: JSON.stringify({ employeeId: rosterUserId, planningGroup: null, filterEmployee: 0, month: month })
+        }))).forEach((body, i) => {
             try {
-                var pre = JSON.parse(rosterFetch("team-duty/preload", "POST", JSON.stringify({
-                    employeeId: rosterUserId, planningGroup: null, filterEmployee: 0, month: month
-                })));
+                if (body == null) return;
+                var pre = JSON.parse(body);
                 (((pre.teamDuties || {}).data || {}).data || []).forEach(g => {
                     if (g.idPlanninggroup != null && !seen[g.idPlanninggroup]) {
                         seen[g.idPlanninggroup] = true;
@@ -224,41 +264,57 @@ function getTeamDutyIndex(monthParams, from, to) {
                     }
                 });
             } catch (e) {
-                Logger.log("Team-duty preload failed for month " + month + ": " + (e.message || e));
+                Logger.log("Team-duty preload failed for month " + months[i] + ": " + (e.message || e));
             }
         });
     }
 
     Logger.log("Team-duty planning groups: " + (groups.length ? groups.join(", ") : "(none)"));
 
-    groups.forEach(groupId => {
-        // Isolate each group: a single group that errors (e.g. one the user can see
-        // but not fully query) must not abort the others and wipe out every partner.
+    // All groups are fetched in parallel. Each group stays isolated: a single group
+    // that errors (e.g. one the user can see but not fully query) must not abort
+    // the others and wipe out every partner.
+    rosterFetchAll(groups.map(groupId => ({
+        endpoint: "team-duty/roster/" + rosterUserId,
+        method: "POST",
+        payload: JSON.stringify({
+            teamDuty: { idPlanninggroup: groupId, from: from, to: to },
+            filterEmployee: 0
+        })
+    }))).forEach((body, i) => {
         try {
-            ingest(JSON.parse(rosterFetch("team-duty/roster/" + rosterUserId, "POST", JSON.stringify({
-                teamDuty: { idPlanninggroup: groupId, from: from, to: to },
-                filterEmployee: 0
-            }))));
+            if (body == null) return;
+            ingest(JSON.parse(body));
         } catch (e) {
-            Logger.log("Team-duty roster fetch failed for planning group " + groupId + ": " + (e.message || e));
+            Logger.log("Team-duty roster fetch failed for planning group " + groups[i] + ": " + (e.message || e));
         }
     });
 
     return index;
 }
 
+/**
+ * Converts one roster day into shift block objects (one per merged duty block).
+ * Entries that share the same shift code and touch or overlap in time are
+ * merged right away (e.g. a duty split into contiguous segments). Rendering
+ * happens later in shiftBlockToICal so blocks can additionally be consolidated
+ * across days first (see consolidateShiftBlocks).
+ */
 function parseShiftToCal(shift, legend, teamIndex) {
     legend = legend || {};
-    // Merge consecutive entries that share the same shift and are time-contiguous
-    // (the end of one equals the start of the next) into a single block.
+    // Merge consecutive entries that share the same shift and touch or overlap
+    // (the next one starts at or before the end of the previous) into a block.
     var blocks = [];
-    shift.data.rosterDetails.entries.forEach(dienst => {
+    var entries = shift.data.rosterDetails.entries.slice()
+        .sort(function(a, b) { return new Date(a.from) - new Date(b.from); });
+    entries.forEach(dienst => {
         if (rosterIgnoreList.includes(dienst.shortName)) return;
         var start = new Date(dienst.from);
         var end = new Date(dienst.to);
         var prev = blocks[blocks.length - 1];
-        if (prev && prev.shortName == dienst.shortName && prev.end.getTime() == start.getTime()) {
-            prev.end = end;
+        if (prev && prev.shortName == dienst.shortName && start.getTime() <= prev.end.getTime()) {
+            if (end.getTime() > prev.end.getTime())
+                prev.end = end;
         } else {
             blocks.push({
                 shortName: dienst.shortName,
@@ -274,24 +330,20 @@ function parseShiftToCal(shift, legend, teamIndex) {
 
     var tagesbemerkung = shift.data.rosterDetails.tagesbemerkung; // day-level note, applies to every block
 
-    var ret = "";
+    var result = [];
     var summary = [];
     blocks.forEach(block => {
         var leg = legend[block.shortName] || {};
         var shiftType = leg.shiftTypeName || block.nameShiftType || "";
-        var start = toICalDate(block.start);
-        var end = toICalDate(block.end);
 
         // Title: "<code> | <workplace> (<role>)" — shift type lives in the description.
         var title = block.shortName + " | " + block.nameWorkplace + (block.nameRole ? " (" + block.nameRole + ")" : "");
 
-        // Description: full shift name, then "<type> · <duration>", then any remarks.
-        var descLines = [];
-        if (leg.longName) descLines.push(leg.longName);
-        var typeAndDuration = [shiftType, formatDuration(block.start, block.end)].filter(Boolean).join(" · ");
-        if (typeAndDuration) descLines.push(typeAndDuration);
-        if (block.remark) descLines.push(block.remark);
-        if (tagesbemerkung) descLines.push(tagesbemerkung);
+        // Extra description lines (rendered after the name/type/duration lines):
+        // remarks, day note, team partners and relief crew.
+        var extraLines = [];
+        if (block.remark) extraLines.push(block.remark);
+        if (tagesbemerkung) extraLines.push(tagesbemerkung);
 
         // Vehicle + day used for both team-partner and relief lookups. Prefer locating
         // the user inside the fetched team rosters (works across planning groups whose
@@ -309,7 +361,7 @@ function parseShiftToCal(shift, legend, teamIndex) {
         // Colleagues on the same vehicle that day (day vs. night respected), excluding self.
         if (addTeamPartner && vehicleKey && dayKey != null) {
             var partners = crewNames(dayKey, vehicleKey);
-            if (partners.length) descLines.push("Team: " + partners.join(", "));
+            if (partners.length) extraLines.push("Team: " + partners.join(", "));
         }
 
         // Relief crew: a day shift is relieved by the night crew the same day; a
@@ -320,16 +372,78 @@ function parseShiftToCal(shift, legend, teamIndex) {
             var relief = (vehicleKey.slice(pipe + 1) == "N")
                 ? crewNames(nextDayKey(teamIndex, dayKey), vehicle + "|T")
                 : crewNames(dayKey, vehicle + "|N");
-            if (relief.length) descLines.push("Ablösung: " + relief.join(", "));
+            if (relief.length) extraLines.push("Ablösung: " + relief.join(", "));
         }
 
         // On-call (Rufbereitschaft) standby should not block availability.
         var transparent = oncallAsFree && shiftType == "Rufbereitschaft";
 
-        ret += generateICalEntry(block.shortName + start + end, start, end, title, descLines.join("\n"), transparent);
+        result.push({
+            shortName: block.shortName,
+            summary: title,
+            longName: leg.longName,
+            shiftType: shiftType,
+            extraLines: extraLines,
+            start: block.start,
+            end: block.end,
+            transparent: transparent
+        });
         summary.push(block.shortName);
     });
-    return {"ical": ret, "list": summary};
+    return {"blocks": result, "list": summary};
+}
+
+/**
+ * Consolidates shift blocks that share the same title (and transparency) and
+ * touch or overlap in time into a single block — e.g. a follow-up shift that
+ * starts before the previous one ends because of transfer/driving time, or a
+ * chain of back-to-back on-call days. Works across day and month boundaries.
+ * The merged block spans from the first start to the latest end; description
+ * lines are unioned and the duration is recomputed when rendering.
+ * Disabled via the consolidateShifts setting.
+ *
+ * @param {Array.<Object>} blocks - Blocks from parseShiftToCal, any order.
+ * @return {Array.<Object>} Consolidated blocks in chronological order.
+ */
+function consolidateShiftBlocks(blocks) {
+    if (typeof consolidateShifts === "undefined" || !consolidateShifts)
+        return blocks.slice().sort(function(a, b) { return a.start - b.start; });
+
+    var result = [];
+    // Track the newest block per title so an interleaved different shift (e.g. a
+    // day shift inside an on-call week) doesn't break the chain it sits in.
+    var lastByKey = {};
+    blocks.slice().sort(function(a, b) { return a.start - b.start; }).forEach(function(block) {
+        var key = block.summary + "|" + block.transparent;
+        var prev = lastByKey[key];
+        if (prev && block.start.getTime() <= prev.end.getTime()) {
+            if (block.end.getTime() > prev.end.getTime())
+                prev.end = block.end;
+            block.extraLines.forEach(function(line) {
+                if (prev.extraLines.indexOf(line) == -1) prev.extraLines.push(line);
+            });
+        } else {
+            result.push(block);
+            lastByKey[key] = block;
+        }
+    });
+    return result;
+}
+
+/**
+ * Renders a shift block into a VEVENT. The description is composed of the full
+ * shift name, "<type> · <duration>" (recomputed here so consolidated blocks
+ * show their real total span) and any collected remark/team/relief lines.
+ */
+function shiftBlockToICal(block) {
+    var start = toICalDate(block.start);
+    var end = toICalDate(block.end);
+    var descLines = [];
+    if (block.longName) descLines.push(block.longName);
+    var typeAndDuration = [block.shiftType, formatDuration(block.start, block.end)].filter(Boolean).join(" · ");
+    if (typeAndDuration) descLines.push(typeAndDuration);
+    descLines = descLines.concat(block.extraLines);
+    return generateICalEntry(block.shortName + start + end, start, end, block.summary, descLines.join("\n"), block.transparent);
 }
 
 function refreshRosterToken() {
@@ -345,33 +459,34 @@ function getRosterStartDate() {
     },defaultMaxRetries);
 }
 
-var globalStartDate = null;
-var globalEndDate = null;
-
 function generateRosterPayload() {
-    var payload = "["
     var startDate = new Date();
     var endDate = new Date();
     endDate.setMonth(endDate.getMonth() + 2);
     if (addRosterSinceStart) {
         startDate = getRosterStartDate();
     }
-    if(addYearSummary) {
-      startDate = new Date("1.1."+summaryYear)
-      endDate = new Date(summaryYear, 11, 31)
+    if (addYearSummary) {
+        startDate = new Date(Number(summaryYear), 0, 1);
+        endDate = new Date(Number(summaryYear), 11, 31);
     }
-    globalStartDate = startDate.toISOString();
-    globalEndDate = endDate.toISOString();
+
+    // One request entry per month between startDate and endDate.
+    var months = [];
     while (endDate - startDate > 0) {
         startDate.setDate(1);
-        payload += "{\"employeeId\":" + rosterUserId + ",\"begin\":\"" + startDate.toISOString() + "\",\"end\":\"";
-        startDate.setMonth(startDate.getMonth() + 1, 0);
-        payload += startDate.toISOString() + "\",\"rosterViewMode\":4},"
-        startDate.setDate(startDate.getDate() + 1)
+        var begin = startDate.toISOString();
+        startDate.setMonth(startDate.getMonth() + 1, 0); // jump to the last day of the month
+        months.push({
+            employeeId: Number(rosterUserId),
+            begin: begin,
+            end: startDate.toISOString(),
+            rosterViewMode: 4
+        });
+        startDate.setDate(startDate.getDate() + 1); // first day of the next month
     }
-    payload = payload.replace(/,$/, "") + "]"
 
-    return payload;
+    return JSON.stringify(months);
 }
 
 function getRosterICal() {
@@ -385,6 +500,7 @@ function getRosterICal() {
             
             var dienstCount = new Map();
             var seenAbsences = {}; // fehlzeiten are repeated in every month, so dedupe by approvalId
+            var allShiftBlocks = []; // collected across all months so consolidation can span month boundaries
 
             // Optionally look up which colleagues share each vehicle (team partners).
             var teamIndex = {};
@@ -420,7 +536,7 @@ function getRosterICal() {
 
                 month.rosterDetails.forEach(shift => {
                   var data = parseShiftToCal(shift, legend, teamIndex)
-                    icsContent += data.ical
+                    allShiftBlocks = allShiftBlocks.concat(data.blocks)
                     if (addYearSummary) {
                         data.list.forEach(d => {
                             if(dienstCount.has(d)) {
@@ -463,6 +579,11 @@ function getRosterICal() {
                     icsContent += generateAllDayICalEntry("absence-" + abs.approvalId, startDate, endDate, summary, "");
                   })
                 }
+            });
+
+            //------------------------ Emit (consolidated) shift events ------------------------
+            consolidateShiftBlocks(allShiftBlocks).forEach(block => {
+                icsContent += shiftBlockToICal(block);
             });
 
             if (addYearSummary) {

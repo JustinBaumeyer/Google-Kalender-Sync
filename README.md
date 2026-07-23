@@ -16,6 +16,8 @@ integrates with the **DRK Aachen "Dienstplan"** roster system, so volunteer shif
 - **Roster integration**: pulls your shift plan from the DRK Aachen roster API, including
   optional shift-requests (*Einsatzwünsche*) and an annual shift summary.
 - **Robust API calls** with exponential backoff and retry on transient errors.
+- **Fail-safe syncing**: if a source feed (or the roster API) cannot be fetched, its
+  target calendar is left untouched instead of having all its events removed.
 - **Automatic update check** against this repository, with an in-calendar notice when a
   newer version is available.
 - **Optional email notification** when a sync run fails.
@@ -83,6 +85,7 @@ To stop the script, run `uninstall` — it removes all triggers and script prope
 | `addRosterRequests` | Include shift-requests (*Einsatzwünsche*). |
 | `addAbsences` | Add absences (vacation etc.) as consolidated all-day events from the roster's *fehlzeiten* list; pending requests are marked *(beantragt)*. The roster also lists absences as per-day blocks under their short code (e.g. `UL`); keep that code in `rosterIgnoreList` so those daily blocks aren't synced in addition to the consolidated events. |
 | `oncallAsFree` | Mark on-call shifts (*Rufbereitschaft*) as free/available so they don't block your calendar like a regular shift. |
+| `consolidateShifts` | Merge shifts with the same title that touch or overlap in time into a single event — e.g. a follow-up shift that starts before the previous one ends because of drive/transfer time, or a chain of back-to-back on-call days. Works across day and month boundaries; the description shows the combined duration. |
 | `addTeamPartner` | List the colleagues sharing your vehicle that day in the shift description (`Team: …`), day vs. night respected. Locates your vehicle by finding yourself in each planning group's team roster, so it works even for shifts on vehicles belonging to a planning group other than your own (it falls back to matching by the duty's full name). Fetches the team roster per planning group and writes colleagues' names into your calendar. |
 | `rosterPlanningGroups` | Planning group IDs to query for team partners (e.g. `[335]`). Leave empty to auto-discover the groups you can see. |
 | `addRelief` | Show who relieves you (`Ablösung: …`): for a day shift, the night crew on the same vehicle that day; for a night shift, the day crew the next day. Uses the same team-duty data as `addTeamPartner`. |
@@ -99,7 +102,8 @@ Properties**:
 - `rosterUserId` — your employee ID
 
 Running `install` seeds these properties with placeholder values; replace them with your
-real credentials before the first sync.
+real credentials before the first sync. Re-running `install` later (e.g. after changing
+`howFrequent`) keeps the credentials you entered.
 
 ## Updates
 
