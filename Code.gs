@@ -1,4 +1,4 @@
-var version = 3;
+var version = 4;
 var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
 var scriptPrp = PropertiesService.getScriptProperties()
 var rosterUserToken = scriptPrp.getProperty("rosterUserToken");
@@ -178,6 +178,7 @@ function runSync(){
         //------------------------ Parse ical events --------------------------
 
         vevents = parseResponses(responses);
+        vevents = consolidateVevents(vevents);
         Logger.log("Parsed " + vevents.length + " events from ical sources");
       }
 

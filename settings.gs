@@ -22,13 +22,15 @@ var overrideVisibility = "";              // Changes the visibility of the event
 
 var errorNotificationEmail = false;       // Set to true to email the script owner when a sync run fails, or set a specific address (e.g. "me@example.com"). false disables notifications. Limited to one email per hour.
 
+var consolidateEvents = true;             // If "true", events with the same title that touch or overlap in time are merged into one event spanning the whole range - applies to every source (e.g. two Sanitätsdienst blocks 13:45-19:00 and 18:45-00:00 become one event 13:45-00:00). Roster shifts are additionally matched by shift code, so a follow-up shift at another station still merges.
+var consolidateMaxGapMinutes = 0;         // Additionally merge same-title events separated by up to this many minutes (0 = only touching or overlapping events are merged).
+
 
 var addRosterToCal = true;
 var addRosterSinceStart = false;
 var addRosterRequests = true;
 var addAbsences = true;                   // If "true", absences (vacation etc.) are added as consolidated all-day events from the fehlzeiten list. Keep the matching code (e.g. "UL") in rosterIgnoreList so the per-day blocks in the roster aren't duplicated.
 var oncallAsFree = true;                   // If "true", on-call shifts (Rufbereitschaft) are marked as free/available (TRANSP:TRANSPARENT) so they don't block your calendar like a regular shift.
-var consolidateShifts = true;              // If "true", shifts with the same title that touch or overlap in time are merged into one event - e.g. a follow-up shift that starts before the previous one ends because you have to drive there, or a chain of back-to-back on-call days.
 var addTeamPartner = false;                // If "true", lists the colleagues sharing your vehicle that day in the shift description ("Team: ..."). Requires extra team-duty API calls and writes colleagues' names into your calendar.
 var rosterPlanningGroups = [];             // Planning group IDs to query for team partners (e.g. [335]). Leave empty to auto-discover the groups you can see.
 var addRelief = false;                     // If "true", shows who relieves you ("Ablösung: ..."): for a day shift the night crew on the same vehicle that day, for a night shift the day crew the next day. Uses the same team-duty data as addTeamPartner.
