@@ -304,6 +304,7 @@ function parseShiftToCal(shift, legend, teamIndex) {
     legend = legend || {};
     // Merge consecutive entries that share the same shift and touch or overlap
     // (the next one starts at or before the end of the previous) into a block.
+    var mergeWindow = consolidationEnabled() ? consolidateGapMillis() : 0;
     var blocks = [];
     var entries = shift.data.rosterDetails.entries.slice()
         .sort(function(a, b) { return new Date(a.from) - new Date(b.from); });
@@ -312,7 +313,7 @@ function parseShiftToCal(shift, legend, teamIndex) {
         var start = new Date(dienst.from);
         var end = new Date(dienst.to);
         var prev = blocks[blocks.length - 1];
-        if (prev && prev.shortName == dienst.shortName && start.getTime() <= prev.end.getTime()) {
+        if (prev && prev.shortName == dienst.shortName && start.getTime() <= prev.end.getTime() + mergeWindow) {
             if (end.getTime() > prev.end.getTime())
                 prev.end = end;
         } else {
@@ -394,31 +395,39 @@ function parseShiftToCal(shift, legend, teamIndex) {
 }
 
 /**
- * Consolidates shift blocks that share the same title (and transparency) and
- * touch or overlap in time into a single block — e.g. a follow-up shift that
- * starts before the previous one ends because of transfer/driving time, or a
- * chain of back-to-back on-call days. Works across day and month boundaries.
- * The merged block spans from the first start to the latest end; description
- * lines are unioned and the duration is recomputed when rendering.
- * Disabled via the consolidateShifts setting.
+ * Consolidates shift blocks that share the same shift code (and transparency)
+ * and touch or overlap in time (optionally within consolidateMaxGapMinutes)
+ * into a single block — e.g. a follow-up shift that starts before the previous
+ * one ends because of transfer/driving time, or a chain of back-to-back
+ * on-call days. Works across day and month boundaries. Matching by shift code
+ * (not full title) means a relocated continuation at another workplace still
+ * merges; the first segment's title wins and a differing later title is kept
+ * as an "Anschluss:" description line. The merged block spans from the first
+ * start to the latest end; description lines are unioned and the duration is
+ * recomputed when rendering. Disabled via the consolidateEvents setting.
  *
  * @param {Array.<Object>} blocks - Blocks from parseShiftToCal, any order.
  * @return {Array.<Object>} Consolidated blocks in chronological order.
  */
 function consolidateShiftBlocks(blocks) {
-    if (typeof consolidateShifts === "undefined" || !consolidateShifts)
-        return blocks.slice().sort(function(a, b) { return a.start - b.start; });
+    var sorted = blocks.slice().sort(function(a, b) { return a.start - b.start; });
+    if (!consolidationEnabled())
+        return sorted;
 
+    var gapMillis = consolidateGapMillis();
     var result = [];
-    // Track the newest block per title so an interleaved different shift (e.g. a
-    // day shift inside an on-call week) doesn't break the chain it sits in.
+    // Track the newest block per shift code so an interleaved different shift
+    // (e.g. a day shift inside an on-call week) doesn't break the chain it sits in.
     var lastByKey = {};
-    blocks.slice().sort(function(a, b) { return a.start - b.start; }).forEach(function(block) {
-        var key = block.summary + "|" + block.transparent;
+    sorted.forEach(function(block) {
+        var key = block.shortName + "|" + block.transparent;
         var prev = lastByKey[key];
-        if (prev && block.start.getTime() <= prev.end.getTime()) {
+        if (prev && block.start.getTime() <= prev.end.getTime() + gapMillis) {
+            Logger.log("Consolidating shift '" + block.summary + "' (" + block.start + ") into '" + prev.summary + "'");
             if (block.end.getTime() > prev.end.getTime())
                 prev.end = block.end;
+            if (block.summary != prev.summary && prev.extraLines.indexOf("Anschluss: " + block.summary) == -1)
+                prev.extraLines.push("Anschluss: " + block.summary);
             block.extraLines.forEach(function(line) {
                 if (prev.extraLines.indexOf(line) == -1) prev.extraLines.push(line);
             });

@@ -74,6 +74,8 @@ To stop the script, run `uninstall` — it removes all triggers and script prope
 | `addCalToTitle` | Prefix event titles with the source calendar name. |
 | `defaultAllDayReminder` | Reminder for all-day events, in minutes before the day (`-1` = none, `0`–`40320`). |
 | `overrideVisibility` | Force event visibility (`default`/`public`/`private`/`confidential`). |
+| `consolidateEvents` | Merge events with the same title that touch or overlap in time into one event spanning the whole range — applies to **every source** (e.g. two Sanitätsdienst blocks 13:45–19:00 and 18:45–00:00 become one event 13:45–00:00). Descriptions of the merged parts are combined without duplicating shared lines. Roster shifts are additionally matched by shift code, so a relocated follow-up shift merges even when its title names another workplace. Recurring events are never consolidated. |
+| `consolidateMaxGapMinutes` | Additionally merge same-title events separated by up to this many minutes (`0` = only touching or overlapping events are merged). |
 | `errorNotificationEmail` | `false` to disable; `true` to email the script owner on failure; or a specific address. Rate-limited to one mail/hour. |
 
 ### Roster settings
@@ -85,7 +87,6 @@ To stop the script, run `uninstall` — it removes all triggers and script prope
 | `addRosterRequests` | Include shift-requests (*Einsatzwünsche*). |
 | `addAbsences` | Add absences (vacation etc.) as consolidated all-day events from the roster's *fehlzeiten* list; pending requests are marked *(beantragt)*. The roster also lists absences as per-day blocks under their short code (e.g. `UL`); keep that code in `rosterIgnoreList` so those daily blocks aren't synced in addition to the consolidated events. |
 | `oncallAsFree` | Mark on-call shifts (*Rufbereitschaft*) as free/available so they don't block your calendar like a regular shift. |
-| `consolidateShifts` | Merge shifts with the same title that touch or overlap in time into a single event — e.g. a follow-up shift that starts before the previous one ends because of drive/transfer time, or a chain of back-to-back on-call days. Works across day and month boundaries; the description shows the combined duration. |
 | `addTeamPartner` | List the colleagues sharing your vehicle that day in the shift description (`Team: …`), day vs. night respected. Locates your vehicle by finding yourself in each planning group's team roster, so it works even for shifts on vehicles belonging to a planning group other than your own (it falls back to matching by the duty's full name). Fetches the team roster per planning group and writes colleagues' names into your calendar. |
 | `rosterPlanningGroups` | Planning group IDs to query for team partners (e.g. `[335]`). Leave empty to auto-discover the groups you can see. |
 | `addRelief` | Show who relieves you (`Ablösung: …`): for a day shift, the night crew on the same vehicle that day; for a night shift, the day crew the next day. Uses the same team-duty data as `addTeamPartner`. |
