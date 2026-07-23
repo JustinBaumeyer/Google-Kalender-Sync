@@ -94,14 +94,40 @@ function rosterFetch(endpoint, method, payload) {
 }
 
 /**
- * Derives a "vehicle key" from a duty legend entry: the vehicle name (everything
- * up to and including the RTW/KTW unit number) plus a day/night marker. Returns
- * null for duties with no associated vehicle (on-call, training, admin, ...), so
- * those never produce team-partner matches.
+ * Performs several authenticated roster API requests in parallel via
+ * UrlFetchApp.fetchAll (one round-trip instead of one per request).
+ * Failed requests are logged and returned as null so one bad request
+ * doesn't abort the others.
  *
- * @param {Object} legendEntry - A legendDuties entry ({longName, shiftTypeName, ...}).
- * @return {?string} e.g. "Würs 2 RTW 2|N", or null.
+ * @param {Array.<{endpoint: string, method: string, payload: ?string}>} calls - Requests to perform.
+ * @return {Array.<?string>} One response body per request, null where the request failed.
  */
+function rosterFetchAll(calls) {
+    if (!calls.length) return [];
+    var requests = calls.map(function(call) {
+        var request = {
+            url: rosterUrl + call.endpoint,
+            method: call.method,
+            validateHttpsCertificates: false,
+            muteHttpExceptions: true,
+            headers: {
+                "authorization": "Bearer " + rosterUserToken,
+                "content-type": "application/json",
+            }
+        };
+        if (call.payload != null)
+            request.payload = call.payload;
+        return request;
+    });
+    return UrlFetchApp.fetchAll(requests).map(function(response, i) {
+        if (response.getResponseCode() != 200) {
+            Logger.log("Roster API call to " + calls[i].endpoint + " failed with HTTP " + response.getResponseCode());
+            return null;
+        }
+        return response.getContentText();
+    });
+}
+
 /**
  * Reformats a roster name from "Lastname,  Firstname" to "Firstname Lastname" so
  * a comma-separated list of names is unambiguous.
@@ -115,6 +141,15 @@ function formatName(raw) {
     return (first + " " + last).trim();
 }
 
+/**
+ * Derives a "vehicle key" from a duty legend entry: the vehicle name (everything
+ * up to and including the RTW/KTW unit number) plus a day/night marker. Returns
+ * null for duties with no associated vehicle (on-call, training, admin, ...), so
+ * those never produce team-partner matches.
+ *
+ * @param {Object} legendEntry - A legendDuties entry ({longName, shiftTypeName, ...}).
+ * @return {?string} e.g. "Würs 2 RTW 2|N", or null.
+ */
 function vehicleKeyFromLegend(legendEntry) {
     if (!legendEntry || !legendEntry.longName) return null;
     var match = legendEntry.longName.match(/^(.*?(?:RTW|KTW)\s*\d+)/);
@@ -211,12 +246,17 @@ function getTeamDutyIndex(monthParams, from, to) {
         // Ask preload about every month: it only reports the groups planned for the
         // month it is given, so querying just one month misses groups the user works
         // in only in other months. Union the group ids across all months, deduped.
+        // All months are queried in parallel; a failed month is logged and skipped.
         var seen = {};
-        (monthParams || []).forEach(month => {
+        var months = monthParams || [];
+        rosterFetchAll(months.map(month => ({
+            endpoint: "team-duty/preload",
+            method: "POST",
+            payload: JSON.stringify({ employeeId: rosterUserId, planningGroup: null, filterEmployee: 0, month: month })
+        }))).forEach((body, i) => {
             try {
-                var pre = JSON.parse(rosterFetch("team-duty/preload", "POST", JSON.stringify({
-                    employeeId: rosterUserId, planningGroup: null, filterEmployee: 0, month: month
-                })));
+                if (body == null) return;
+                var pre = JSON.parse(body);
                 (((pre.teamDuties || {}).data || {}).data || []).forEach(g => {
                     if (g.idPlanninggroup != null && !seen[g.idPlanninggroup]) {
                         seen[g.idPlanninggroup] = true;
@@ -224,23 +264,29 @@ function getTeamDutyIndex(monthParams, from, to) {
                     }
                 });
             } catch (e) {
-                Logger.log("Team-duty preload failed for month " + month + ": " + (e.message || e));
+                Logger.log("Team-duty preload failed for month " + months[i] + ": " + (e.message || e));
             }
         });
     }
 
     Logger.log("Team-duty planning groups: " + (groups.length ? groups.join(", ") : "(none)"));
 
-    groups.forEach(groupId => {
-        // Isolate each group: a single group that errors (e.g. one the user can see
-        // but not fully query) must not abort the others and wipe out every partner.
+    // All groups are fetched in parallel. Each group stays isolated: a single group
+    // that errors (e.g. one the user can see but not fully query) must not abort
+    // the others and wipe out every partner.
+    rosterFetchAll(groups.map(groupId => ({
+        endpoint: "team-duty/roster/" + rosterUserId,
+        method: "POST",
+        payload: JSON.stringify({
+            teamDuty: { idPlanninggroup: groupId, from: from, to: to },
+            filterEmployee: 0
+        })
+    }))).forEach((body, i) => {
         try {
-            ingest(JSON.parse(rosterFetch("team-duty/roster/" + rosterUserId, "POST", JSON.stringify({
-                teamDuty: { idPlanninggroup: groupId, from: from, to: to },
-                filterEmployee: 0
-            }))));
+            if (body == null) return;
+            ingest(JSON.parse(body));
         } catch (e) {
-            Logger.log("Team-duty roster fetch failed for planning group " + groupId + ": " + (e.message || e));
+            Logger.log("Team-duty roster fetch failed for planning group " + groups[i] + ": " + (e.message || e));
         }
     });
 
@@ -345,33 +391,34 @@ function getRosterStartDate() {
     },defaultMaxRetries);
 }
 
-var globalStartDate = null;
-var globalEndDate = null;
-
 function generateRosterPayload() {
-    var payload = "["
     var startDate = new Date();
     var endDate = new Date();
     endDate.setMonth(endDate.getMonth() + 2);
     if (addRosterSinceStart) {
         startDate = getRosterStartDate();
     }
-    if(addYearSummary) {
-      startDate = new Date("1.1."+summaryYear)
-      endDate = new Date(summaryYear, 11, 31)
+    if (addYearSummary) {
+        startDate = new Date(Number(summaryYear), 0, 1);
+        endDate = new Date(Number(summaryYear), 11, 31);
     }
-    globalStartDate = startDate.toISOString();
-    globalEndDate = endDate.toISOString();
+
+    // One request entry per month between startDate and endDate.
+    var months = [];
     while (endDate - startDate > 0) {
         startDate.setDate(1);
-        payload += "{\"employeeId\":" + rosterUserId + ",\"begin\":\"" + startDate.toISOString() + "\",\"end\":\"";
-        startDate.setMonth(startDate.getMonth() + 1, 0);
-        payload += startDate.toISOString() + "\",\"rosterViewMode\":4},"
-        startDate.setDate(startDate.getDate() + 1)
+        var begin = startDate.toISOString();
+        startDate.setMonth(startDate.getMonth() + 1, 0); // jump to the last day of the month
+        months.push({
+            employeeId: Number(rosterUserId),
+            begin: begin,
+            end: startDate.toISOString(),
+            rosterViewMode: 4
+        });
+        startDate.setDate(startDate.getDate() + 1); // first day of the next month
     }
-    payload = payload.replace(/,$/, "") + "]"
 
-    return payload;
+    return JSON.stringify(months);
 }
 
 function getRosterICal() {

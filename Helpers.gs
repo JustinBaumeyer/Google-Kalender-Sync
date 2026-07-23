@@ -7,7 +7,7 @@
  * @return {integer} The closest valid value to the intended frequency setting. Defaulting to 15 if no valid input is provided.
  */
 function getValidTriggerFrequency(origFrequency) {
-    if (!origFrequency > 0) {
+    if (!origFrequency || origFrequency <= 0) {
         Logger.log("No valid frequency specified. Defaulting to 15 minutes.");
         return 15;
     }
@@ -61,12 +61,13 @@ function condenseCalendarMap(calendarMap) {
 }
 
 /**
- * Removes all triggers for the script's 'startSync' and 'install' function.
+ * Removes all triggers created by this script (sync, install and update check),
+ * so repeated installs can't accumulate triggers until the quota is hit.
  */
 function deleteAllTriggers() {
     var triggers = ScriptApp.getProjectTriggers();
     for (var i = 0; i < triggers.length; i++) {
-        if (["startSync", "install", "main"].includes(triggers[i].getHandlerFunction())) {
+        if (["startSync", "install", "main", "checkForUpdates"].includes(triggers[i].getHandlerFunction())) {
             ScriptApp.deleteTrigger(triggers[i]);
         }
     }
@@ -74,58 +75,69 @@ function deleteAllTriggers() {
 
 /**
  * Gets the ressource from the specified URLs.
+ * Sources that could not be fetched or parsed are counted in failedSources so
+ * the caller can skip the target calendar instead of deleting their events.
  *
  * @param {Array.string} sourceCalendarURLs - Array with URLs to fetch
- * @return {Array.string} The ressources fetched from the specified URLs
+ * @return {{responses: Array, failedSources: number}} [content, colorId] pairs and the failure count
  */
 function fetchSourceCalendars(sourceCalendarURLs) {
-    var result = []
+    var result = [];
+    var failedSources = 0;
     for (var source of sourceCalendarURLs) {
         var url = source[0].replace("webcal://", "https://");
         var colorId = source[1];
 
-        if (addRosterToCal && source[0] == "ROSTER") {
-            callWithBackoff(function() {
-              result.push([getRosterICal(), colorId]);
-              return;
-            },defaultMaxRetries);
+        if (source[0] == "ROSTER") {
+            if (!addRosterToCal) {
+                Logger.log("Skipping ROSTER source (addRosterToCal is disabled)");
+                continue;
+            }
+            var rosterContent = getRosterICal();
+            if (rosterContent != null)
+                result.push([rosterContent, colorId]);
+            else
+                failedSources++;
         } else {
-            callWithBackoff(function() {
+            var urlContent = callWithBackoff(function() {
                 var urlResponse = UrlFetchApp.fetch(url, {
                     'validateHttpsCertificates': false,
                     'muteHttpExceptions': true
                 });
-                if (urlResponse.getResponseCode() == 200) {
-                    var icsContent = urlResponse.getContentText()
-                    const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
-                    var urlContent = icsRegex.exec(icsContent);
-                    if (urlContent == null) {
-                        // Microsoft Outlook has a bug that sometimes results in incorrectly formatted ics files. This tries to fix that problem.
-                        // Add END:VEVENT for every BEGIN:VEVENT that's missing it
-                        const veventRegex = /BEGIN:VEVENT(?:(?!END:VEVENT).)*?(?=.BEGIN|.END:VCALENDAR|$)/sg;
-                        icsContent = icsContent.replace(veventRegex, (match) => match + "\nEND:VEVENT");
-
-                        // Add END:VCALENDAR if missing
-                        if (!icsContent.endsWith("END:VCALENDAR")) {
-                            icsContent += "\nEND:VCALENDAR";
-                        }
-                        urlContent = icsRegex.exec(icsContent)
-                        if (urlContent == null) {
-                            Logger.log("[ERROR] Incorrect ics/ical URL: " + url)
-                            return
-                        }
-                        Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url)
-                    }
-                    result.push([urlContent[0], colorId]);
-                    return;
-                } else { //Throw here to make callWithBackoff run again
+                if (urlResponse.getResponseCode() != 200) //Throw here to make callWithBackoff run again
                     throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url;
+
+                var icsContent = urlResponse.getContentText()
+                const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
+                var icsMatch = icsRegex.exec(icsContent);
+                if (icsMatch == null) {
+                    // Microsoft Outlook has a bug that sometimes results in incorrectly formatted ics files. This tries to fix that problem.
+                    // Add END:VEVENT for every BEGIN:VEVENT that's missing it
+                    const veventRegex = /BEGIN:VEVENT(?:(?!END:VEVENT).)*?(?=.BEGIN|.END:VCALENDAR|$)/sg;
+                    icsContent = icsContent.replace(veventRegex, (match) => match + "\nEND:VEVENT");
+
+                    // Add END:VCALENDAR if missing
+                    if (!icsContent.endsWith("END:VCALENDAR")) {
+                        icsContent += "\nEND:VCALENDAR";
+                    }
+                    icsMatch = icsRegex.exec(icsContent)
+                    if (icsMatch == null) {
+                        Logger.log("[ERROR] Incorrect ics/ical URL: " + url)
+                        return null;
+                    }
+                    Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url)
                 }
+                return icsMatch[0];
             }, defaultMaxRetries);
+
+            if (urlContent != null)
+                result.push([urlContent, colorId]);
+            else
+                failedSources++;
         }
     }
 
-    return result;
+    return {responses: result, failedSources: failedSources};
 }
 
 /**
@@ -153,6 +165,25 @@ function setupTargetCalendar(targetCalendarName) {
     }
 
     return targetCalendar;
+}
+
+/**
+ * Returns the current UTC offset of the given timezone in milliseconds.
+ * Cached per timezone for the duration of the execution, as the lookup via
+ * Utilities.formatDate is expensive when done once per event.
+ *
+ * @param {string} tz - IANA timezone name
+ * @return {number} UTC offset in milliseconds
+ */
+var tzOffsetCache = {};
+function getUTCOffsetMillis(tz) {
+    if (tz in tzOffsetCache)
+        return tzOffsetCache[tz];
+    var jsTime = new Date();
+    var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
+    var tgtTime = new Date(Utilities.formatDate(jsTime, tz, "HH:mm:ss MM/dd/yyyy"));
+    tzOffsetCache[tz] = tgtTime - utcTime;
+    return tzOffsetCache[tz];
 }
 
 /**
@@ -215,15 +246,11 @@ function parseResponses(responses) {
         if (event.hasProperty('recurrence-id')) {
             let recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
             if (event.getFirstProperty('recurrence-id').getParameter('tzid')) {
-                let recUTCOffset = 0;
                 let tz = event.getFirstProperty('recurrence-id').getParameter('tzid').toString();
                 if (tz in tzidreplace) {
                     tz = tzidreplace[tz];
                 }
-                let jsTime = new Date();
-                let utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
-                let tgtTime = new Date(Utilities.formatDate(jsTime, tz, "HH:mm:ss MM/dd/yyyy"));
-                recUTCOffset = (tgtTime - utcTime) / -1000;
+                let recUTCOffset = getUTCOffsetMillis(tz) / -1000;
                 recID = recID.adjust(0, 0, 0, recUTCOffset).toString() + "Z";
                 event.updatePropertyWithValue('recurrence-id', recID);
             }
@@ -248,7 +275,8 @@ function processEvent(event, calendarTz) {
     if (newEvent == null)
         return;
 
-    var index = calendarEventsIds.indexOf(newEvent.extendedProperties.private["id"]);
+    var eventId = newEvent.extendedProperties.private["id"];
+    var index = calendarEventsIndex.has(eventId) ? calendarEventsIndex.get(eventId) : -1;
     var needsUpdate = index > -1;
 
     //------------------------ Save instance overrides ------------------------
@@ -298,15 +326,12 @@ function createEvent(event, calendarTz) {
     }
 
     var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, icalEvent.toString()).toString();
-    if (calendarEventsMD5s.indexOf(digest) >= 0) {
+    if (calendarEventsMD5Set.has(digest)) {
         showSkipMessage && Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('uid').toString());
         return;
     }
 
-    var newEvent =
-        callWithBackoff(function() {
-            return Calendar.newEvent();
-        }, defaultMaxRetries);
+    var newEvent;
     if (icalEvent.startDate.isDate) { //All-day event
         if (icalEvent.startDate.compare(icalEvent.endDate) == 0) {
             //Adjust dtend in case dtstart equals dtend as this is not valid for allday events
@@ -349,11 +374,10 @@ function createEvent(event, calendarTz) {
     }
 
     if (event.hasProperty('url') && event.getFirstPropertyValue('url').toString().substring(0, 4) == 'http') {
-        newEvent.source = callWithBackoff(function() {
-            return Calendar.newEventSource();
-        }, defaultMaxRetries);
-        newEvent.source.url = event.getFirstPropertyValue('url').toString();
-        newEvent.source.title = 'link';
+        newEvent.source = {
+            url: event.getFirstPropertyValue('url').toString(),
+            title: 'link'
+        };
     }
 
     if (event.hasProperty('summary'))
@@ -408,13 +432,7 @@ function createEvent(event, calendarTz) {
     }
 
     if (icalEvent.isRecurring()) {
-        // Calculate targetTZ's UTC-Offset
-        var calendarUTCOffset = 0;
-        var jsTime = new Date();
-        var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
-        var tgtTime = new Date(Utilities.formatDate(jsTime, calendarTz, "HH:mm:ss MM/dd/yyyy"));
-        calendarUTCOffset = tgtTime - utcTime;
-        newEvent.recurrence = parseRecurrenceRule(event, calendarUTCOffset);
+        newEvent.recurrence = parseRecurrenceRule(event, getUTCOffsetMillis(calendarTz));
     }
 
     newEvent.extendedProperties = {
@@ -532,7 +550,7 @@ function checkSkipEvent(event, icalEvent) {
         }
 
         //Check and filter recurrence-exceptions
-        for (i = 0; i < icalEvent.except.length; i++) {
+        for (var i = 0; i < icalEvent.except.length; i++) {
             //Exclude the instance if it was moved from future to past
             if ((icalEvent.except[i].startDate.compare(startUpdateTime) < 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) >= 0)) {
                 Logger.log("Creating EXDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
@@ -572,8 +590,9 @@ function processEventInstance(recEvent) {
     var eventInstanceToPatch = callWithBackoff(function() {
         return Calendar.Events.list(targetCalendarId, {
             singleEvents: true,
-            privateExtendedProperty: "fromGAS=true",
-            privateExtendedProperty: "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId
+            // Both filters must be passed as an array: a duplicate object key would
+            // silently drop the first filter.
+            privateExtendedProperty: ["fromGAS=true", "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId]
         }).items;
     }, defaultMaxRetries);
 
@@ -589,8 +608,7 @@ function processEventInstance(recEvent) {
                 orderBy: "startTime",
                 maxResults: 1,
                 timeMin: recEvent.recurringEventId,
-                privateExtendedProperty: "fromGAS=true",
-                privateExtendedProperty: "id=" + recEvent.extendedProperties.private["id"]
+                privateExtendedProperty: ["fromGAS=true", "id=" + recEvent.extendedProperties.private["id"]]
             }).items;
         }, defaultMaxRetries);
     }
@@ -617,13 +635,14 @@ function processEventInstance(recEvent) {
  * If onlyFutureEvents is set to true, events that have taken place since the last sync are also removed.
  */
 function processEventCleanup() {
+    var feedIds = new Set(icsEventsIds);
+    var compareDate = new Date();
+    compareDate.setDate(compareDate.getDate() - 5);
+
     for (var i = 0; i < calendarEvents.length; i++) {
         var currentID = calendarEventsIds[i];
-        var feedIndex = icsEventsIds.indexOf(currentID);
-        var compareDate = new Date();
-        compareDate.setDate(compareDate.getDate() - 5);
 
-        if (feedIndex == -1 // Event is no longer in source
+        if (!feedIds.has(currentID) // Event is no longer in source
             &&
             calendarEvents[i].recurringEventId == null // And it's not a recurring event
             &&
@@ -719,8 +738,7 @@ function callWithBackoff(func, maxRetries) {
                 return null;
             } else {
                 Logger.log("Error, Retrying... [" + err + "]");
-                Utilities.sleep(Math.pow(2, tries) * 100) +
-                    (Math.round(Math.random() * 100));
+                Utilities.sleep(Math.pow(2, tries) * 100 + Math.round(Math.random() * 100));
             }
         }
     }

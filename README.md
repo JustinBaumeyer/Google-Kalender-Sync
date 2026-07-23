@@ -16,6 +16,8 @@ integrates with the **DRK Aachen "Dienstplan"** roster system, so volunteer shif
 - **Roster integration**: pulls your shift plan from the DRK Aachen roster API, including
   optional shift-requests (*Einsatzwünsche*) and an annual shift summary.
 - **Robust API calls** with exponential backoff and retry on transient errors.
+- **Fail-safe syncing**: if a source feed (or the roster API) cannot be fetched, its
+  target calendar is left untouched instead of having all its events removed.
 - **Automatic update check** against this repository, with an in-calendar notice when a
   newer version is available.
 - **Optional email notification** when a sync run fails.
@@ -99,7 +101,8 @@ Properties**:
 - `rosterUserId` — your employee ID
 
 Running `install` seeds these properties with placeholder values; replace them with your
-real credentials before the first sync.
+real credentials before the first sync. Re-running `install` later (e.g. after changing
+`howFrequent`) keeps the credentials you entered.
 
 ## Updates
 
