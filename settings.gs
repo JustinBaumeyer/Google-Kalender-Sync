@@ -25,6 +25,13 @@ var errorNotificationEmail = false;       // Set to true to email the script own
 var consolidateEvents = true;             // If "true", events with the same title that touch or overlap in time are merged into one event spanning the whole range - applies to every source (e.g. two Sanitätsdienst blocks 13:45-19:00 and 18:45-00:00 become one event 13:45-00:00). Roster shifts are additionally matched by shift code, so a follow-up shift at another station still merges.
 var consolidateMaxGapMinutes = 0;         // Additionally merge same-title events separated by up to this many minutes (0 = only touching or overlapping events are merged).
 
+// Events from any source that should never end up in the calendar. Already synced copies are removed automatically on the next run.
+// A rule is either a title (case-insensitive substring, or a RegExp like /^910050/) or an object where every given field has to match:
+//   {title: "...", weekday: "Mo", start: "08:30", end: "10:00"}   (weekday: Mo/Di/Mi/Do/Fr/Sa/So, start/end: "HH:MM")
+var ignoreEvents = [
+  {title: "910050-V Grundlagen der Ingenieurwissenschaften - Chemie/Werkstoffkunde", weekday: "Mo", start: "08:30", end: "10:00"},
+];
+
 
 var addRosterToCal = true;
 var addRosterSinceStart = false;

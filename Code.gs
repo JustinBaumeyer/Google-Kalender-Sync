@@ -1,4 +1,4 @@
-var version = 4;
+var version = 5;
 var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
 var scriptPrp = PropertiesService.getScriptProperties()
 var rosterUserToken = scriptPrp.getProperty("rosterUserToken");
@@ -49,6 +49,7 @@ var calendarEventsIds = [];
 var calendarEventsIndex = new Map(); // event id -> position in calendarEvents (first occurrence)
 var calendarEventsMD5Set = new Set();
 var icsEventsIds = [];
+var ignoredEventIds = new Set();
 var recurringEvents = [];
 var targetCalendarId;
 var targetCalendarName;
@@ -109,6 +110,7 @@ function runSync(){
       calendarEventsIndex = new Map();
       calendarEventsMD5Set = new Set();
       icsEventsIds = [];
+      ignoredEventIds = new Set();
       recurringEvents = [];
 
       targetCalendarName = calendar[0];
