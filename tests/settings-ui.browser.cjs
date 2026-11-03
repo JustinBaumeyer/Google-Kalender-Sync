@@ -216,6 +216,28 @@ test('connection check and preview display real parsed data without saving draft
   }finally{await page.close();}
 });
 
+test('settings and dashboard previews accept regex rules and filter matching events',async()=>{
+  const {page,server,app,calls,errors}=await open({ignoreEvents:[{$regex:'^Ausblenden',$flags:'i'},{title:{$regex:'Extern',$flags:'i'}}]});
+  try{
+    server.getRosterICal_=()=> 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\n'+['Vorschaudienst','Ausblenden A','Extern A'].map((title,index)=>
+      'BEGIN:VEVENT\r\nUID:preview-'+index+'\r\nDTSTART:20990101T080000Z\r\nDTEND:20990101T160000Z\r\nSUMMARY:'+title+'\r\nEND:VEVENT\r\n').join('')+'END:VCALENDAR';
+    const original=app.users.get(alice).get('preferences');
+    await page.locator('#preview').click();
+    await page.locator('#previewEvents').getByText('Vorschaudienst',{exact:true}).waitFor();
+    assert.equal(await page.locator('#previewEvents').getByText(/Ausblenden|Extern/).count(),0);
+    await page.locator('#closeSettings').click();
+    await page.evaluate(()=>document.getElementById('previewPanel').hidden=true);
+    await page.locator('#dashboardPreview').click();
+    await page.locator('#previewPanel').waitFor({state:'visible'});
+    await page.locator('#previewEvents').getByText('Vorschaudienst',{exact:true}).waitFor();
+    assert.equal(await page.locator('#previewEvents').getByText(/Ausblenden|Extern/).count(),0);
+    assert.equal(calls.filter(method=>method==='previewSynchronization').length,2);
+    assert.equal(app.users.get(alice).get('preferences'),original);
+    assert.equal(app.users.get(alice).get('rosterUserToken'),'saved-token');
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
 test('owner access panel adds and removes emails without JSON or sending messages',async()=>{
   const {page,app}=await open();
   try{

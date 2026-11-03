@@ -205,9 +205,10 @@ function withDraftPreferences_(input, operation) {
   if (!lock.tryLock(0)) throw new Error("Eine Synchronisierung läuft. Bitte danach erneut prüfen.");
   var original = readUserPreferences_(), oldToken = rosterUserToken, oldId = rosterUserId, oldTimeZone = targetCalendarTimeZone;
   try {
-    validatePreferences_(input && input.settings || {});
+    var draft = decodePreferences_(JSON.stringify(input && input.settings || {}));
+    validatePreferences_(draft);
     if (input && input.rosterUserToken !== undefined && typeof input.rosterUserToken != "string") throw new Error("Der Dienstplan-Token ist ungültig.");
-    var settings = Object.assign({}, original, input && input.settings || {});
+    var settings = Object.assign({}, original, draft);
     validatePreferences_(settings);
     Object.keys(settings).forEach(function(name) { globalThis[name] = settings[name]; });
     rosterUserId = input && input.rosterUserId !== undefined ? String(input.rosterUserId).trim() : userPrp.getProperty("rosterUserId");
@@ -243,7 +244,8 @@ function previewEvents_(components, calendarName, calendarTimeZone) {
   var now = Date.now(), result = [], events = [], parents = new Map();
   components.forEach(function(component) {
     if (!component || typeof component.getFirstPropertyValue != "function") return;
-    var event = new ICAL.Event(component);
+    // Link exceptions by UID below instead of auto-linking every sibling exception.
+    var event = new ICAL.Event(component, {strictExceptions: true, exceptions: []});
     events.push(event);
     if (!event.isRecurrenceException()) parents.set(event.uid, event);
   });

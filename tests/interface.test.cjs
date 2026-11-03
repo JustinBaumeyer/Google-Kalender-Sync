@@ -46,6 +46,35 @@ test('preview uses actual feed parsing and returns upcoming events without calen
   assert.equal(app.users.get(alice).get('rosterUserToken'),'saved');
 });
 
+test('draft diagnostics decode serialized regex rules without saving or modifying the draft',()=>{
+  const app=shared(),c=load(app,alice);
+  c.saveAppSettings({settings:{ignoreEvents:[{$regex:'^Ausblenden',$flags:'i'},{title:{$regex:'Extern',$flags:'i'}}]},rosterUserId:'123',rosterUserToken:'saved'});
+  const original=app.users.get(alice).get('preferences');
+  const input={settings:clone(c.getAppState().settings)};
+  const draft=JSON.stringify(input);
+  c.getRosterICal_=()=>ics.replace('END:VCALENDAR',
+    ['Ausblenden A','Extern A'].map((title,index)=>'BEGIN:VEVENT\r\nUID:hidden-'+index+'\r\nDTSTART:20990102T080000Z\r\nDTEND:20990102T160000Z\r\nSUMMARY:'+title+'\r\nEND:VEVENT\r\n').join('')+'END:VCALENDAR');
+  assert.equal(c.testRosterConnection(input).ok,true);
+  const result=c.previewSynchronization(input);
+  assert.equal(result.errors.length,0);
+  assert.deepEqual(Array.from(result.events,event=>event.title),['Testdienst']);
+  assert.equal(JSON.stringify(input),draft);
+  assert.equal(app.users.get(alice).get('preferences'),original);
+  assert.equal(app.users.get(alice).get('rosterUserToken'),'saved');
+});
+
+test('preview recurrence exceptions belong only to the series with the same UID',()=>{
+  const c=load(shared(),alice);c.loadUserPreferences_();
+  const series=uid=>'BEGIN:VEVENT\r\nUID:'+uid+'\r\nDTSTART:20990101T080000Z\r\nDTEND:20990101T090000Z\r\nRRULE:FREQ=DAILY;COUNT=2\r\nSUMMARY:'+uid+'\r\nEND:VEVENT\r\n';
+  const exception='BEGIN:VEVENT\r\nUID:B\r\nRECURRENCE-ID:20990101T080000Z\r\nDTSTART:20990101T100000Z\r\nDTEND:20990101T110000Z\r\nSUMMARY:B geändert\r\nEND:VEVENT\r\n';
+  const components=new c.ICAL.Component(c.ICAL.parse('BEGIN:VCALENDAR\r\nVERSION:2.0\r\n'+series('A')+series('B')+exception+'END:VCALENDAR')).getAllSubcomponents('vevent');
+  const result=c.previewEvents_(components,'Dienstplan','Europe/Berlin');
+  assert.deepEqual(Array.from(result,event=>[event.title,event.start]),[
+    ['A','2099-01-01T08:00:00.000Z'],['B geändert','2099-01-01T10:00:00.000Z'],
+    ['A','2099-01-02T08:00:00.000Z'],['B','2099-01-02T08:00:00.000Z'],
+  ]);
+});
+
 test('only the owner can change invitations; input is normalized and owner access is implicit',()=>{
   const app=shared(),admin=load(app,owner),user=load(app,alice);
   assert.throws(()=>user.getInvitations(),/Nur der App-Inhaber/);
