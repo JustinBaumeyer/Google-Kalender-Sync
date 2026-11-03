@@ -53,7 +53,7 @@ function condenseCalendarMap_(calendarMap) {
 function deleteAllTriggers_() {
     var triggers = ScriptApp.getProjectTriggers();
     for (var i = 0; i < triggers.length; i++) {
-        if (["startSync", "install", "main", "checkForUpdates"].includes(triggers[i].getHandlerFunction())) {
+        if (["startSync", "continueSync_", "install", "main", "checkForUpdates"].includes(triggers[i].getHandlerFunction())) {
             ScriptApp.deleteTrigger(triggers[i]);
         }
     }
@@ -79,7 +79,8 @@ function fetchSourceCalendars_(sourceCalendarURLs) {
                 Logger.log("Skipping ROSTER source (addRosterToCal is disabled)");
                 continue;
             }
-            var rosterContent = getRosterICal_();
+            if (rosterFeedCache === undefined) rosterFeedCache = getRosterICal_();
+            var rosterContent = rosterFeedCache;
             if (rosterContent != null)
                 result.push([rosterContent, colorId]);
             else
@@ -497,14 +498,16 @@ function processEvent_(event, calendarTz) {
 
     if (index > -1 && modifyExistingEvents) {
         Logger.log("Updating existing event " + eventId);
-        callWithBackoff_(function() {
+        var updated = callWithBackoff_(function() {
             return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
         }, defaultMaxRetries);
+        if (updated == null) throw new Error("Ein geänderter Termin konnte nicht gespeichert werden. Bestehende Termine bleiben erhalten.");
     } else if (index == -1 && addEventsToCalendar) {
         Logger.log("Adding new event " + eventId);
-        callWithBackoff_(function() {
+        var inserted = callWithBackoff_(function() {
             return Calendar.Events.insert(newEvent, targetCalendarId);
         }, defaultMaxRetries);
+        if (inserted == null) throw new Error("Ein neuer Termin konnte nicht gespeichert werden. Bestehende Termine bleiben erhalten.");
     }
 }
 
@@ -846,6 +849,8 @@ function processEventCleanup_() {
         targetCalendarTimeZone || Session.getScriptTimeZone(), "yyyy-MM-dd");
 
     for (var i = 0; i < calendarEvents.length; i++) {
+        checkSyncBudget_();
+        publishSyncProgress_(targetCalendarName + ": Termine prüfen", i, calendarEvents.length);
         var currentID = calendarEventsIds[i];
         // Use the end so a shift crossing midnight remains eligible for cleanup
         // until it finishes. All-day DTEND is exclusive in the target timezone.
@@ -938,9 +943,11 @@ function callWithBackoff_(func, maxRetries) {
     while (tries <= maxRetries) {
         tries++;
         try {
+            checkSyncBudget_();
             result = func();
             return result;
         } catch (err) {
+            if (err.syncPaused) throw err;
             err = err.message || err;
             if (err.includes("is not a function") || !backoffRecoverableErrors.some(function(e) {
                     return err.toLowerCase().includes(e);
@@ -951,7 +958,12 @@ function callWithBackoff_(func, maxRetries) {
                 return null;
             } else {
                 Logger.log("Error, Retrying... [" + err + "]");
-                Utilities.sleep(Math.pow(2, tries) * 100 + Math.round(Math.random() * 100));
+                var delay = Math.min(Math.pow(2, tries - 1) * 1000, 8000) + Math.round(Math.random() * 100);
+                if (syncDeadline && Date.now() + delay >= syncDeadline) {
+                    syncDeadline = Date.now();
+                    checkSyncBudget_();
+                }
+                Utilities.sleep(delay);
             }
         }
     }

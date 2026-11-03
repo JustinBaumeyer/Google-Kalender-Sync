@@ -1,131 +1,357 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
   <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    :root { font: 16px system-ui, sans-serif; color: #172b38; background: #f3f6f7; }
-    body { max-width: 900px; margin: 3rem auto; padding: 0 1rem; }
-    h1 { margin-bottom: .3rem; } h2 { font-size: 1.2rem; }
-    section { background: white; padding: 1.5rem; border-radius: 12px; margin: 1rem 0; }
-    label { display: block; margin: .8rem 0; }
-    label span { display: block; margin-bottom: .3rem; }
-    input:not([type=checkbox]), textarea { box-sizing: border-box; width: 100%; padding: .6rem; border: 1px solid #b8c8cf; border-radius: 5px; font: inherit; }
-    textarea { font: 14px monospace; min-height: 90px; }
-    button { background: #135f6d; color: white; border: 0; border-radius: 6px; padding: .75rem 1rem; margin: .3rem; cursor: pointer; font: inherit; }
-    button.secondary { background: #e5edef; color: #172b38; }
-    button:disabled { opacity: .5; cursor: wait; }
-    .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 1.5rem; }
-    .muted { color: #526773; font-size: .9rem; }
-    #message { padding: .8rem 0; white-space: pre-wrap; } .error { color: #a61c25; }
-    details { margin-top: 1rem; } summary { cursor: pointer; }
+    :root { font: 16px/1.5 system-ui, sans-serif; color: #19392f; background: #f3f6f3; accent-color: #146947; }
+    * { box-sizing: border-box; } body { max-width: 1040px; margin: 0 auto; padding: 2.5rem 1.25rem 3rem; }
+    h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); line-height: 1.15; letter-spacing: -.035em; margin: .6rem 0; }
+    h2 { font-size: 1.15rem; margin: 0 0 .35rem; } p { margin: .35rem 0 .9rem; }
+    .eyebrow { color: #32664c; font-size: .75rem; letter-spacing: .12em; font-weight: 750; }
+    .muted, small { color: #5b6e64; font-size: .88rem; } small { display: block; margin-top: .25rem; }
+    header { margin-bottom: 1.5rem; } #account { display: inline-block; overflow-wrap: anywhere; }
+    .status { background: #e7f0e9; border: 1px solid #ccddcf; padding: .9rem 1.1rem; border-radius: 12px; margin: 1rem 0; }
+    #status { font-weight: 650; } #lastError { color: #9c2927; overflow-wrap: anywhere; }
+    section, details.panel { background: #fff; border: 1px solid #dce4dd; border-radius: 14px; padding: 1.4rem; margin-bottom: 1rem; }
+    fieldset { border: 0; padding: 0; margin: 0; min-width: 0; } legend { font-weight: 700; padding: 0; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.4rem; }
+    label { display: block; } label > span { display: block; font-size: .9rem; font-weight: 650; margin-bottom: .35rem; }
+    input:not([type=checkbox]), select { width: 100%; min-height: 44px; padding: .6rem .7rem; border: 1px solid #b8c9bd; border-radius: 7px; background: white; color: inherit; font: inherit; }
+    input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid #b0d1b9; outline-offset: 2px; }
+    .toggle { display: flex; gap: .7rem; align-items: flex-start; padding: .7rem 0; }
+    .toggle input { width: 18px; height: 18px; flex: none; margin-top: .25rem; } .toggle span { margin: 0; font-weight: 500; }
+    .row { background: #f7f9f6; border: 1px solid #dce5dc; border-radius: 10px; padding: 1rem; margin: .85rem 0; }
+    .row-head { display: flex; justify-content: space-between; align-items: center; gap: .8rem; margin-bottom: .7rem; }
+    .row-head strong { font-size: .9rem; } .rule-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    button { min-height: 44px; padding: .6rem 1rem; border: 1px solid transparent; border-radius: 7px; background: #146947; color: white; cursor: pointer; font: 600 .9rem system-ui; }
+    button.secondary { background: white; color: #23543b; border-color: #bfcec2; } button.remove { background: transparent; color: #98504a; padding: .35rem .65rem; }
+    button:disabled { opacity: .55; cursor: wait; } .actions { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; }
+    .savebar { position: sticky; bottom: 0; background: #f3f6f3f5; border-top: 1px solid #d6e0d8; padding: 1rem 0; margin-top: 1.4rem; }
+    #message { white-space: pre-wrap; margin: .5rem 0; } #message.error { color: #a32225; } #message:empty { display: none; }
+    .progress-panel { margin: .8rem 0; padding: .8rem 1rem; border: 1px solid #cdded0; border-radius: 10px; background: #eff6ef; }
+    progress { display: block; width: 100%; height: 12px; margin: .6rem 0; accent-color: #146947; }
+    summary { font-weight: 650; cursor: pointer; } details .grid { margin-top: 1rem; } .danger { margin-top: 1.3rem; }
+    .danger button { color: #98504a; } [hidden] { display: none !important; }
+    @media(max-width: 650px) { body { padding: 1.3rem .8rem; } section, details.panel { padding: 1rem; } .grid, .rule-grid { grid-template-columns: 1fr; } .actions button { flex: 1 1 45%; } }
   </style>
 </head>
 <body>
-  <h1>Dienstplan Sync</h1>
-  <p class="muted">Your roster and calendar, connected.</p>
-  <p id="account"></p>
-  <p id="status" aria-live="polite">Loading your preferences…</p>
-  <form id="preferences" hidden>
-    <section>
-      <h2>Roster connection</h2>
-      <label><span>Employee ID</span><input id="employee" inputmode="numeric" autocomplete="off"></label>
-      <label><span>Roster token</span><input id="token" type="password" autocomplete="new-password"></label>
-      <p id="tokenHint" class="muted"></p>
-      <p class="muted">Your credentials and preferences are saved for your Google account.</p>
-    </section>
-    <section>
-      <h2>Sync preferences</h2>
-      <div id="basic" class="fields"></div>
-      <details><summary>Advanced preferences</summary><div id="advanced" class="fields"></div></details>
-    </section>
-    <button type="submit">Save preferences</button>
-    <button type="button" id="enable">Enable sync</button>
-    <button type="button" id="sync" class="secondary">Sync now</button>
-    <button type="button" id="stop" class="secondary">Pause sync</button>
-    <button type="button" id="disconnect" class="secondary">Delete my saved data</button>
+  <header>
+    <div class="eyebrow">DIENSTPLAN SYNC</div>
+    <h1>Dein Dienstplan. Dein Kalender.</h1>
+    <p class="muted">Lege fest, welche Dienste und Termine in deinem Google Kalender erscheinen.</p>
+    <span id="account" class="muted"></span>
+  </header>
+  <div class="status" aria-live="polite"><div id="status">Deine Einstellungen werden geladen …</div><div id="lastSync" class="muted"></div><div id="lastError"></div></div>
+  <div id="syncPanel" class="progress-panel" hidden>
+    <strong id="syncPhase" role="status" aria-live="polite"></strong>
+    <progress id="syncProgress" aria-label="Fortschritt des aktuellen Synchronisierungsschritts"></progress>
+    <small id="syncCount"></small>
+  </div>
+  <form id="preferences" hidden novalidate>
+    <fieldset id="settingsFields">
+      <section>
+        <h2>Dienstplan verbinden</h2>
+        <p class="muted">Deine Zugangsdaten und Einstellungen werden für dein Google-Konto gespeichert.</p>
+        <div class="grid">
+          <label><span>Mitarbeiter-ID</span><input id="employee" inputmode="numeric" autocomplete="off" pattern="[0-9]+"></label>
+          <label><span id="tokenLabel">Dienstplan-Token</span><input id="token" type="password" autocomplete="new-password" aria-labelledby="tokenLabel" aria-describedby="tokenHint"><small id="tokenHint"></small></label>
+        </div>
+      </section>
+      <section>
+        <h2>Kalenderquellen</h2>
+        <p class="muted">Wähle für jede Quelle einen Zielkalender. Ein neuer Kalendername wird automatisch angelegt.</p>
+        <div id="sources"></div>
+        <button type="button" id="addSource" class="secondary">Quelle hinzufügen</button>
+      </section>
+      <section>
+        <h2>Synchronisierung</h2>
+        <div class="grid" id="schedule"></div>
+        <div class="grid" id="emailSettings"></div>
+      </section>
+      <section>
+        <h2>Was soll übernommen werden?</h2>
+        <div class="grid" id="rosterSettings"></div>
+      </section>
+      <section>
+        <h2>Termine & Verlauf</h2>
+        <p class="muted">Vergangene Termine bleiben standardmäßig erhalten.</p>
+        <div class="grid" id="eventSettings"></div>
+      </section>
+      <section>
+        <h2>Termine ausblenden</h2>
+        <p class="muted">Eine Regel kann nach Titel, Wochentag oder Uhrzeit filtern. Alle ausgefüllten Felder einer Regel müssen passen.</p>
+        <div id="rules"></div>
+        <button type="button" id="addRule" class="secondary">Regel hinzufügen</button>
+        <div id="shiftCodes" style="margin-top:1.2rem"></div>
+      </section>
+      <details class="panel" id="advanced"><summary>Erweiterte Einstellungen</summary><div class="grid" id="advancedSettings"></div></details>
+      <div class="savebar">
+        <div id="message" role="status" aria-live="polite"></div>
+        <p id="dirtyHint" class="muted">Deine Einstellungen sind gespeichert.</p>
+        <div class="actions">
+          <button type="submit">Einstellungen speichern</button>
+          <button type="button" id="enable" class="secondary">Synchronisierung aktivieren</button>
+          <button type="button" id="sync" class="secondary">Jetzt synchronisieren</button>
+          <button type="button" id="stop" class="secondary">Pausieren</button>
+        </div>
+      </div>
+      <details class="danger"><summary class="muted">Verbindung entfernen</summary>
+        <p class="muted">Löscht nur deine gespeicherten Zugangsdaten und Einstellungen und beendet deine automatischen Läufe. Bereits importierte Kalendertermine bleiben erhalten.</p>
+        <button type="button" id="disconnect" class="secondary">Meine gespeicherten Daten löschen</button>
+      </details>
+    </fieldset>
   </form>
-  <p id="message" role="status" aria-live="polite"></p>
+  <p id="initialError" role="alert"></p>
   <script>
-    const labels = {
-      sourceCalendars: 'Sources and destination calendars', howFrequent: 'Sync interval (minutes)',
-      onlyFutureEvents: 'Only import future events', removePastEventsFromCalendar: 'Delete past events missing from the source',
-      addRosterRequests: 'Include shift requests', addAbsences: 'Include absences', oncallAsFree: 'Mark on-call shifts as available',
-      addTeamPartner: 'Include team partners', addRelief: 'Include relief crew',
-      addEventsToCalendar: 'Add new events', modifyExistingEvents: 'Update changed events',
-      removeEventsFromCalendar: 'Remove events missing from the source', addCalToTitle: 'Include source name in titles',
-      defaultAllDayReminder: 'All-day reminder (minutes; -1 disables)', showSkipMessage: 'Log unchanged events',
-      overrideVisibility: 'Visibility override', errorNotificationEmail: 'Error emails (false, true, or an email address)',
-      consolidateEvents: 'Merge overlapping events', consolidateMaxGapMinutes: 'Maximum merge gap (minutes)',
-      ignoreEvents: 'Ignore rules', addRosterToCal: 'Enable roster source', addRosterSinceStart: 'Import full roster history',
-      rosterTimeZone: 'Roster timezone', rosterPlanningGroups: 'Planning group IDs',
-      addYearSummary: 'Log annual summary', summaryYear: 'Summary year', rosterUrl: 'Roster service address',
-      rosterIgnoreList: 'Ignored shift codes'
-    };
-    const basic = new Set(['howFrequent', 'onlyFutureEvents', 'removePastEventsFromCalendar', 'addRosterRequests', 'addAbsences', 'oncallAsFree']);
-    function busy(value) { document.querySelectorAll('button').forEach(button => button.disabled = value); }
-    function message(text, error = false) {
-      document.getElementById('message').textContent = text;
-      document.getElementById('message').className = error ? 'error' : '';
+    const $ = id => document.getElementById(id);
+    const copy = value => JSON.parse(JSON.stringify(value));
+    let current, dirty = false, fieldCounter = 0, progressTimer, progressEpoch = 0, syncRequestActive = false;
+    const readers = new Map(), sourceReaders = new Map(), ruleReaders = new Map();
+    const colors = [['', 'Standardfarbe'], ['1', 'Lavendel'], ['2', 'Salbei'], ['3', 'Traube'], ['4', 'Flamingo'], ['5', 'Banane'], ['6', 'Mandarine'], ['7', 'Pfau'], ['8', 'Graphit'], ['9', 'Heidelbeere'], ['10', 'Basilikum'], ['11', 'Tomate']];
+    const weekdays = [['', 'Jeder Wochentag'], ['Mo', 'Montag'], ['Di', 'Dienstag'], ['Mi', 'Mittwoch'], ['Do', 'Donnerstag'], ['Fr', 'Freitag'], ['Sa', 'Samstag'], ['So', 'Sonntag']];
+    function element(tag, text, className) { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; }
+    function input(type, value = '') { const node = element('input'); node.type = type; node.value = value; return node; }
+    function select(options, value) {
+      const node = element('select');
+      options.forEach(([key, text]) => node.add(new Option(text, key)));
+      if (!options.some(([key]) => String(key) === String(value))) node.add(new Option('Gespeicherter Wert: ' + value, value));
+      node.value = String(value); return node;
+    }
+    function field(parent, title, control, help) {
+      const label = element('label'), caption = element('span', title);
+      caption.id = 'field-label-' + fieldCounter++; control.setAttribute('aria-labelledby', caption.id);
+      label.append(caption, control);
+      if (help) { const hint = element('small', help); hint.id = caption.id + '-help'; control.setAttribute('aria-describedby', hint.id); label.append(hint); }
+      parent.append(label); return control;
+    }
+    function toggle(parent, name, title, help) {
+      const label = element('label', undefined, 'toggle'), control = input('checkbox'); control.checked = current.settings[name]; control.dataset.preference = name;
+      const text = element('span', title); if (help) text.append(element('small', help)); label.append(control, text); parent.append(label);
+      readers.set(name, () => control.checked);
+    }
+    function simple(parent, name, title, type = 'text', help, options) {
+      const initial = current.settings[name];
+      const control = options ? select(options, initial) : input(type, initial);
+      control.dataset.preference = name;
+      if (type === 'number') { control.step = '1'; if (name === 'consolidateMaxGapMinutes') { control.min = '0'; control.step = 'any'; } if (name === 'summaryYear') { control.min = '1000'; control.max = '9999'; } }
+      field(parent, title, control, help);
+      readers.set(name, () => typeof initial === 'number' ? Number(control.value) : control.value);
+      return control;
+    }
+    function invalid(control, text) {
+      for (let node = control.parentElement; node; node = node.parentElement) if (node.tagName === 'DETAILS') node.open = true;
+      control.setCustomValidity(text); control.reportValidity(); control.focus(); throw new Error(text);
+    }
+    function setDirty(value = true) { dirty = value; $('dirtyHint').textContent = value ? 'Ungespeicherte Änderungen. Beim Aktivieren oder Synchronisieren werden sie zuerst gespeichert.' : 'Deine Einstellungen sind gespeichert.'; }
+    function message(text, error = false) { $('message').textContent = text; $('message').className = error ? 'error' : ''; $('initialError').textContent = $('preferences').hidden && error ? text : ''; }
+    function busy(value) { $('settingsFields').disabled = value; }
+    function showProgress(progress) {
+      if (!progress) return;
+      if (progress.status === 'paused') { progressEpoch++; clearTimeout(progressTimer); $('syncPanel').hidden = true; return; }
+      $('syncPanel').hidden = false;
+      $('syncPhase').textContent = progress.phase;
+      if (progress.total > 0 && Number.isFinite(progress.completed)) {
+        $('syncProgress').max = progress.total; $('syncProgress').value = progress.completed;
+        $('syncCount').textContent = progress.status === 'complete' ? 'Alle Schritte abgeschlossen.' : progress.completed + ' von ' + progress.total + ' im aktuellen Schritt';
+      } else {
+        if (progress.status === 'failed') { $('syncProgress').max = 1; $('syncProgress').value = 0; }
+        else $('syncProgress').removeAttribute('value');
+        $('syncCount').textContent = progress.status === 'pending' ? 'Die automatische Fortsetzung ist geplant. Du kannst die Seite offen lassen.' : progress.status === 'failed' ? 'Der Lauf wurde unterbrochen.' : 'Bitte warten …';
+      }
+      if (['complete', 'failed', 'paused'].includes(progress.status)) {
+        progressEpoch++;
+        clearTimeout(progressTimer);
+        if (progress.status === 'failed') message(progress.phase, true);
+        if (progress.status === 'complete' && current) {
+          current.pending = false;
+          $('status').textContent = current.enabled ? 'Automatische Synchronisierung aktiv' : 'Automatische Synchronisierung pausiert';
+          $('lastSync').textContent = 'Letzter vollständiger Lauf: ' + new Date(progress.updatedAt).toLocaleString('de-DE');
+        }
+      }
+    }
+    function pollProgress(epoch = progressEpoch) {
+      clearTimeout(progressTimer);
+      call('getSyncProgress').then(progress => {
+        if (epoch !== progressEpoch) return;
+        // A fresh request may still see the previous run before its handler starts.
+        if (progress && (!syncRequestActive || progress.status === 'running' || progress.status === 'pending')) showProgress(progress);
+        if (syncRequestActive || progress && ['running', 'pending'].includes(progress.status))
+          progressTimer = setTimeout(() => pollProgress(epoch), progress && progress.status === 'pending' ? 10000 : 2000);
+      }).catch(() => { if (epoch === progressEpoch && (syncRequestActive || current && current.pending)) progressTimer = setTimeout(() => pollProgress(epoch), 3000); });
+    }
+    function editorRow(container, title, map) {
+      const row = element('div', undefined, 'row'), head = element('div', undefined, 'row-head'), remove = element('button', 'Entfernen', 'remove');
+      remove.type = 'button'; remove.setAttribute('aria-label', title + ' entfernen'); head.append(element('strong', title), remove);
+      const grid = element('div', undefined, 'grid'); row.append(head, grid); container.append(row);
+      remove.onclick = () => { map.delete(row); row.remove(); setDirty(); };
+      return {row, grid};
+    }
+    function addSource(raw) {
+      const {row, grid} = editorRow($('sources'), 'Kalenderquelle', sourceReaders); row.dataset.sourceRow = '';
+      const kind = field(grid, 'Quelle', select([['ROSTER', 'DRK-Dienstplan'], ['ICS', 'Kalender-Abo (ICS)']], raw[0] === 'ROSTER' ? 'ROSTER' : 'ICS'));
+      const url = field(grid, 'Adresse des Kalender-Abos', input('text', raw[0] === 'ROSTER' ? '' : raw[0]), 'https://… oder webcal://…'); url.inputMode = 'url';
+      const target = field(grid, 'Name des Zielkalenders', input('text', raw[1]));
+      const color = field(grid, 'Terminfarbe', select(colors, raw[2] == null ? '' : raw[2]));
+      const updateKind = () => { url.parentElement.hidden = kind.value === 'ROSTER'; }; kind.onchange = updateKind; updateKind();
+      sourceReaders.set(row, () => {
+        const source = kind.value === 'ROSTER' ? 'ROSTER' : url.value.trim();
+        if (!source || (source !== 'ROSTER' && !/^(https?|webcal):\/\//i.test(source))) invalid(url, 'Bitte eine gültige Kalender-Adresse eingeben.');
+        if (!target.value.trim()) invalid(target, 'Bitte einen Namen für den Zielkalender eingeben.');
+        if (source === raw[0] && target.value === raw[1] && color.value === String(raw[2] == null ? '' : raw[2])) return copy(raw);
+        const result = [source, target.value.trim()];
+        if (color.value !== '') result.push(/^\d+$/.test(color.value) ? Number(color.value) : color.value);
+        return result;
+      });
+    }
+    function normalizedDay(value) {
+      if (typeof value === 'number') return ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][value - 1] || String(value);
+      const names = {mo:'Mo',mon:'Mo',monday:'Mo',montag:'Mo',di:'Di',tue:'Di',tuesday:'Di',dienstag:'Di',mi:'Mi',wed:'Mi',wednesday:'Mi',mittwoch:'Mi',do:'Do',thu:'Do',thursday:'Do',donnerstag:'Do',fr:'Fr',fri:'Fr',friday:'Fr',freitag:'Fr',sa:'Sa',sat:'Sa',saturday:'Sa',samstag:'Sa',so:'So',sun:'So',sunday:'So',sonntag:'So'};
+      return value == null ? '' : names[String(value).trim().toLowerCase()] || String(value);
+    }
+    function normalizedTime(value) { return value == null ? '' : String(value).replace(/^(\d):/, '0$1:'); }
+    function addRule(raw = '') {
+      if (raw == null) raw = '';
+      const {row, grid} = editorRow($('rules'), 'Ausblendregel', ruleReaders); row.dataset.ruleRow = '';
+      const original = typeof raw === 'string' || raw.$regex !== undefined ? {title: raw} : raw;
+      const pattern = original.title && typeof original.title === 'object' ? original.title : null;
+      const mode = field(grid, 'Titelsuche', select([['text', 'Titel enthält'], ['regex', 'Regulärer Ausdruck (erweitert)']], pattern ? 'regex' : 'text'));
+      const title = field(grid, 'Titel oder Suchmuster', input('text', pattern ? pattern.$regex : original.title || ''), 'Leer lassen, wenn nur Tag oder Uhrzeit zählen sollen.');
+      const flags = field(grid, 'Suchoptionen', input('text', pattern ? pattern.$flags : 'i'), 'i ignoriert Groß- und Kleinschreibung.');
+      const day = field(grid, 'Wochentag', select(weekdays, normalizedDay(original.weekday)));
+      const start = field(grid, 'Beginn um', input('time', normalizedTime(original.start)));
+      const end = field(grid, 'Ende um', input('time', normalizedTime(original.end)));
+      const updateMode = () => { flags.parentElement.hidden = mode.value !== 'regex'; }; mode.onchange = updateMode; updateMode();
+      const view = () => [mode.value, title.value, flags.value, day.value, start.value, end.value];
+      const initial = JSON.stringify(view());
+      ruleReaders.set(row, () => {
+        if (!title.value.trim() && !day.value && !start.value && !end.value) invalid(title, 'Bitte mindestens einen Titel, Wochentag oder eine Uhrzeit angeben.');
+        let match = title.value;
+        if (mode.value === 'regex' && match) {
+          try { new RegExp(match, flags.value); } catch (_) { invalid(title, 'Der reguläre Ausdruck oder seine Suchoptionen sind ungültig.'); }
+          match = {$regex: match, $flags: flags.value};
+        }
+        if (JSON.stringify(view()) === initial) return copy(raw);
+        const result = {};
+        if (title.value) result.title = match;
+        if (day.value) result.weekday = day.value;
+        if (start.value) result.start = start.value;
+        if (end.value) result.end = end.value;
+        return Object.keys(result).length === 1 && result.title !== undefined ? result.title : result;
+      });
+    }
+    function renderLists() {
+      sourceReaders.clear(); ruleReaders.clear(); $('sources').replaceChildren(); $('rules').replaceChildren();
+      current.settings.sourceCalendars.forEach(addSource); current.settings.ignoreEvents.forEach(addRule);
+      const codes = input('text', current.settings.rosterIgnoreList.join(', ')); codes.dataset.preference = 'rosterIgnoreList';
+      field($('shiftCodes'), 'Ignorierte Dienstkürzel', codes, 'Mehrere Kürzel mit Komma trennen, zum Beispiel: -, UL. Groß- und Kleinschreibung beachten.');
+      const codeText = codes.value;
+      readers.set('rosterIgnoreList', () => codes.value === codeText ? copy(current.settings.rosterIgnoreList) : codes.value.split(',').map(v => v.trim()).filter(Boolean));
+      readers.set('sourceCalendars', () => Array.from(sourceReaders.values(), read => read()));
+      readers.set('ignoreEvents', () => Array.from(ruleReaders.values(), read => read()));
+    }
+    function renderFields() {
+      const schedule = $('schedule'), roster = $('rosterSettings'), events = $('eventSettings'), advanced = $('advancedSettings');
+      const frequencies = [5, 10, 15, 30].concat(Array.from({length:24}, (_,i) => (i + 1) * 60));
+      simple(schedule, 'howFrequent', 'Automatisch synchronisieren', 'number', 'Bei eigenen bisherigen Intervallen wird auf den nächsten unterstützten Wert aufgerundet.', frequencies.map(v => [String(v), v < 60 ? 'Alle ' + v + ' Minuten' : v === 60 ? 'Stündlich' : 'Alle ' + v / 60 + ' Stunden']));
+      simple(schedule, 'rosterTimeZone', 'Zeitzone des Dienstplans', 'text', undefined, [['Europe/Berlin', 'Deutschland · Europe/Berlin'], ['Europe/Vienna', 'Österreich · Europe/Vienna'], ['Europe/Zurich', 'Schweiz · Europe/Zurich'], ['UTC', 'UTC']]);
+      const emailMode = field($('emailSettings'), 'E-Mail bei Fehlern', select([['off', 'Keine E-Mail'], ['self', 'An meine Google-Adresse'], ['custom', 'An eine andere Adresse']], current.settings.errorNotificationEmail === false ? 'off' : current.settings.errorNotificationEmail === true ? 'self' : 'custom'));
+      const email = field($('emailSettings'), 'E-Mail-Adresse', input('email', typeof current.settings.errorNotificationEmail === 'string' ? current.settings.errorNotificationEmail : ''));
+      const emailVisibility = () => { email.parentElement.hidden = emailMode.value !== 'custom'; }; emailMode.onchange = emailVisibility; emailVisibility();
+      readers.set('errorNotificationEmail', () => emailMode.value === 'off' ? false : emailMode.value === 'self' ? true : email.value.trim());
+      [
+        ['addRosterToCal', 'Dienstplan übernehmen'], ['addRosterRequests', 'Einsatzwünsche anzeigen'], ['addAbsences', 'Abwesenheiten anzeigen'],
+        ['oncallAsFree', 'Rufbereitschaft als verfügbar markieren'], ['addTeamPartner', 'Teampartner anzeigen', 'Erfordert zusätzliche Dienstplan-Abfragen.'], ['addRelief', 'Ablösung anzeigen', 'Erfordert zusätzliche Dienstplan-Abfragen.']
+      ].forEach(args => toggle(roster, ...args));
+      [
+        ['addEventsToCalendar', 'Neue Termine hinzufügen'], ['modifyExistingEvents', 'Geänderte Termine aktualisieren'],
+        ['removeEventsFromCalendar', 'Nicht mehr vorhandene Termine entfernen', 'Betrifft nur Termine, die diese App für dich angelegt hat.'],
+        ['removePastEventsFromCalendar', 'Auch vergangene Termine entfernen', 'Nur aktivieren, wenn du abgeschlossene Termine nicht behalten möchtest.'],
+        ['onlyFutureEvents', 'Nur zukünftige Termine importieren'], ['consolidateEvents', 'Zusammenhängende Termine zusammenfassen']
+      ].forEach(args => toggle(events, ...args));
+      simple(events, 'consolidateMaxGapMinutes', 'Erlaubte Lücke beim Zusammenfassen (Minuten)', 'number', '0 verbindet nur direkt angrenzende oder überlappende Termine.');
+      toggle(advanced, 'addRosterSinceStart', 'Gesamte Dienstplan-Historie importieren', 'Der erste Import kann länger dauern. Zum Nachtragen alter Dienste vorübergehend aktivieren.');
+      toggle(advanced, 'addCalToTitle', 'Quellkalender im Termintitel nennen');
+      simple(advanced, 'overrideVisibility', 'Sichtbarkeit der Termine', 'text', undefined, [['', 'Wie in der Quelle'], ['default', 'Kalender-Standard'], ['public', 'Öffentlich'], ['private', 'Privat'], ['confidential', 'Vertraulich']]);
+      simple(advanced, 'defaultAllDayReminder', 'Erinnerung für ganztägige Termine', 'number', undefined, [[-1, 'Keine Erinnerung'], [0, 'Zu Tagesbeginn'], [30, '30 Minuten vorher'], [60, '1 Stunde vorher'], [1440, '1 Tag vorher'], [2880, '2 Tage vorher'], [10080, '1 Woche vorher']]);
+      const groups = field(advanced, 'Planungsgruppen', input('text', current.settings.rosterPlanningGroups.join(', ')), 'Leer lassen: automatisch ermitteln. Mehrere Nummern mit Komma trennen.'); groups.dataset.preference = 'rosterPlanningGroups';
+      const groupText = groups.value;
+      readers.set('rosterPlanningGroups', () => {
+        if (groups.value === groupText) return copy(current.settings.rosterPlanningGroups);
+        const values = groups.value.split(',').map(v => v.trim()).filter(Boolean);
+        if (!values.every(v => /^\d+$/.test(v))) invalid(groups, 'Planungsgruppen müssen Nummern sein, getrennt durch Kommas.');
+        return values.map(Number);
+      });
+      simple(advanced, 'rosterUrl', 'Adresse des Dienstplan-Servers', 'url');
+      toggle(advanced, 'addYearSummary', 'Jahresübersicht im Ausführungsprotokoll erstellen');
+      simple(advanced, 'summaryYear', 'Jahr der Übersicht', 'number');
+      toggle(advanced, 'showSkipMessage', 'Unveränderte Termine im Protokoll anzeigen');
     }
     function render(state) {
-      document.getElementById('account').textContent = state.email;
-      document.getElementById('status').textContent = (state.enabled ? 'Sync enabled.' : 'Sync paused.') +
-        (state.lastSync ? ' Last sync: ' + new Date(state.lastSync).toLocaleString() : '') +
-        (state.lastError ? ' Last error: ' + state.lastError : '');
-      document.getElementById('employee').value = state.rosterUserId;
-      document.getElementById('token').value = '';
-      document.getElementById('tokenHint').textContent = state.hasToken ? 'A token is saved. Leave this empty to keep it.' : 'Enter the token from your roster account.';
-      document.getElementById('basic').replaceChildren();
-      document.getElementById('advanced').replaceChildren();
-      Object.entries(state.settings).forEach(([name, value]) => {
-        const label = document.createElement('label');
-        const title = document.createElement('span');
-        title.textContent = labels[name] || name;
-        const json = Array.isArray(value);
-        const input = document.createElement(json ? 'textarea' : 'input');
-        input.dataset.preference = name;
-        input.dataset.kind = name === 'errorNotificationEmail' ? 'emailPolicy' : json ? 'json' : typeof value;
-        if (!json && typeof value === 'boolean' && name !== 'errorNotificationEmail') { input.type = 'checkbox'; input.checked = value; }
-        else { input.type = typeof value === 'number' ? 'number' : 'text'; input.value = json ? JSON.stringify(value, null, 2) : value; }
-        label.append(title, input);
-        if (name === 'sourceCalendars') {
-          const help = document.createElement('small');
-          help.textContent = 'Each row is ["ROSTER" or feed URL, "Calendar name", color number].';
-          label.append(help);
-        }
-        document.getElementById(basic.has(name) ? 'basic' : 'advanced').append(label);
+      current = copy(state); readers.clear();
+      ['schedule', 'emailSettings', 'rosterSettings', 'eventSettings', 'advancedSettings', 'shiftCodes'].forEach(id => $(id).replaceChildren());
+      $('account').textContent = state.email;
+      $('status').textContent = state.pending ? 'Synchronisierung wird fortgesetzt' : state.enabled ? 'Automatische Synchronisierung aktiv' : 'Automatische Synchronisierung pausiert';
+      $('lastSync').textContent = state.lastSync ? 'Letzter vollständiger Lauf: ' + new Date(state.lastSync).toLocaleString('de-DE') : 'Noch kein vollständiger Lauf.';
+      $('lastError').textContent = state.lastError ? 'Letzte Meldung: ' + state.lastError : '';
+      $('employee').value = state.rosterUserId; $('token').value = '';
+      $('tokenHint').textContent = state.hasToken ? 'Ein Token ist gespeichert. Leer lassen, um ihn beizubehalten.' : 'Gib den Token aus deinem Dienstplan-Konto ein.';
+      renderFields(); renderLists(); setDirty(false); $('preferences').hidden = false;
+      if (state.progress) showProgress(state.progress);
+      if ((state.pending || state.progress && state.progress.status === 'running') && !syncRequestActive) pollProgress();
+    }
+    function collect() {
+      document.querySelectorAll('input').forEach(control => control.setCustomValidity(''));
+      const settings = copy(current.settings);
+      readers.forEach((read, name) => { settings[name] = read(); });
+      $('employee').required = settings.addRosterToCal;
+      document.querySelectorAll('input').forEach(control => { if (!control.disabled && !control.parentElement.hidden && !control.checkValidity()) invalid(control, control.validationMessage); });
+      if (settings.errorNotificationEmail === '') invalid($('emailSettings').querySelector('input'), 'Bitte eine E-Mail-Adresse eingeben.');
+      return {settings, rosterUserId: $('employee').value.trim(), rosterUserToken: $('token').value};
+    }
+    function call(method, argument) {
+      return new Promise((resolve, reject) => {
+        const runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+        if (argument === undefined) runner[method](); else runner[method](argument);
       });
-      document.getElementById('preferences').hidden = false;
     }
-    function request(method, argument, successText) {
-      busy(true); message('Working…');
-      const runner = google.script.run.withSuccessHandler(state => {
-        busy(false); if (state) render(state); message(successText || '');
-      }).withFailureHandler(error => { busy(false); message(error.message || String(error), true); });
-      if (argument === undefined) runner[method](); else runner[method](argument);
-    }
-    document.getElementById('preferences').addEventListener('submit', event => {
-      event.preventDefault();
+    async function action(method, text, saveFirst = false) {
+      let payload;
+      try { if (method === 'saveAppSettings' || (saveFirst && dirty)) payload = collect(); }
+      catch (error) { message(error.message, true); return; }
+      busy(true); message('Wird ausgeführt …');
+      if (['startSync', 'stopSync', 'disconnectApp'].includes(method)) { progressEpoch++; clearTimeout(progressTimer); }
       try {
-        const settings = {};
-        document.querySelectorAll('[data-preference]').forEach(input => {
-          settings[input.dataset.preference] = input.dataset.kind === 'boolean' ? input.checked :
-            input.dataset.kind === 'emailPolicy' ? (input.value === 'true' ? true : input.value === 'false' ? false : input.value) :
-            input.dataset.kind === 'number' ? Number(input.value) : input.dataset.kind === 'json' ? JSON.parse(input.value) : input.value;
-        });
-        request('saveAppSettings', {settings, rosterUserId: document.getElementById('employee').value,
-          rosterUserToken: document.getElementById('token').value}, 'Preferences saved.');
-      } catch (error) { message('Please check the preference values: ' + error.message, true); }
-    });
-    document.getElementById('enable').onclick = () => request('install', undefined, 'Sync enabled. The first run will start shortly.');
-    document.getElementById('sync').onclick = () => request('startSync', undefined, 'Sync finished.');
-    document.getElementById('stop').onclick = () => request('stopSync', undefined, 'Sync paused. Your saved preferences are kept.');
-    document.getElementById('disconnect').onclick = () => {
-      if (confirm('Delete your saved roster credentials and preferences? Calendar events will remain.'))
-        request('disconnectApp', undefined, 'Your saved credentials and preferences have been deleted.');
-    };
-    request('getAppState');
+        if (saveFirst && dirty) { await call('saveAppSettings', payload); setDirty(false); }
+        if (method === 'startSync') {
+          syncRequestActive = true;
+          showProgress({phase: 'Synchronisierung startet …', status: 'running'});
+          pollProgress();
+        }
+        const state = await call(method, method === 'saveAppSettings' ? payload : undefined);
+        syncRequestActive = false;
+        if (state) render(state);
+        if (method === 'disconnectApp') { clearTimeout(progressTimer); $('syncPanel').hidden = true; }
+        message(state && state.pending ? 'Die Synchronisierung wird automatisch fortgesetzt.' + (state.migrationRemaining ? ' Noch ' + state.migrationRemaining + ' alte Termine zu prüfen.' : '') : text);
+      } catch (error) {
+        syncRequestActive = false; clearTimeout(progressTimer);
+        if (method === 'startSync') showProgress({phase: error.message || String(error), status: 'failed'});
+        message(error.message || String(error), true);
+      }
+      finally { busy(false); }
+    }
+    $('preferences').addEventListener('input', event => { if (event.target.setCustomValidity) event.target.setCustomValidity(''); setDirty(); });
+    $('preferences').addEventListener('change', () => setDirty());
+    $('preferences').addEventListener('submit', event => { event.preventDefault(); action('saveAppSettings', 'Deine Einstellungen wurden gespeichert.'); });
+    $('addSource').onclick = () => { addSource(['', '']); setDirty(); };
+    $('addRule').onclick = () => { addRule(); setDirty(); };
+    $('enable').onclick = () => action('install', 'Die Synchronisierung ist aktiviert. Der erste Lauf startet in Kürze.', true);
+    $('sync').onclick = () => action('startSync', 'Der Synchronisierungslauf ist beendet.', true);
+    $('stop').onclick = () => { if (!dirty || confirm('Synchronisierung pausieren und ungespeicherte Änderungen verwerfen?')) action('stopSync', 'Die Synchronisierung ist pausiert. Deine gespeicherten Einstellungen bleiben erhalten.'); };
+    $('disconnect').onclick = () => { if (confirm('Deine gespeicherten Zugangsdaten und Einstellungen wirklich löschen? Bereits importierte Kalendertermine bleiben erhalten.')) action('disconnectApp', 'Deine gespeicherten Daten wurden gelöscht.'); };
+    window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
+    action('getAppState', '');
   </script>
 </body>
 </html>
