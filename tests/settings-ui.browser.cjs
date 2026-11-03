@@ -216,6 +216,30 @@ test('connection check and preview display real parsed data without saving draft
   }finally{await page.close();}
 });
 
+test('connection check renews rejected saved credentials and the following preview succeeds',async()=>{
+  const {page,server,app,errors}=await open();
+  try{
+    const original=app.users.get(alice).get('preferences'),requests=[];
+    server.UrlFetchApp={fetch:(url,options)=>{
+      requests.push(url);
+      const refresh=url.endsWith('auth/refreshToken');
+      const rejected=!refresh&&options.headers.authorization!=='Bearer renewed-token';
+      return {getResponseCode:()=>rejected?403:200,getContentText:()=>JSON.stringify(rejected?{message:'Authorization has been denied for this request.'}:refresh?{data:'renewed-token'}:[])};
+    }};
+    await page.locator('#testConnection').click();
+    await page.getByText('Verbindung funktioniert.',{exact:true}).first().waitFor();
+    assert.equal(app.users.get(alice).get('rosterUserToken'),'renewed-token');
+    await page.locator('#preview').click();
+    await page.locator('#previewPanel').waitFor({state:'visible'});
+    assert.equal(await page.locator('#previewErrors').textContent(),'');
+    assert.equal(requests.filter(url=>url.endsWith('auth/refreshToken')).length,1);
+    assert.equal(requests.length,4);
+    assert.equal(app.users.get(alice).get('preferences'),original);
+    assert.equal((await page.locator('body').textContent()).includes('renewed-token'),false);
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
 test('settings and dashboard previews accept regex rules and filter matching events',async()=>{
   const {page,server,app,calls,errors}=await open({ignoreEvents:[{$regex:'^Ausblenden',$flags:'i'},{title:{$regex:'Extern',$flags:'i'}}]});
   try{

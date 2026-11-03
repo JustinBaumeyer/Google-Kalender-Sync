@@ -89,6 +89,12 @@ function rosterFetch_(endpoint, method, payload) {
         options.payload = payload;
 
     var response = UrlFetchApp.fetch(rosterUrl + endpoint, options);
+    var status = response.getResponseCode();
+    if (status == 401 || status == 403) {
+        var error = new Error("Dienstplan-Zugriff abgelehnt (HTTP " + status + "). Bitte Mitarbeiter-ID, Dienstplan-Token und Dienstplan-Adresse prüfen.");
+        error.rosterAuthRejected = true;
+        throw error;
+    }
     if (response.getResponseCode() != 200) //Throw here to make callWithBackoff_ run again
         throw "Error: Encountered HTTP error " + response.getContentText() + " when accessing " + endpoint;
     return response.getContentText();

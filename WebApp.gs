@@ -210,13 +210,24 @@ function withDraftPreferences_(input, operation) {
     var settings = Object.assign({}, original, draft);
     validatePreferences_(settings);
     Object.keys(settings).forEach(function(name) { globalThis[name] = settings[name]; });
-    rosterUserId = input && input.rosterUserId !== undefined ? String(input.rosterUserId).trim() : userPrp.getProperty("rosterUserId");
-    rosterUserToken = input && input.rosterUserToken && input.rosterUserToken.trim() || userPrp.getProperty("rosterUserToken");
+    var savedId = userPrp.getProperty("rosterUserId"), savedToken = userPrp.getProperty("rosterUserToken");
+    var draftToken = input && input.rosterUserToken && input.rosterUserToken.trim();
+    rosterUserId = input && input.rosterUserId !== undefined ? String(input.rosterUserId).trim() : savedId;
+    rosterUserToken = draftToken || savedToken;
     if (addRosterToCal && (!/^\d+$/.test(rosterUserId || "") || !rosterUserToken))
       throw new Error("Bitte Mitarbeiter-ID und Dienstplan-Token eingeben.");
     syncDeadline = Date.now() + 120000;
     // Diagnostics never rotate a draft token or write to a destination calendar.
-    return operation(settings);
+    var mayRefresh = !draftToken && savedToken && rosterUserId == savedId && settings.rosterUrl == original.rosterUrl;
+    var refreshAttempted = false;
+    return operation(settings, function() {
+      try { return getRosterICal_(true); }
+      catch (err) {
+        if (!mayRefresh || refreshAttempted || !err.rosterAuthRejected) throw err;
+        refreshAttempted = true;
+        return getRosterICal_();
+      }
+    });
   } catch (err) {
     if (err.syncPaused) throw new Error("Die Prüfung dauert zu lange. Bitte später erneut versuchen.");
     throw err;
@@ -228,10 +239,10 @@ function withDraftPreferences_(input, operation) {
 }
 
 function testRosterConnection(input) {
-  return withDraftPreferences_(input, function() {
+  return withDraftPreferences_(input, function(settings, fetchRoster) {
     if (!addRosterToCal) throw new Error("Bitte die Dienstplan-Quelle zum Prüfen aktivieren.");
     addRosterSinceStart = false; addYearSummary = false; addTeamPartner = false; addRelief = false;
-    var content = getRosterICal_(true);
+    var content = fetchRoster();
     if (!content) throw new Error("Der Dienstplan konnte nicht geladen werden.");
     var components = new ICAL.Component(ICAL.parse(content)).getAllSubcomponents("vevent");
     markRosterConnectionVerified_();
@@ -285,7 +296,7 @@ function previewEvents_(components, calendarName, calendarTimeZone) {
 }
 
 function previewSynchronization(input) {
-  return withDraftPreferences_(input, function(settings) {
+  return withDraftPreferences_(input, function(settings, fetchRoster) {
     addTeamPartner = false; addRelief = false;
     var events = [], errors = [], cachedRoster;
     var calendars = condenseCalendarMap_(settings.sourceCalendars);
@@ -295,7 +306,7 @@ function previewSynchronization(input) {
         calendar[1].forEach(function(source) {
           if (source[0] == "ROSTER") {
             if (!addRosterToCal) return;
-            if (cachedRoster === undefined) cachedRoster = getRosterICal_(true);
+            if (cachedRoster === undefined) cachedRoster = fetchRoster();
             if (!cachedRoster) throw new Error("Der Dienstplan konnte nicht geladen werden.");
             sources.push([cachedRoster, source[1]]);
           } else {
