@@ -70,7 +70,6 @@ function getAppState() {
     isOwner: email == scriptPrp.getProperty("appOwnerEmail"),
     nextRunAt: nextPlannedRun_(saved, enabled),
     lastStats: saved.lastSyncStats ? JSON.parse(saved.lastSyncStats) : null,
-    upcomingEvents: saved.upcomingEvents ? JSON.parse(saved.upcomingEvents) : [],
     connectionVerified: !!saved.rosterUserToken && saved.connectionKey == rosterConnectionKey_(saved.rosterUserToken, saved.rosterUserId, settings.rosterUrl),
     connectionCheckedAt: saved.connectionCheckedAt,
     migrationImportedAt: saved.migrationImportedAt,

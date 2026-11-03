@@ -180,13 +180,13 @@ test('overview is compact, shows run results, and stores a calendar selection by
   const {page,app,server}=await open();
   try{
     app.users.get(alice).set('lastSyncStats',JSON.stringify({added:5,updated:2,removed:0}));
-    app.users.get(alice).set('upcomingEvents',JSON.stringify([{title:'Frühdienst · Rettungswache',start:new Date(Date.now()+86400000).toISOString(),end:new Date(Date.now()+115200000).toISOString(),allDay:false,calendar:'Dienstplan'}]));
     server.install();await page.evaluate(()=>action('getAppState',''));
     await page.locator('#closeSettings').click();
     assert.equal(await page.locator('#preferences').isVisible(),false);
     assert.equal(await page.locator('#overview').isVisible(),true);
     assert.ok((await page.locator('#nextRun').textContent()).includes('ungefähr'));
     assert.equal(await page.locator('#metrics strong').first().textContent(),'5');
+    assert.equal(await page.getByRole('heading',{name:'Kommende Termine',exact:true}).count(),0);
     await page.screenshot({path:'/tmp/dienstplan-overview-desktop.png',fullPage:true});
     await page.locator('#editSettings').click();
     assert.equal(await page.locator('#connectionFields').isVisible(),false);

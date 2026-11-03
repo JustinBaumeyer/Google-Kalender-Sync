@@ -21,6 +21,7 @@ function migrationFixture(count) {
     const feed = records.slice(0,5).map(item => ({uid:item.extendedProperties.private.id,hasProperty:()=>false}));
     c.parseResponses_ = () => {c.icsEventsIds=feed.map(e=>e.uid);return feed;};
     c.consolidateVevents_ = entries => entries;
+    c.previewEvents_ = () => assert.fail('Regular sync must not generate a dashboard preview');
     c.createEvent_ = event => ({extendedProperties:{private:{id:event.uid}}});
     c.Calendar = {Events:{
       list: () => ({items:JSON.parse(JSON.stringify(records))}),
