@@ -161,11 +161,15 @@ need OAuth permissions to modify script projects. No user has to update their co
    permissions. It verifies access, installs a daily update check, and checks now.
 
 The updater compares the target app's version with this repository's `main` branch,
-downloads all managed files from one immutable commit, checks their JavaScript syntax
+downloads a single repository ZIP snapshot from GitHub's public archive endpoint,
+checks the managed files' JavaScript syntax
 and manifest requirements, and creates a backup version before writing. It preserves
 the exact target manifest, legacy settings, custom files, project properties, all
 User Properties and users' triggers. Local edits to managed program files are replaced.
-The updater's own project is not overwritten.
+The updater's own project is not overwritten. The source commit is read from the
+archive's ZIP comment; every file comes from that same snapshot. This avoids the
+unauthenticated GitHub API rate limit shared by Apps Script's outbound IP addresses
+and requires no GitHub token.
 
 After writing the code it creates a deployment version and updates the existing
 web-app deployment, keeping the same URL. Background triggers use the new code on
