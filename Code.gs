@@ -1,26 +1,31 @@
-var version = 5;
+var version = 6;
 var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
-var scriptPrp = PropertiesService.getScriptProperties()
-var rosterUserToken = scriptPrp.getProperty("rosterUserToken");
-var rosterUserId = scriptPrp.getProperty("rosterUserId");
+var scriptPrp = PropertiesService.getScriptProperties();
+var userPrp = PropertiesService.getUserProperties();
+var rosterUserToken = userPrp.getProperty("rosterUserToken");
+var rosterUserId = userPrp.getProperty("rosterUserId");
 var defaultRosterToken = "TOKEN";
 var defaultRosterId = "ID";
-var updateAvailable = scriptPrp.getProperty("updateAvailable");
+var updateAvailable = String(Number(scriptPrp.getProperty("availableVersion") || version) > version);
 
 function install() {
-  // Delete any already existing triggers so we don't create excessive triggers
-  deleteAllTriggers();
+  requireWebUser_();
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(0)) throw new Error("A sync is running; enable again when it finishes");
+  try { return install_(); }
+  finally { lock.releaseLock(); }
+}
 
-  // Seed the roster credentials with placeholders, but never overwrite values
-  // the user has already entered (re-running install must not wipe them).
-  if (scriptPrp.getProperty('rosterUserToken') == null) scriptPrp.setProperty('rosterUserToken', defaultRosterToken);
-  if (scriptPrp.getProperty('rosterUserId') == null) scriptPrp.setProperty('rosterUserId', defaultRosterId);
+function install_() {
+  loadUserPreferences_();
+  if (addRosterToCal && (rosterUserToken == null || rosterUserToken == defaultRosterToken || !/^\d+$/.test(rosterUserId || "")))
+    throw new Error("Save your roster token and employee ID before enabling sync");
 
-  if (addRosterToCal && scriptPrp.getProperty('rosterUserToken') == defaultRosterToken)
-    Logger.log("Make sure to set rosterUserToken and rosterUserId in application settings!")
+  // Apps Script only returns triggers belonging to the current user.
+  deleteAllTriggers_();
 
   // Schedule sync routine to explicitly repeat and schedule the initial sync
-  var adjustedMinutes = getValidTriggerFrequency(howFrequent);
+  var adjustedMinutes = getValidTriggerFrequency_(howFrequent);
   if (adjustedMinutes >= 60) {
     ScriptApp.newTrigger("startSync")
       .timeBased()
@@ -33,12 +38,13 @@ function install() {
       .create();
   }
   ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
-  ScriptApp.newTrigger("checkForUpdates").timeBased().everyDays(1).create();
+  if (Session.getEffectiveUser().getEmail().toLowerCase() == scriptPrp.getProperty("appOwnerEmail"))
+    ScriptApp.newTrigger("checkForUpdates").timeBased().everyDays(1).create();
+  return getAppState();
 }
 
 function uninstall(){
-  scriptPrp.deleteAllProperties();
-  deleteAllTriggers();
+  return disconnectApp();
 }
 
 var startUpdateTime;
@@ -53,40 +59,33 @@ var ignoredEventIds = new Set();
 var recurringEvents = [];
 var targetCalendarId;
 var targetCalendarName;
+var targetCalendarTimeZone;
+var syncOwnerId;
 
-function checkForUpdates () {
-  var result = false;
-  var urlResponse = UrlFetchApp.fetch("https://raw.githubusercontent.com/JustinBaumeyer/Google-Kalender-Sync/refs/heads/main/Code.gs", {
-      'muteHttpExceptions': true,
-      "method": "GET"
-  });
-  if (urlResponse.getResponseCode() == 200) {
-    var match = /^\s*var\s+version\s*=\s*(\d+)/m.exec(urlResponse.getContentText());
-    if (match != null && version < parseInt(match[1], 10)) result = true;
-    Logger.log("Update available: " + result)
-  }
-  scriptPrp.setProperty('updateAvailable', result)
-}
-
-function startSync(){
-  // A script lock prevents overlapping runs and is released automatically when
+function startSync(event){
+  requireSyncUser_(event);
+  // A user lock prevents overlapping runs for this account while allowing other
+  // users to sync independently. It is released automatically when
   // the execution ends, so a crashed run can never leave a stale lock behind.
-  var lock = LockService.getScriptLock();
+  var lock = LockService.getUserLock();
   if (!lock.tryLock(0)) {
-    Logger.log("Another iteration is currently running! Exiting...");
-    return;
+    throw new Error("A sync is already running for your account");
   }
 
   try {
+    loadUserPreferences_();
     if (addRosterToCal && (rosterUserToken == null || rosterUserToken == defaultRosterToken)) {
-      Logger.log("Please add your roster credentials to properties! Exiting...");
-      return;
+      throw new Error("Save your roster credentials before syncing");
     }
-    runSync();
+    runSync_();
+    userPrp.setProperty("lastSyncAt", new Date().toISOString());
+    userPrp.deleteProperty("lastSyncError");
+    if (!event || !event.triggerUid) return getAppState();
   } catch (err) {
     var message = err.message || err;
     Logger.log("Sync failed: " + message);
-    notifyError(message);
+    userPrp.setProperty("lastSyncError", String(message));
+    notifyError_(message);
     throw err;
   } finally {
     lock.releaseLock();
@@ -97,13 +96,13 @@ function startSync(){
  * Performs the actual synchronization of all configured source calendars.
  * Separated from startSync() so the run lock can be released reliably in a finally block.
  */
-function runSync(){
+function runSync_(){
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
 
-  sourceCalendars = condenseCalendarMap(sourceCalendars);
+  var calendars = condenseCalendarMap_(sourceCalendars);
   var failedCalendars = [];
-  for (var calendar of sourceCalendars){
+  for (var calendar of calendars){
       //------------------------ Reset globals ------------------------
       calendarEvents = [];
       calendarEventsIds = [];
@@ -119,7 +118,7 @@ function runSync(){
 
       //------------------------ Fetch URL items ------------------------
 
-      var fetched = fetchSourceCalendars(sourceCalendarURLs);
+      var fetched = fetchSourceCalendars_(sourceCalendarURLs);
       var responses = fetched.responses;
       if (fetched.failedSources > 0){
         // Proceeding with missing sources would delete all their events from the
@@ -135,8 +134,9 @@ function runSync(){
       Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
 
       //------------------------ Get target calendar information------------------------
-      var targetCalendar = setupTargetCalendar(targetCalendarName);
+      var targetCalendar = setupTargetCalendar_(targetCalendarName);
       targetCalendarId = targetCalendar.id;
+      targetCalendarTimeZone = targetCalendar.timeZone;
       Logger.log("Working on calendar: " + targetCalendarId);
 
       //------------------------ Parse existing events --------------------------
@@ -145,17 +145,33 @@ function runSync(){
         var pageToken;
         var listFailed = false;
         do {
-          var listParams = {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500};
+          var adoptLegacy = userPrp.getProperty("adoptLegacyEvents") == "true";
+          var listParams = {showDeleted: false, privateExtendedProperty: adoptLegacy
+            ? "fromGAS=true" : ["fromGAS=true", "syncOwner=" + syncOwnerId], maxResults: 2500};
           if (pageToken)
             listParams.pageToken = pageToken;
-          var eventList = callWithBackoff(function(){
+          var eventList = callWithBackoff_(function(){
               return Calendar.Events.list(targetCalendarId, listParams);
           }, defaultMaxRetries);
           if (eventList == null){
             listFailed = true;
             break;
           }
-          calendarEvents = calendarEvents.concat(eventList.items);
+          var ownItems = (eventList.items || []).filter(function(item) {
+            var owner = ((item.extendedProperties || {}).private || {}).syncOwner;
+            return owner == syncOwnerId || (adoptLegacy && !owner);
+          });
+          for (var item of ownItems) {
+            if (!item.extendedProperties.private.syncOwner) {
+              item.extendedProperties.private.syncOwner = syncOwnerId;
+              var claimed = callWithBackoff_(function() {
+                return Calendar.Events.patch({extendedProperties: item.extendedProperties}, targetCalendarId, item.id);
+              }, defaultMaxRetries);
+              if (claimed == null) { listFailed = true; break; }
+            }
+          }
+          if (listFailed) break;
+          calendarEvents = calendarEvents.concat(ownItems);
           pageToken = eventList.nextPageToken;
         } while (pageToken);
 
@@ -179,8 +195,8 @@ function runSync(){
 
         //------------------------ Parse ical events --------------------------
 
-        vevents = parseResponses(responses);
-        vevents = consolidateVevents(vevents);
+        vevents = parseResponses_(responses);
+        vevents = consolidateVevents_(vevents);
         Logger.log("Parsed " + vevents.length + " events from ical sources");
       }
 
@@ -188,12 +204,12 @@ function runSync(){
       if (addEventsToCalendar || modifyExistingEvents){
         Logger.log("Processing " + vevents.length + " events");
         var calendarTz =
-          callWithBackoff(function(){
+          callWithBackoff_(function(){
             return Calendar.Settings.get("timezone").value;
           }, defaultMaxRetries);
 
         vevents.forEach(function(e){
-          processEvent(e, calendarTz);
+          processEvent_(e, calendarTz);
         });
 
         Logger.log("Done processing events");
@@ -202,18 +218,19 @@ function runSync(){
       //------------------------ Remove old events from calendar ------------------------
       if(removeEventsFromCalendar){
         Logger.log("Checking " + calendarEvents.length + " events for removal");
-        processEventCleanup();
+        processEventCleanup_();
         Logger.log("Done checking events for removal");
       }
 
       //------------------------ Add Recurring Event Instances ------------------------
       Logger.log("Processing " + recurringEvents.length + " Recurrence Instances!");
       for (var recEvent of recurringEvents){
-        processEventInstance(recEvent);
+        processEventInstance_(recEvent);
       }
   }
   if (failedCalendars.length > 0)
     throw new Error("Sync incomplete, could not fetch all sources for: " + failedCalendars.join(", "));
+  userPrp.deleteProperty("adoptLegacyEvents");
   Logger.log("Sync finished!");
 }
 
@@ -223,17 +240,17 @@ function runSync(){
  *
  * @param {string} message - The error message describing the failure.
  */
-function notifyError(message){
+function notifyError_(message){
   if (typeof errorNotificationEmail === "undefined" || !errorNotificationEmail)
     return;
 
   var recipient = (errorNotificationEmail === true)
-    ? Session.getActiveUser().getEmail()
+    ? Session.getEffectiveUser().getEmail()
     : errorNotificationEmail;
   if (!recipient)
     return;
 
-  var lastNotified = Number(scriptPrp.getProperty('lastErrorNotification')) || 0;
+  var lastNotified = Number(userPrp.getProperty('lastErrorNotification')) || 0;
   if (new Date().getTime() - lastNotified < 3600000){
     Logger.log("Skipping error email (already notified within the last hour)");
     return;
@@ -244,7 +261,7 @@ function notifyError(message){
       "Google-Kalender-Sync: sync failed",
       "The calendar sync run failed with the following error:\n\n" + message +
       "\n\nCheck the Apps Script execution log for details.");
-    scriptPrp.setProperty('lastErrorNotification', new Date().getTime());
+    userPrp.setProperty('lastErrorNotification', new Date().getTime());
   } catch (e) {
     Logger.log("Could not send error notification email: " + (e.message || e));
   }

@@ -5,7 +5,7 @@
  * @param {*} text - The value to escape (null/undefined become "").
  * @return {string} The escaped text.
  */
-function icalEscape(text) {
+function icalEscape_(text) {
   if (text == null) return "";
   return String(text)
     .replace(/\\/g, "\\\\")
@@ -18,19 +18,19 @@ function icalEscape(text) {
  * Builds a timed VEVENT. start/end are pre-formatted iCal UTC timestamps.
  * If transparent is true the event is marked as free (TRANSP:TRANSPARENT).
  */
-function generateICalEntry(uid, start, end, summary, description, transparent) {
+function generateICalEntry_(uid, start, end, summary, description, transparent) {
   return "BEGIN:VEVENT\nUID:" + uid +
-    "\nSEQUENCE:0\nDTSTAMP:" + toICalDate(new Date()) +
+    "\nSEQUENCE:0\nDTSTAMP:" + toICalDate_(new Date()) +
     "\nDTSTART:" + start + "\nDTEND:" + end +
     (transparent ? "\nTRANSP:TRANSPARENT" : "") +
-    "\nSUMMARY:" + icalEscape(summary) +
-    "\nDESCRIPTION:" + icalEscape(description) + "\nEND:VEVENT\n";
+    "\nSUMMARY:" + icalEscape_(summary) +
+    "\nDESCRIPTION:" + icalEscape_(description) + "\nEND:VEVENT\n";
 }
 
 /**
  * Formats the span between two dates as a roster-style duration (e.g. "08h30", "24h00").
  */
-function formatDuration(startDate, endDate) {
+function formatDuration_(startDate, endDate) {
   var totalMinutes = Math.round((endDate - startDate) / 60000);
   var hours = Math.floor(totalMinutes / 60);
   var minutes = totalMinutes % 60;
@@ -45,14 +45,14 @@ function formatDuration(startDate, endDate) {
  * @param {Date} startDate - First day of the event.
  * @param {Date} endDate - Day after the last day of the event (exclusive).
  */
-function generateAllDayICalEntry(uid, startDate, endDate, summary, description) {
+function generateAllDayICalEntry_(uid, startDate, endDate, summary, description) {
   function asDate(d) { return Utilities.formatDate(d, "GMT", "yyyyMMdd"); }
   return "BEGIN:VEVENT\nUID:" + uid +
-    "\nSEQUENCE:0\nDTSTAMP:" + toICalDate(new Date()) +
+    "\nSEQUENCE:0\nDTSTAMP:" + toICalDate_(new Date()) +
     "\nDTSTART;VALUE=DATE:" + asDate(startDate) +
     "\nDTEND;VALUE=DATE:" + asDate(endDate) +
-    "\nSUMMARY:" + icalEscape(summary) +
-    "\nDESCRIPTION:" + icalEscape(description) + "\nEND:VEVENT\n";
+    "\nSUMMARY:" + icalEscape_(summary) +
+    "\nDESCRIPTION:" + icalEscape_(description) + "\nEND:VEVENT\n";
 }
 
 /**
@@ -61,20 +61,20 @@ function generateAllDayICalEntry(uid, startDate, endDate, summary, description) 
  * @param {Date|string|number} date - The date to format.
  * @return {string} The iCal-formatted timestamp.
  */
-function toICalDate(date) {
+function toICalDate_(date) {
     return Utilities.formatDate(new Date(date), "GMT", "yyyy-MM-dd'T'HH:mm:ss'Z'").replace(/[-:]/g, '');
 }
 
 /**
  * Performs an authenticated request against the roster API and returns the response body.
- * Throws on any non-200 status so callWithBackoff can retry.
+ * Throws on any non-200 status so callWithBackoff_ can retry.
  *
  * @param {string} endpoint - Path appended to rosterUrl (e.g. "auth/refreshToken").
  * @param {string} method - HTTP method ("GET" or "POST").
  * @param {string} [payload] - Optional request body.
  * @return {string} The response body text.
  */
-function rosterFetch(endpoint, method, payload) {
+function rosterFetch_(endpoint, method, payload) {
     var options = {
         'validateHttpsCertificates': false,
         'muteHttpExceptions': true,
@@ -88,7 +88,7 @@ function rosterFetch(endpoint, method, payload) {
         options.payload = payload;
 
     var response = UrlFetchApp.fetch(rosterUrl + endpoint, options);
-    if (response.getResponseCode() != 200) //Throw here to make callWithBackoff run again
+    if (response.getResponseCode() != 200) //Throw here to make callWithBackoff_ run again
         throw "Error: Encountered HTTP error " + response.getContentText() + " when accessing " + endpoint;
     return response.getContentText();
 }
@@ -102,7 +102,7 @@ function rosterFetch(endpoint, method, payload) {
  * @param {Array.<{endpoint: string, method: string, payload: ?string}>} calls - Requests to perform.
  * @return {Array.<?string>} One response body per request, null where the request failed.
  */
-function rosterFetchAll(calls) {
+function rosterFetchAll_(calls) {
     if (!calls.length) return [];
     var requests = calls.map(function(call) {
         var request = {
@@ -132,7 +132,7 @@ function rosterFetchAll(calls) {
  * Reformats a roster name from "Lastname,  Firstname" to "Firstname Lastname" so
  * a comma-separated list of names is unambiguous.
  */
-function formatName(raw) {
+function formatName_(raw) {
     var name = String(raw).replace(/\s+/g, " ").trim();
     var comma = name.indexOf(",");
     if (comma == -1) return name;
@@ -150,7 +150,7 @@ function formatName(raw) {
  * @param {Object} legendEntry - A legendDuties entry ({longName, shiftTypeName, ...}).
  * @return {?string} e.g. "Würs 2 RTW 2|N", or null.
  */
-function vehicleKeyFromLegend(legendEntry) {
+function vehicleKeyFromLegend_(legendEntry) {
     if (!legendEntry || !legendEntry.longName) return null;
     var match = legendEntry.longName.match(/^(.*?(?:RTW|KTW)\s*\d+)/);
     if (!match) return null;
@@ -163,7 +163,7 @@ function vehicleKeyFromLegend(legendEntry) {
  * next calendar day present), or null. Derived from the index rather than adding
  * 24h so DST transitions don't matter.
  */
-function nextDayKey(teamIndex, dayKey) {
+function nextDayKey_(teamIndex, dayKey) {
     var next = null;
     for (var key in teamIndex) {
         var k = Number(key);
@@ -179,12 +179,12 @@ function nextDayKey(teamIndex, dayKey) {
  * when the vehicle belongs to a planning group whose legend names it differently
  * than the user's personal legend does (the case plain legend matching misses).
  *
- * @param {Object} teamIndex - Index from getTeamDutyIndex.
+ * @param {Object} teamIndex - Index from getTeamDutyIndex_.
  * @param {number} dayKey - Day timestamp to look up.
  * @param {boolean} isNight - Whether the user's shift is a night shift.
  * @return {?string} The matching vehicleKey (e.g. "Würs 2 RTW 2|N"), or null.
  */
-function userVehicleKeyForDay(teamIndex, dayKey, isNight) {
+function userVehicleKeyForDay_(teamIndex, dayKey, isNight) {
     var slot = teamIndex && teamIndex[dayKey];
     if (!slot) return null;
     var suffix = isNight ? "N" : "T";
@@ -211,7 +211,7 @@ function userVehicleKeyForDay(teamIndex, dayKey, isNight) {
  * @param {string} to - Range end (local-midnight ISO with millis).
  * @return {Object} { <dayTime>: { <vehicleKey>: [ {name, id}, ... ] } }
  */
-function getTeamDutyIndex(monthParams, from, to) {
+function getTeamDutyIndex_(monthParams, from, to) {
     var index = {};
 
     function ingest(response) {
@@ -226,13 +226,13 @@ function getTeamDutyIndex(monthParams, from, to) {
             ((person.item2 && person.item2.data) || []).forEach(d => {
                 // A day can hold several comma-joined codes (e.g. "B24,W2N").
                 String(d.shortName).split(",").forEach(code => {
-                    var vehicleKey = vehicleKeyFromLegend(legend[code.trim()]);
+                    var vehicleKey = vehicleKeyFromLegend_(legend[code.trim()]);
                     if (!vehicleKey) return;
                     var dayKey = new Date(d.day.date).getTime();
                     var daySlot = (index[dayKey] = index[dayKey] || {});
                     var crew = (daySlot[vehicleKey] = daySlot[vehicleKey] || []);
                     if (!crew.some(p => p.id == emp.id))
-                        crew.push({ name: formatName(emp.name), id: emp.id });
+                        crew.push({ name: formatName_(emp.name), id: emp.id });
                 });
             });
         });
@@ -249,7 +249,7 @@ function getTeamDutyIndex(monthParams, from, to) {
         // All months are queried in parallel; a failed month is logged and skipped.
         var seen = {};
         var months = monthParams || [];
-        rosterFetchAll(months.map(month => ({
+        rosterFetchAll_(months.map(month => ({
             endpoint: "team-duty/preload",
             method: "POST",
             payload: JSON.stringify({ employeeId: rosterUserId, planningGroup: null, filterEmployee: 0, month: month })
@@ -274,7 +274,7 @@ function getTeamDutyIndex(monthParams, from, to) {
     // All groups are fetched in parallel. Each group stays isolated: a single group
     // that errors (e.g. one the user can see but not fully query) must not abort
     // the others and wipe out every partner.
-    rosterFetchAll(groups.map(groupId => ({
+    rosterFetchAll_(groups.map(groupId => ({
         endpoint: "team-duty/roster/" + rosterUserId,
         method: "POST",
         payload: JSON.stringify({
@@ -297,14 +297,14 @@ function getTeamDutyIndex(monthParams, from, to) {
  * Converts one roster day into shift block objects (one per merged duty block).
  * Entries that share the same shift code and touch or overlap in time are
  * merged right away (e.g. a duty split into contiguous segments). Rendering
- * happens later in shiftBlockToICal so blocks can additionally be consolidated
- * across days first (see consolidateShiftBlocks).
+ * happens later in shiftBlockToICal_ so blocks can additionally be consolidated
+ * across days first (see consolidateShiftBlocks_).
  */
-function parseShiftToCal(shift, legend, teamIndex) {
+function parseShiftToCal_(shift, legend, teamIndex) {
     legend = legend || {};
     // Merge consecutive entries that share the same shift and touch or overlap
     // (the next one starts at or before the end of the previous) into a block.
-    var mergeWindow = consolidationEnabled() ? consolidateGapMillis() : 0;
+    var mergeWindow = consolidationEnabled_() ? consolidateGapMillis_() : 0;
     var blocks = [];
     var entries = shift.data.rosterDetails.entries.slice()
         .sort(function(a, b) { return new Date(a.from) - new Date(b.from); });
@@ -353,7 +353,7 @@ function parseShiftToCal(shift, legend, teamIndex) {
         var isNight = shiftType == "Nachtdienst";
         var vehicleKey = null;
         if (teamIndex && dayKey != null)
-            vehicleKey = userVehicleKeyForDay(teamIndex, dayKey, isNight) || vehicleKeyFromLegend(leg);
+            vehicleKey = userVehicleKeyForDay_(teamIndex, dayKey, isNight) || vehicleKeyFromLegend_(leg);
         var crewNames = function(dKey, vKey) {
             var crew = (teamIndex && teamIndex[dKey] || {})[vKey];
             return crew ? crew.filter(p => p.id != rosterUserId).map(p => p.name) : [];
@@ -371,7 +371,7 @@ function parseShiftToCal(shift, legend, teamIndex) {
             var pipe = vehicleKey.lastIndexOf("|");
             var vehicle = vehicleKey.slice(0, pipe);
             var relief = (vehicleKey.slice(pipe + 1) == "N")
-                ? crewNames(nextDayKey(teamIndex, dayKey), vehicle + "|T")
+                ? crewNames(nextDayKey_(teamIndex, dayKey), vehicle + "|T")
                 : crewNames(dayKey, vehicle + "|N");
             if (relief.length) extraLines.push("Ablösung: " + relief.join(", "));
         }
@@ -406,15 +406,15 @@ function parseShiftToCal(shift, legend, teamIndex) {
  * start to the latest end; description lines are unioned and the duration is
  * recomputed when rendering. Disabled via the consolidateEvents setting.
  *
- * @param {Array.<Object>} blocks - Blocks from parseShiftToCal, any order.
+ * @param {Array.<Object>} blocks - Blocks from parseShiftToCal_, any order.
  * @return {Array.<Object>} Consolidated blocks in chronological order.
  */
-function consolidateShiftBlocks(blocks) {
+function consolidateShiftBlocks_(blocks) {
     var sorted = blocks.slice().sort(function(a, b) { return a.start - b.start; });
-    if (!consolidationEnabled())
+    if (!consolidationEnabled_())
         return sorted;
 
-    var gapMillis = consolidateGapMillis();
+    var gapMillis = consolidateGapMillis_();
     var result = [];
     // Track the newest block per shift code so an interleaved different shift
     // (e.g. a day shift inside an on-call week) doesn't break the chain it sits in.
@@ -444,67 +444,85 @@ function consolidateShiftBlocks(blocks) {
  * shift name, "<type> · <duration>" (recomputed here so consolidated blocks
  * show their real total span) and any collected remark/team/relief lines.
  */
-function shiftBlockToICal(block) {
-    var start = toICalDate(block.start);
-    var end = toICalDate(block.end);
+function shiftBlockToICal_(block) {
+    var start = toICalDate_(block.start);
+    var end = toICalDate_(block.end);
     var descLines = [];
     if (block.longName) descLines.push(block.longName);
-    var typeAndDuration = [block.shiftType, formatDuration(block.start, block.end)].filter(Boolean).join(" · ");
+    var typeAndDuration = [block.shiftType, formatDuration_(block.start, block.end)].filter(Boolean).join(" · ");
     if (typeAndDuration) descLines.push(typeAndDuration);
     descLines = descLines.concat(block.extraLines);
-    return generateICalEntry(block.shortName + start + end, start, end, block.summary, descLines.join("\n"), block.transparent);
+    return generateICalEntry_(block.shortName + start + end, start, end, block.summary, descLines.join("\n"), block.transparent);
 }
 
-function refreshRosterToken() {
-    rosterUserToken = JSON.parse(rosterFetch("auth/refreshToken", "GET")).data;
-    scriptPrp.setProperty('rosterUserToken', rosterUserToken);
+function refreshRosterToken_() {
+    rosterUserToken = JSON.parse(rosterFetch_("auth/refreshToken", "GET")).data;
+    userPrp.setProperty('rosterUserToken', rosterUserToken);
 }
 
-function getRosterStartDate() {
-    return callWithBackoff(function() {
-      var jsonResponse = JSON.parse(rosterFetch("app/initial-preload", "POST"));
+function getRosterStartDate_() {
+    return callWithBackoff_(function() {
+      var jsonResponse = JSON.parse(rosterFetch_("app/initial-preload", "POST"));
       var date = jsonResponse.contracts.data[0].eingestellt.split(".");
-      return new Date(date[2], date[1] - 1, date[0])
+      return new Date(Date.UTC(Number(date[2]), Number(date[1]) - 1, Number(date[0])));
     },defaultMaxRetries);
 }
 
-function generateRosterPayload() {
-    var startDate = new Date();
-    var endDate = new Date();
-    endDate.setMonth(endDate.getMonth() + 2);
+/**
+ * Requests complete roster months, including the previous month so overnight
+ * shifts and late corrections remain available after rollover. Calendar-month
+ * arithmetic avoids setMonth's day-29/30/31 overflow. Bounds use roster-local
+ * midnight, independently of the Apps Script timezone and execution time.
+ *
+ * @param {Date} [now] - Reference time (defaults to the current time).
+ */
+function generateRosterPayload_(now) {
+    var timeZone = typeof rosterTimeZone !== "undefined" ? rosterTimeZone : "Europe/Berlin";
+    var currentMonth = Utilities.formatDate(now || new Date(), timeZone, "yyyy-MM").split("-");
+    var year = Number(currentMonth[0]);
+    var month = Number(currentMonth[1]) - 1;
+    var startMonth = new Date(Date.UTC(year, month - 1, 1));
+    var endMonth = new Date(Date.UTC(year, month + 3, 1)); // exclusive, through current month + 2
     if (addRosterSinceStart) {
-        startDate = getRosterStartDate();
+        var contractStart = getRosterStartDate_();
+        if (contractStart == null || isNaN(contractStart.getTime()))
+            throw new Error("Could not determine roster contract start date");
+        startMonth = new Date(Date.UTC(contractStart.getUTCFullYear(), contractStart.getUTCMonth(), 1));
     }
     if (addYearSummary) {
-        startDate = new Date(Number(summaryYear), 0, 1);
-        endDate = new Date(Number(summaryYear), 11, 31);
+        if (!/^\d{4}$/.test(String(summaryYear)) || Number(summaryYear) < 1000)
+            throw new Error("summaryYear must be a four-digit year");
+        startMonth = new Date(Date.UTC(Number(summaryYear), 0, 1));
+        endMonth = new Date(Date.UTC(Number(summaryYear) + 1, 0, 1));
     }
 
-    // One request entry per month between startDate and endDate.
+    function monthStart(date) {
+        var day = Utilities.formatDate(date, "GMT", "yyyy-MM-dd");
+        return Utilities.parseDate(day, timeZone, "yyyy-MM-dd");
+    }
+
     var months = [];
-    while (endDate - startDate > 0) {
-        startDate.setDate(1);
-        var begin = startDate.toISOString();
-        startDate.setMonth(startDate.getMonth() + 1, 0); // jump to the last day of the month
+    while (startMonth < endMonth) {
+        var nextMonth = new Date(Date.UTC(startMonth.getUTCFullYear(), startMonth.getUTCMonth() + 1, 1));
         months.push({
             employeeId: Number(rosterUserId),
-            begin: begin,
-            end: startDate.toISOString(),
+            begin: monthStart(startMonth).toISOString(),
+            end: new Date(monthStart(nextMonth).getTime() - 1).toISOString(),
             rosterViewMode: 4
         });
-        startDate.setDate(startDate.getDate() + 1); // first day of the next month
+        startMonth = nextMonth;
     }
 
     return JSON.stringify(months);
 }
 
-function getRosterICal() {
-    callWithBackoff(function() {
-        refreshRosterToken();
+function getRosterICal_() {
+    callWithBackoff_(function() {
+        refreshRosterToken_();
         return;
     },defaultMaxRetries);
-    return callWithBackoff(function() {
-            var jsonResponse = JSON.parse(rosterFetch("rosters/preload", "POST", generateRosterPayload()))
+    return callWithBackoff_(function() {
+            var jsonResponse = JSON.parse(rosterFetch_("rosters/preload", "POST", generateRosterPayload_()))
             var icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//GoogleKalenderSync/EN\nMETHOD:REQUEST\nNAME:Roster\nX-WR-CALNAME:Roster\n";
             
             var dienstCount = new Map();
@@ -530,7 +548,7 @@ function getRosterICal() {
                     allDays.sort();
                     var from = new Date(allDays[0]).toISOString();
                     var to = new Date(allDays[allDays.length - 1]).toISOString();
-                    teamIndex = getTeamDutyIndex(monthParams, from, to);
+                    teamIndex = getTeamDutyIndex_(monthParams, from, to);
                 } catch (e) {
                     Logger.log("Could not build team-duty index: " + (e.message || e));
                 }
@@ -544,7 +562,7 @@ function getRosterICal() {
                     legendData.entries.forEach(e => { legend[e.shortName] = e; });
 
                 month.rosterDetails.forEach(shift => {
-                  var data = parseShiftToCal(shift, legend, teamIndex)
+                  var data = parseShiftToCal_(shift, legend, teamIndex)
                     allShiftBlocks = allShiftBlocks.concat(data.blocks)
                     if (addYearSummary) {
                         data.list.forEach(d => {
@@ -559,7 +577,7 @@ function getRosterICal() {
                 if(addRosterRequests) {
                   month.rosterUrlaubEinsatzwunsch.data.data[0].item2.data.forEach(day => {
                     if(day.einsatzwunsch) {
-                      var date = toICalDate(day.day.date)
+                      var date = toICalDate_(day.day.date)
                       var summary = "Einsatzwunsch: " + (function(ew){
                         switch(ew){
                           case 1: return "Frei";
@@ -570,7 +588,7 @@ function getRosterICal() {
                         }})(day.einsatzwunschWunsch);
                       summary += " " + day.shortName;
                       
-                      icsContent += generateICalEntry(day.einsatzwunschWunsch+"-"+day.shortName+"-"+date,date,date,summary,day.kommentar)
+                      icsContent += generateICalEntry_(day.einsatzwunschWunsch+"-"+day.shortName+"-"+date,date,date,summary,day.kommentar)
                     }
                   })
                 }
@@ -585,14 +603,14 @@ function getRosterICal() {
                     var endDate = new Date(abs.bis.date);
                     endDate.setDate(endDate.getDate() + 1); // DTEND is exclusive for all-day events
                     var summary = "Abwesenheit: " + abs.absenceName + (abs.status != 0 ? " (beantragt)" : "");
-                    icsContent += generateAllDayICalEntry("absence-" + abs.approvalId, startDate, endDate, summary, "");
+                    icsContent += generateAllDayICalEntry_("absence-" + abs.approvalId, startDate, endDate, summary, "");
                   })
                 }
             });
 
             //------------------------ Emit (consolidated) shift events ------------------------
-            consolidateShiftBlocks(allShiftBlocks).forEach(block => {
-                icsContent += shiftBlockToICal(block);
+            consolidateShiftBlocks_(allShiftBlocks).forEach(block => {
+                icsContent += shiftBlockToICal_(block);
             });
 
             if (addYearSummary) {
@@ -605,8 +623,8 @@ function getRosterICal() {
               Logger.log(loggerText.slice(0,-1))
             }
             if(updateAvailable== "true") {
-              var date = toICalDate(new Date())
-              icsContent += generateICalEntry(date+"-updateNotification",date,date,"Dienstplan Update verfügbar","Es ist ein Update für das Dienstplanprogramm verfügbar. Bitte den Updateanweisungen in der Gruppe folgen.");
+              var date = toICalDate_(new Date())
+              icsContent += generateICalEntry_(date+"-updateNotification",date,date,"Dienstplan Update verfügbar","Es ist ein Update für das Dienstplanprogramm verfügbar. Bitte den Updateanweisungen in der Gruppe folgen.");
               Logger.log("update updateAvailable " + updateAvailable)
             }
 

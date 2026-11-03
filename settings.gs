@@ -9,7 +9,7 @@ var sourceCalendars = [
 ];
 
 var howFrequent = 15;                     // What interval (minutes) to run this script on to check for new events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.
-var onlyFutureEvents = false;             // If you turn this to "true", past events will not be synced (this will also removed past events from the target calendar if removeEventsFromCalendar is true)
+var onlyFutureEvents = false;             // If true, past events are not synced. Existing past events are kept unless both removal settings below are true.
 var addEventsToCalendar = true;           // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;          // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;      // If you turn this to "true", any event created by the script that is not found in the feed will be removed.
@@ -35,6 +35,7 @@ var ignoreEvents = [
 
 var addRosterToCal = true;
 var addRosterSinceStart = false;
+var rosterTimeZone = "Europe/Berlin";      // Timezone for roster month boundaries (independent of the Apps Script timezone). The default sync window covers the previous month through two months ahead.
 var addRosterRequests = true;
 var addAbsences = true;                   // If "true", absences (vacation etc.) are added as consolidated all-day events from the fehlzeiten list. Keep the matching code (e.g. "UL") in rosterIgnoreList so the per-day blocks in the roster aren't duplicated.
 var oncallAsFree = true;                   // If "true", on-call shifts (Rufbereitschaft) are marked as free/available (TRANSP:TRANSPARENT) so they don't block your calendar like a regular shift.
