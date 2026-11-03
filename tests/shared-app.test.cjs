@@ -4,80 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
 const root = path.join(__dirname, '..');
-const owner = 'owner@example.com', alice = 'alice@example.com', bob = 'bob@example.com';
-
-function store(map) {
-  return {
-    getProperty: key => map.get(key) ?? null,
-    setProperty: (key, value) => map.set(key, String(value)),
-    setProperties: values => Object.entries(values).forEach(([key, value]) => map.set(key, String(value))),
-    deleteProperty: key => map.delete(key),
-    deleteAllProperties: () => map.clear(),
-  };
-}
-
-function shared() {
-  return {
-    project: new Map([['appOwnerEmail', owner], ['allowedUserEmails', JSON.stringify([alice, bob])]]),
-    users: new Map(), triggers: new Map(), locked: new Set(),
-  };
-}
-
-function load(app, email, active = email) {
-  if (!app.users.has(email)) app.users.set(email, new Map());
-  if (!app.triggers.has(email)) app.triggers.set(email, []);
-  let sequence = 0;
-  const context = vm.createContext({
-    Logger: { log() {} },
-    Session: {
-      getEffectiveUser: () => ({ getEmail: () => email }),
-      getActiveUser: () => ({ getEmail: () => active }),
-      getScriptTimeZone: () => 'Etc/GMT',
-    },
-    PropertiesService: {
-      getScriptProperties: () => store(app.project),
-      getUserProperties: () => store(app.users.get(email)),
-    },
-    Utilities: {
-      newBlob: value => ({ getBytes: () => Buffer.from(value) }),
-      formatDate: (date, timeZone, pattern) => {
-        const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-          timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
-        }).formatToParts(date).map(p => [p.type, p.value]));
-        return pattern.replace('yyyy', parts.year).replace('MM', parts.month).replace('dd', parts.day);
-      },
-    },
-    LockService: { getUserLock: () => ({
-      tryLock: () => {
-        if (app.locked.has(email)) return false;
-        app.locked.add(email); return true;
-      },
-      releaseLock: () => app.locked.delete(email),
-    }) },
-    ScriptApp: {
-      getProjectTriggers: () => app.triggers.get(email).slice(),
-      deleteTrigger: trigger => {
-        app.triggers.set(email, app.triggers.get(email).filter(t => t !== trigger));
-      },
-      newTrigger: name => {
-        const builder = {
-          timeBased: () => builder, everyHours: () => builder, everyMinutes: () => builder,
-          after: () => builder, everyDays: () => builder,
-          create: () => {
-            const id = email + '-' + sequence++;
-            const trigger = { getHandlerFunction: () => name, getUniqueId: () => id };
-            app.triggers.get(email).push(trigger); return trigger;
-          },
-        };
-        return builder;
-      },
-    },
-  });
-  for (const name of ['settings.gs', 'Code.gs', 'Preferences.gs', 'WebApp.gs', 'Helpers.gs', 'Roster.gs', 'Updates.gs']) {
-    vm.runInContext(fs.readFileSync(path.join(root, name), 'utf8'), context, { filename: name });
-  }
-  return context;
-}
+const {load, shared, owner, alice, bob} = require('./helpers/apps-script.cjs');
 
 function save(context, id, token, settings = {}) {
   return context.saveAppSettings({ rosterUserId: id, rosterUserToken: token, settings });
@@ -103,15 +30,27 @@ test('two invited users keep preferences, tokens and account status separate', (
 
 test('uninvited accounts cannot read, save, install, sync or disconnect', () => {
   const c = load(shared(), 'stranger@example.com');
-  for (const method of ['getAppState', 'saveAppSettings', 'install', 'startSync', 'stopSync', 'disconnectApp', 'uninstall']) {
-    assert.throws(() => c[method]({}), /not been invited/, method);
+  for (const method of ['getAppState', 'getSyncProgress', 'saveAppSettings', 'install', 'startSync', 'stopSync', 'disconnectApp', 'uninstall']) {
+    assert.throws(() => c[method]({}), /nicht eingeladen/, method);
   }
+});
+
+test('sync progress belongs to the current user and one-shot triggers can expire before running', () => {
+  const app=shared(), a=load(app,alice), b=load(app,bob);
+  save(a,'100','a'); a.install();
+  const id=app.users.get(alice).get('initialSyncTriggerId');
+  app.triggers.set(alice,app.triggers.get(alice).filter(t=>t.getUniqueId()!==id));
+  const timed=load(app,alice,'');timed.runSync_=()=>0;
+  timed.startSync({triggerUid:id});
+  assert.equal(a.getSyncProgress().status,'complete');
+  assert.equal(b.getSyncProgress(),null);
+  assert.equal(app.users.get(alice).has('initialSyncTriggerId'),false);
 });
 
 test('deployment identity mismatch is rejected rather than using the owner account', () => {
   const c = load(shared(), owner, alice);
   for (const method of ['getAppState', 'saveAppSettings', 'install', 'startSync', 'stopSync', 'disconnectApp']) {
-    assert.throws(() => c[method]({}), /user accessing it/, method);
+    assert.throws(() => c[method]({}), /zugreifenden Nutzer/, method);
   }
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'appsscript.json')));
   assert.equal(manifest.webapp.executeAs, 'USER_ACCESSING');
@@ -138,7 +77,7 @@ test('one user syncing does not lock out another user', () => {
   const app = shared(), a = load(app, alice), b = load(app, bob);
   save(a, '100', 'a'); save(b, '200', 'b');
   app.locked.add(alice);
-  assert.throws(() => a.startSync(), /already running/);
+  assert.throws(() => a.startSync(), /bereits/);
   let ran = false;
   b.runSync_ = () => { ran = true; assert.equal(b.rosterUserId, '200'); };
   b.startSync();
@@ -154,7 +93,7 @@ test('known time triggers work without an interactive user; forged triggers do n
   timed.runSync_ = () => {};
   timed.startSync({ triggerUid: app.triggers.get(alice)[0].getUniqueId() });
   assert.ok(app.users.get(alice).get('lastSyncAt'));
-  assert.throws(() => timed.startSync({ triggerUid: 'fake' }), /user accessing it/);
+  assert.throws(() => timed.startSync({ triggerUid: 'fake' }), /zugreifenden Nutzer/);
 });
 
 test('owner-only migration retains legacy values and regular expressions', () => {
@@ -168,9 +107,9 @@ test('owner-only migration retains legacy values and regular expressions', () =>
   assert.equal(saved.ignoreEvents[1].title.test('CHEMIE'), true);
   assert.equal(app.users.get(owner).get('rosterUserToken'), 'legacy-token');
   assert.equal(app.users.get(owner).get('adoptLegacyEvents'), 'true');
-  assert.throws(() => c.migrateLegacySettings_(), /will not overwrite/);
+  assert.throws(() => c.migrateLegacySettings_(), /nicht überschrieben/);
   const guest = load(app, alice);
-  assert.throws(() => guest.migrateLegacySettings_(), /Only the app owner/);
+  assert.throws(() => guest.migrateLegacySettings_(), /Nur der App-Inhaber/);
   assert.equal(guest.getAppState().hasToken, false);
   assert.equal(guest.getAppState().settings.ignoreEvents.length, 0);
 });
@@ -267,7 +206,7 @@ test('scheduled error emails use the current account and throttle separately', (
 });
 
 test('internal and migration functions are private to google.script.run', () => {
-  const publicNames = new Set(['install', 'uninstall', 'startSync', 'checkForUpdates',
+  const publicNames = new Set(['install', 'uninstall', 'startSync', 'checkForUpdates', 'getSyncProgress',
     'doGet', 'getAppState', 'saveAppSettings', 'stopSync', 'disconnectApp']);
   for (const file of ['Code.gs', 'Helpers.gs', 'Roster.gs', 'Preferences.gs', 'Updates.gs', 'WebApp.gs']) {
     for (const match of fs.readFileSync(path.join(root, file), 'utf8').matchAll(/^function (\w+)\(/gm)) {

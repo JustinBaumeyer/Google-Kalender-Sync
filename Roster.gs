@@ -75,6 +75,7 @@ function toICalDate_(date) {
  * @return {string} The response body text.
  */
 function rosterFetch_(endpoint, method, payload) {
+    checkSyncBudget_();
     var options = {
         'validateHttpsCertificates': false,
         'muteHttpExceptions': true,
@@ -103,6 +104,7 @@ function rosterFetch_(endpoint, method, payload) {
  * @return {Array.<?string>} One response body per request, null where the request failed.
  */
 function rosterFetchAll_(calls) {
+    checkSyncBudget_();
     if (!calls.length) return [];
     var requests = calls.map(function(call) {
         var request = {
@@ -550,6 +552,7 @@ function getRosterICal_() {
                     var to = new Date(allDays[allDays.length - 1]).toISOString();
                     teamIndex = getTeamDutyIndex_(monthParams, from, to);
                 } catch (e) {
+                    if (e.syncPaused) throw e;
                     Logger.log("Could not build team-duty index: " + (e.message || e));
                 }
             }

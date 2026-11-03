@@ -31,11 +31,21 @@ function load({ enabled = true, remoteVersion = 7, locked = false } = {}) {
     requests: [], backups: [], writes: [], deployments: [], released: 0, triggerCount: 0,
     remote: Object.fromEntries(programNames.map(name => [name + (name === 'Index' ? '.html' : '.gs'),
       name === 'Code' ? 'var version = ' + remoteVersion + ';' : '// updated ' + name])),
-    failures: {}, editAfterBackup: false,
+    failures: {}, editAfterBackup: false, archiveCommit: commit, archiveEntries: null,
   };
   state.remote['appsscript.json'] = fs.readFileSync(path.join(root, 'appsscript.json'), 'utf8');
   const context = vm.createContext({
     Logger: { log() {} },
+    Utilities: { unzip: () => {
+      const entries = state.archiveEntries || Object.entries(state.remote)
+        .filter(([, source]) => source !== undefined)
+        .map(([name, source]) => ({
+          getName: () => 'Google-Kalender-Sync-main/' + name,
+          getDataAsString: () => source,
+        }));
+      if (state.afterUnzip) state.afterUnzip();
+      return entries;
+    } },
     PropertiesService: { getUserProperties: () => ({ getProperty: () => null }), getScriptProperties: () => ({
       getProperty: key => properties.get(key) ?? null,
       setProperty: (key, value) => properties.set(key, value),
@@ -61,13 +71,11 @@ function load({ enabled = true, remoteVersion = 7, locked = false } = {}) {
       let status = failure || 200;
       let body;
       if (parsed.hostname === 'api.github.com') {
+        assert.fail('Updater must not depend on the unauthenticated GitHub API');
+      } else if (parsed.hostname === 'codeload.github.com') {
         assert.equal(options.headers?.Authorization, undefined);
-        body = { sha: commit };
-      } else if (parsed.hostname === 'raw.githubusercontent.com') {
-        assert.equal(options.headers?.Authorization, undefined);
-        assert.ok(parsed.pathname.includes('/' + commit + '/'), 'Unpinned download');
-        body = state.remote[parsed.pathname.split('/').at(-1)];
-        if (body === undefined) status = 404;
+        assert.equal(parsed.pathname, '/JustinBaumeyer/Google-Kalender-Sync/zip/refs/heads/main');
+        body = 'archive';
       } else {
         assert.equal(parsed.hostname, 'script.googleapis.com');
         assert.equal(options.headers.Authorization, 'Bearer test-google-token');
@@ -90,7 +98,7 @@ function load({ enabled = true, remoteVersion = 7, locked = false } = {}) {
           body = { files: clone(backup ? state.backups[Number(backup) - 1] : state.current) };
         }
       }
-      return { getResponseCode: () => status, getContentText: () =>
+      return { getResponseCode: () => status, getBlob: () => ({getBytes: () => Array.from(Buffer.from('zip-bytes' + state.archiveCommit))}), getContentText: () =>
         typeof body === 'string' ? body : JSON.stringify(body) };
     } },
   });
@@ -106,8 +114,45 @@ test('notification-only owner checks make no code writes', () => {
   assert.equal(properties.get('updateAvailable'), 'true');
   assert.equal(state.writes.length, 0);
   assert.equal(state.backups.length, 0);
-  assert.equal(state.requests.length, 3);
+  assert.equal(state.requests.length, 2);
   assert.equal(state.released, 1);
+});
+
+test('one archive replaces the GitHub API and stays consistent if main changes mid-update', () => {
+  const { context, state, properties } = load();
+  const archivedHelper = state.remote['Helpers.gs'];
+  state.afterUnzip = () => { state.remote['Helpers.gs'] = '// newer commit now on main'; };
+  context.checkForUpdates();
+  assert.equal(state.current.find(file => file.name === 'Helpers').source, archivedHelper);
+  assert.equal(properties.get('autoUpdateCommit'), commit);
+  assert.equal(state.requests.filter(r => r.url.startsWith('https://codeload.github.com/')).length, 1);
+  assert.equal(state.requests.some(r => r.url.startsWith('https://api.github.com/')), false);
+  assert.equal(state.requests.some(r => r.url.startsWith('https://raw.githubusercontent.com/')), false);
+});
+
+test('archive download failures and invalid commit metadata never change project code', () => {
+  for (const setup of [
+    state => { state.failures['/JustinBaumeyer/Google-Kalender-Sync/zip/refs/heads/main'] = 403; },
+    state => { state.archiveCommit = 'invalid'; },
+    state => { state.archiveEntries = []; },
+    state => { state.archiveEntries = [
+      { getName: () => 'repo-main/Code.gs', getDataAsString: () => 'var version = 7;' },
+      { getName: () => 'repo-main/Code.gs', getDataAsString: () => 'var version = 8;' },
+    ]; },
+    state => { state.archiveEntries = [
+      { getName: () => 'repo-main/Code.gs', getDataAsString: () => 'var version = 7;' },
+      { getName: () => 'another-root/Helpers.gs', getDataAsString: () => '// different root' },
+    ]; },
+  ]) {
+    const { context, state } = load();
+    const original = clone(state.current);
+    setup(state);
+    assert.throws(() => context.checkForUpdates());
+    assert.deepEqual(state.current, original);
+    assert.equal(state.backups.length, 0);
+    assert.equal(state.writes.length, 0);
+    assert.equal(state.released, 1);
+  }
 });
 
 test('up-to-date and older remote versions are never installed', () => {
@@ -174,7 +219,7 @@ test('a missing, empty or syntactically invalid download cannot modify the proje
 test('failed checks preserve a previous update notice', () => {
   const { context, state, properties } = load();
   properties.set('updateAvailable', 'true');
-  state.failures['/repos/JustinBaumeyer/Google-Kalender-Sync/commits/main'] = 503;
+  state.failures['/JustinBaumeyer/Google-Kalender-Sync/zip/refs/heads/main'] = 503;
   assert.throws(() => context.checkForUpdates(), /HTTP 503/);
   assert.equal(properties.get('updateAvailable'), 'true');
   assert.equal(state.writes.length, 0);

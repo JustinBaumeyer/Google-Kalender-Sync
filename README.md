@@ -55,14 +55,16 @@ Removing an email from the invite list blocks its next sync as well as web acces
 1. Open the shared URL with the invited Google account and grant the requested
    Calendar, trigger, email and external-request permissions. Code-editing permissions
    are not requested by this app.
-2. Enter your roster employee ID and token. Choose your preferences and destination
-   calendar under **Advanced preferences → Sources and destination calendars**.
-   A source row is `["ROSTER" or "https://feed-url", "Calendar name", colorId]`.
-3. Click **Save preferences**, then **Enable sync**. The first sync is scheduled
-   shortly afterwards. **Sync now** runs it immediately.
+2. Enter your employee ID under **Mitarbeiter-ID** and your roster token under
+   **Dienstplan-Token**. The interface is in German. Under **Kalenderquellen**, choose
+   **DRK-Dienstplan** or **Kalender-Abo (ICS)**, enter the destination calendar name,
+   and select a color. Use **Quelle hinzufügen** for additional feeds.
+3. Click **Einstellungen speichern**, then **Synchronisierung aktivieren**. The first
+   sync starts shortly afterwards. **Jetzt synchronisieren** starts a manual run and
+   automatically saves pending edits first.
 
-**Pause sync** removes only your own triggers and keeps your preferences. **Delete my
-saved data** removes only your saved preferences, roster credentials and triggers;
+**Pausieren** removes only your own triggers and keeps your preferences.
+**Meine gespeicherten Daten löschen** removes only your saved preferences, credentials and triggers;
 calendar events remain. You can also revoke the app's access in your Google account.
 Changing the saved sync interval reschedules your own active triggers automatically.
 A blank token field keeps the saved token; the app never sends saved tokens to the
@@ -76,11 +78,14 @@ new program files and merging the new manifest. Run `setupSharedApp_`, then run
 configuration, including regular-expression ignore rules, and roster credentials to
 your User Properties. It refuses to overwrite existing saved preferences.
 
-Run `startSync` once as the owner to verify migration. On the first successful full
-sync, existing untagged script-managed events in your configured calendars are tagged
-with your account so they are reused rather than duplicated. Only migrate calendars
+Run `startSync` once as the owner to verify migration. Existing untagged script-managed
+events are assigned to your account in batches of at most 100 per execution. Larger
+migrations continue automatically after about a minute. Untagged legacy IDs still
+participate in event matching, so partially migrated events are reused rather than
+duplicated. Only migrate calendars
 belonging to the old single-user installation; other users' tagged events are excluded.
-A failed migration sync keeps the adoption flag for retry. After verifying migration,
+The adoption flag is cleared only after all configured calendars have been migrated.
+A failed migration sync keeps that flag for retry. After verifying migration,
 you can remove the old `rosterUserToken` and `rosterUserId` Script Properties.
 
 `settings.gs` remains a legacy migration template and is never overwritten by updates.
@@ -92,10 +97,13 @@ and are restored when preferences are loaded.
 
 ## Preferences
 
-All of these options are available in the app. Advanced lists use JSON. Preferences
-are validated before saving; malformed booleans, unknown options, invalid source
-rows and values exceeding Google's storage limit are rejected without replacing the
-saved values. Settings are stored per account, while the invite list and release
+All of these options are available through German form controls; no JSON editing
+is required. Calendar sources and exclusion rules have add/remove rows. Rules offer
+text or regex matching, a weekday selector, and time fields. Shift codes and planning
+group numbers use comma-separated fields. Visibility, reminders, colors, intervals,
+and error-email behavior use dropdowns. Existing regex flags, numeric weekdays,
+string color IDs, and options not displayed by an older interface survive saving.
+Invalid or incomplete edits are rejected without replacing saved values. Settings are stored per account, while the invite list and release
 metadata stay in project Script Properties.
 
 | Setting | Description |
@@ -136,12 +144,27 @@ Roster shift events are titled `<code> | <workplace> (<role>)` and their descrip
 
 ## Recover missing shifts
 
-After updating, open the app with **Add new events** enabled and **Only import future
-events** disabled, then click **Sync now**. Missing shifts in the previous month and
-current sync window can be imported again. Keep **Delete past events missing from
-the source** disabled to retain completed events. To recover older shifts, temporarily
-enable **Import full roster history**, sync, then turn it off again. Recovery depends
+After updating, open the app with **Neue Termine hinzufügen** enabled and **Nur
+zukünftige Termine importieren** disabled, then click **Jetzt synchronisieren**. Missing shifts in the previous month and
+current sync window can be imported again. Keep **Auch vergangene Termine entfernen** disabled to retain completed events. To recover older shifts, temporarily
+enable **Gesamte Dienstplan-Historie importieren**, sync, then turn it off again. Recovery depends
 on the roster API still returning historical shifts.
+
+## Progress and execution time
+
+A manual sync displays an account-local progress bar above the form. It polls live
+status every two seconds, showing the current phase and processed/total counts when
+available. Network requests without measurable totals use an indeterminate indicator.
+Pending continuations are polled less often. The page never receives stored tokens.
+
+The sync uses a four-minute cooperative budget, bounded retry delays and small legacy
+migration batches. Before reaching Google's execution limit, unfinished work schedules
+one account-owned continuation and resumes from the interrupted calendar. Partial
+imports keep all source IDs for matching, and cleanup does not run after an interrupted
+or failed event write. A single blocking Google/API request cannot be cancelled by
+this budget. Phase timings and migration counts in the execution log identify delays.
+Per-user properties are read in bulk, and repeated roster sources share one fetch
+within an execution. Pausing sync removes pending continuations as well.
 
 ## Owner-only automatic updates
 
@@ -161,11 +184,15 @@ need OAuth permissions to modify script projects. No user has to update their co
    permissions. It verifies access, installs a daily update check, and checks now.
 
 The updater compares the target app's version with this repository's `main` branch,
-downloads all managed files from one immutable commit, checks their JavaScript syntax
+downloads a single repository ZIP snapshot from GitHub's public archive endpoint,
+checks the managed files' JavaScript syntax
 and manifest requirements, and creates a backup version before writing. It preserves
 the exact target manifest, legacy settings, custom files, project properties, all
 User Properties and users' triggers. Local edits to managed program files are replaced.
-The updater's own project is not overwritten.
+The updater's own project is not overwritten. The source commit is read from the
+archive's ZIP comment; every file comes from that same snapshot. This avoids the
+unauthenticated GitHub API rate limit shared by Apps Script's outbound IP addresses
+and requires no GitHub token.
 
 After writing the code it creates a deployment version and updates the existing
 web-app deployment, keeping the same URL. Background triggers use the new code on
@@ -209,10 +236,14 @@ file list before each write instead of sending only downloaded files.
 
 ## Development
 
-Run `node --test tests/*.test.cjs` with Node.js 18 or newer. Tests use mocked Apps
-Script services and the bundled iCal parser. They cover month boundaries, retention,
+Run `npm ci` and `npm test` with Node.js 18 or newer. For the form integration checks,
+run `npx playwright install chromium`, then `npm run test:browser`. An existing local
+Chromium executable can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
+Tests use mocked Google services and the bundled iCal parser. They cover month boundaries, retention,
 consecutive syncs, account isolation, trigger ownership, migration and updater recovery.
-GitHub Actions runs the suite for pull requests and changes to `main`. These checks do
+Browser tests exercise the actual preferences/save functions through a mocked browser
+RPC bridge, including German form round-trips, live progress and mobile layout.
+GitHub Actions runs both suites for pull requests and changes to `main`. These checks do
 not contact a live roster, Google Calendar or deployment; verify the initial shared
 Google deployment with two invited accounts before onboarding the rest of the group.
 

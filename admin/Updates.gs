@@ -41,12 +41,12 @@ function checkForUpdates() {
     scriptPrp.setProperty("updateAvailable", updateAvailable);
     if (updateAvailable != "true" || scriptPrp.getProperty("autoUpdateEnabled") != "true") return;
 
-    // Download everything from one immutable commit before changing the project.
+    // All files come from the same downloaded archive, even if main moves later.
     var replacementFiles = managedUpdateFiles.map(function(name) {
-      return {name: name, type: name == "Index" ? "HTML" : "SERVER_JS", source: name == "Code"
-        ? release.code : fetchUpdateFile(release.commit, name + (name == "Index" ? ".html" : ".gs"))};
+      return {name: name, type: name == "Index" ? "HTML" : "SERVER_JS", source:
+        fetchUpdateFile(release, name + (name == "Index" ? ".html" : ".gs"))};
     });
-    var requiredManifest = JSON.parse(fetchUpdateFile(release.commit, "appsscript.json"));
+    var requiredManifest = JSON.parse(fetchUpdateFile(release, "appsscript.json"));
     checkUpdateManifest(current, requiredManifest);
     var merged = mergeUpdateFiles(current, replacementFiles);
 
@@ -132,18 +132,47 @@ function publishUpdatedApp() {
 }
 
 function fetchUpdateRelease() {
-  var commitInfo = JSON.parse(updateFetchText(
-    "https://api.github.com/repos/" + updateRepository + "/commits/main"));
-  if (!/^[a-f0-9]{40}$/.test(commitInfo.sha || ""))
-    throw new Error("Invalid update commit");
-  var code = fetchUpdateFile(commitInfo.sha, "Code.gs");
+  // GitHub's unauthenticated API is rate-limited by IP. Apps Script shares
+  // outbound IPs with other scripts, so use the public archive download instead.
+  var url = "https://codeload.github.com/" + updateRepository + "/zip/refs/heads/main";
+  var response = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
+  if (response.getResponseCode() != 200)
+    throw new Error("Update archive failed (HTTP " + response.getResponseCode() + ") for " + url);
+  var archive = response.getBlob();
+  // GitHub's git archives carry the source commit SHA in the ZIP comment.
+  var commit = archive.getBytes().slice(-40).map(function(byte) {
+    return String.fromCharCode(byte & 255);
+  }).join("");
+  if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error("Update archive has no valid commit identifier");
+  var files = new Map();
+  var root;
+  Utilities.unzip(archive).forEach(function(blob) {
+    var name = blob.getName();
+    var slash = name.indexOf("/");
+    if (slash < 1) throw new Error("Invalid update archive path");
+    var prefix = name.slice(0, slash);
+    if (root !== undefined && prefix != root) throw new Error("Update archive has multiple roots");
+    root = prefix;
+    var path = name.slice(slash + 1);
+    if (!path || path.endsWith("/")) return;
+    if (files.has(path)) throw new Error("Duplicate update archive file " + path);
+    // Keep only program files and the manifest, not tests and documentation.
+    if (path == "appsscript.json" || managedUpdateFiles.some(function(name) {
+      return path == name + (name == "Index" ? ".html" : ".gs");
+    })) files.set(path, blob.getDataAsString("UTF-8"));
+  });
+  var release = {commit: commit, files: files};
+  var code = fetchUpdateFile(release, "Code.gs");
   var match = /^\s*var\s+version\s*=\s*(\d+)\s*;/m.exec(code);
   if (!match) throw new Error("Update is missing its version number");
-  return {commit: commitInfo.sha, version: Number(match[1]), code: code};
+  release.version = Number(match[1]);
+  return release;
 }
 
-function fetchUpdateFile(commit, name) {
-  return updateFetchText("https://raw.githubusercontent.com/" + updateRepository + "/" + commit + "/" + name);
+function fetchUpdateFile(release, name) {
+  var source = release.files.get(name);
+  if (source === undefined || !source.trim()) throw new Error("Missing or empty update archive file " + name);
+  return source;
 }
 
 function updateFetchText(url, options) {
