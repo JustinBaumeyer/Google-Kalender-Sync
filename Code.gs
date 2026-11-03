@@ -1,4 +1,6 @@
-var version = 7;
+var version = 8;
+var syncStats = {added: 0, updated: 0, removed: 0};
+var upcomingSyncEvents = [];
 var defaultMaxRetries = 4;
 var syncStartedAt = 0;
 var syncDeadline = 0;
@@ -40,6 +42,7 @@ function scheduleSyncContinuation_(remaining) {
     userPrp.setProperty("syncContinuationTriggerId", String(continuation.getUniqueId()));
   }
   userPrp.setProperty("syncPending", "true");
+  userPrp.setProperty("nextContinuationAt", String(Date.now() + 60000));
   publishSyncProgress_(remaining ? "Alte Termine werden im nächsten Lauf weiter zugeordnet" : syncPhase + " – Fortsetzung geplant", undefined, undefined, "pending");
 }
 
@@ -62,6 +65,8 @@ function install() {
 
 function install_() {
   loadUserPreferences_();
+  if (userPrp.getProperty("migrationNeedsCalendarSelection") == "true" && sourceCalendars.some(function(row) { return row.length < 4; }))
+    throw new Error("Bitte zuerst die Zielkalender der übernommenen Quellen auswählen und speichern");
   if (addRosterToCal && (rosterUserToken == null || rosterUserToken == defaultRosterToken || !/^\d+$/.test(rosterUserId || "")))
     throw new Error("Bitte zuerst Dienstplan-Token und Mitarbeiter-ID speichern");
 
@@ -84,6 +89,8 @@ function install_() {
   }
   var initial = ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
   userPrp.setProperty("initialSyncTriggerId", String(initial.getUniqueId()));
+  userPrp.setProperties({nextInitialAt: String(Date.now() + 1000),
+    nextRegularAt: String(Date.now() + adjustedMinutes * 60000)}, false);
   if (Session.getEffectiveUser().getEmail().toLowerCase() == scriptPrp.getProperty("appOwnerEmail"))
     ScriptApp.newTrigger("checkForUpdates").timeBased().everyDays(1).create();
   return getAppState();
@@ -123,8 +130,17 @@ function startSync(event){
     syncDeadline = syncStartedAt + 240000; // Leave room before Google's execution limit.
     lastProgressWriteAt = 0;
     lastProgressPhase = "";
+    syncStats = userPrp.getProperty("syncPending") == "true"
+      ? JSON.parse(userPrp.getProperty("syncStats") || '{"added":0,"updated":0,"removed":0}')
+      : {added: 0, updated: 0, removed: 0};
+    upcomingSyncEvents = [];
     publishSyncProgress_("Synchronisierung wird vorbereitet", undefined, undefined, "running");
     if (event && event.triggerUid) {
+      var initialId = userPrp.getProperty("initialSyncTriggerId");
+      var continuationId = userPrp.getProperty("syncContinuationTriggerId");
+      if (event.triggerUid == initialId) userPrp.deleteProperty("nextInitialAt");
+      else if (event.triggerUid == continuationId) userPrp.deleteProperty("nextContinuationAt");
+      else userPrp.setProperty("nextRegularAt", String(Date.now() + getValidTriggerFrequency_(readUserPreferences_().howFrequent) * 60000));
       ["initialSyncTriggerId", "syncContinuationTriggerId"].forEach(function(key) {
         if (userPrp.getProperty(key) == event.triggerUid) userPrp.deleteProperty(key);
       });
@@ -140,15 +156,20 @@ function startSync(event){
     var migrationRemaining = runSync_() || 0;
     timedSyncStep_("Laufstatus speichern", function() {
       userPrp.setProperties({lastSyncAt: new Date().toISOString(), lastSyncError: "",
-        lastSyncDurationMs: String(Date.now() - syncStartedAt), migrationRemaining: String(migrationRemaining), syncPending: "false"}, false);
+        lastSyncDurationMs: String(Date.now() - syncStartedAt), migrationRemaining: String(migrationRemaining), syncPending: "false",
+        syncStats: JSON.stringify(syncStats)}, false);
     });
     if (migrationRemaining) scheduleSyncContinuation_(migrationRemaining);
-    else publishSyncProgress_("Synchronisierung abgeschlossen", 1, 1, "complete");
+    else {
+      if (addRosterToCal && sourceCalendars.some(function(row) { return row[0] == "ROSTER"; })) markRosterConnectionVerified_();
+      userPrp.setProperties({lastSyncStats: JSON.stringify(syncStats), upcomingEvents: JSON.stringify(upcomingSyncEvents.slice(0, 5))}, false);
+      publishSyncProgress_("Synchronisierung abgeschlossen", 1, 1, "complete");
+    }
     if (!event || !event.triggerUid) return getAppState();
   } catch (err) {
     if (err.syncPaused) {
       Logger.log(err.message);
-      userPrp.setProperties({lastSyncError: "", lastSyncPhase: syncPhase}, false);
+      userPrp.setProperties({lastSyncError: "", lastSyncPhase: syncPhase, syncStats: JSON.stringify(syncStats)}, false);
       scheduleSyncContinuation_();
       if (!event || !event.triggerUid) return getAppState();
       return;
@@ -218,7 +239,7 @@ function runSync_(){
 
       //------------------------ Get target calendar information------------------------
       var targetCalendar = timedSyncStep_(targetCalendarName + ": Kalender öffnen", function() {
-        return setupTargetCalendar_(targetCalendarName);
+        return setupTargetCalendar_(targetCalendarName, calendar[2]);
       });
       targetCalendarId = targetCalendar.id;
       targetCalendarTimeZone = targetCalendar.timeZone;
@@ -299,6 +320,8 @@ function runSync_(){
           return consolidateVevents_(parseResponses_(responses));
         });
         Logger.log("Parsed " + vevents.length + " events from ical sources");
+        upcomingSyncEvents = upcomingSyncEvents.concat(previewEvents_(vevents, targetCalendarName, targetCalendarTimeZone))
+          .sort(function(a,b) { return a.start.localeCompare(b.start); }).slice(0,5);
       }
 
       //------------------------ Process ical events ------------------------

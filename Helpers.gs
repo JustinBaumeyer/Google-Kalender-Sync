@@ -39,11 +39,12 @@ function getValidTriggerFrequency_(origFrequency) {
 function condenseCalendarMap_(calendarMap) {
     var byTarget = new Map();
     for (var mapping of calendarMap) {
-        if (!byTarget.has(mapping[1]))
-            byTarget.set(mapping[1], []);
-        byTarget.get(mapping[1]).push([mapping[0], mapping[2]]);
+        var key = mapping[3] ? "id:" + mapping[3] : "name:" + mapping[1];
+        if (!byTarget.has(key))
+            byTarget.set(key, mapping.length > 3 ? [mapping[1], [], mapping[3]] : [mapping[1], []]);
+        byTarget.get(key)[1].push([mapping[0], mapping[2]]);
     }
-    return Array.from(byTarget.entries());
+    return Array.from(byTarget.values());
 }
 
 /**
@@ -134,14 +135,18 @@ function fetchSourceCalendars_(sourceCalendarURLs) {
  * @param {string} targetCalendarName - The name of the calendar to return
  * @return {Calendar} The calendar retrieved or created
  */
-function setupTargetCalendar_(targetCalendarName) {
-    var targetCalendar = Calendar.CalendarList.list({
-        showHidden: true,
-        maxResults: 250
-    }).items.filter(function(cal) {
-        return ((cal.summaryOverride || cal.summary) == targetCalendarName) &&
-            (cal.accessRole == "owner" || cal.accessRole == "writer");
-    })[0];
+function setupTargetCalendar_(targetCalendarName, calendarId) {
+    if (calendarId) {
+        var selected = Calendar.CalendarList.get(calendarId);
+        if (["owner", "writer"].indexOf(selected.accessRole) == -1)
+            throw new Error("Für den ausgewählten Kalender fehlt der Schreibzugriff");
+        return selected;
+    }
+    var matches = readWritableCalendarRows_().filter(function(cal) {
+        return (cal.summaryOverride || cal.summary) == targetCalendarName;
+    });
+    if (matches.length > 1) throw new Error("Mehrere Kalender heißen „" + targetCalendarName + "“. Bitte einen Zielkalender auswählen.");
+    var targetCalendar = matches[0];
 
     if (targetCalendar == null) {
         Logger.log("Creating Calendar: " + targetCalendarName);
@@ -151,6 +156,7 @@ function setupTargetCalendar_(targetCalendarName) {
         targetCalendar = Calendar.Calendars.insert(targetCalendar);
     }
 
+    bindCalendarId_(targetCalendarName, targetCalendar.id);
     return targetCalendar;
 }
 
@@ -310,7 +316,7 @@ var IGNORE_WEEKDAYS = {
  */
 function getIgnoreWallClock_(time) {
     if (time.zone && time.zone.tzid == "UTC") {
-        var parts = Utilities.formatDate(time.toJSDate(), Session.getScriptTimeZone(), "u|HH:mm").split("|");
+        var parts = Utilities.formatDate(time.toJSDate(), targetCalendarTimeZone || rosterTimeZone || Session.getScriptTimeZone(), "u|HH:mm").split("|");
         return {weekday: (parseInt(parts[0], 10) % 7) + 1, time: parts[1]};
     }
     var pad = function(n) { return (n < 10 ? "0" : "") + n; };
@@ -322,7 +328,10 @@ function getIgnoreWallClock_(time) {
  * against the title, a string matches case-insensitively as a substring.
  */
 function ignoreTitleMatches_(pattern, title) {
-    if (pattern instanceof RegExp) return pattern.test(title);
+    if (pattern instanceof RegExp) {
+        pattern.lastIndex = 0; // Global/sticky rules are independent for each event.
+        return pattern.test(title);
+    }
     return title.toLowerCase().indexOf(String(pattern).trim().toLowerCase()) > -1;
 }
 
@@ -502,12 +511,14 @@ function processEvent_(event, calendarTz) {
             return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
         }, defaultMaxRetries);
         if (updated == null) throw new Error("Ein geänderter Termin konnte nicht gespeichert werden. Bestehende Termine bleiben erhalten.");
+        syncStats.updated++;
     } else if (index == -1 && addEventsToCalendar) {
         Logger.log("Adding new event " + eventId);
         var inserted = callWithBackoff_(function() {
             return Calendar.Events.insert(newEvent, targetCalendarId);
         }, defaultMaxRetries);
         if (inserted == null) throw new Error("Ein neuer Termin konnte nicht gespeichert werden. Bestehende Termine bleiben erhalten.");
+        syncStats.added++;
     }
 }
 
@@ -794,14 +805,11 @@ function checkSkipEvent_(event, icalEvent) {
 function processEventInstance_(recEvent) {
     Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: " + recEvent.recurringEventId);
 
-    var eventInstanceToPatch = callWithBackoff_(function() {
-        return Calendar.Events.list(targetCalendarId, {
-            singleEvents: true,
-            // Both filters must be passed as an array: a duplicate object key would
-            // silently drop the first filter.
-            privateExtendedProperty: ["fromGAS=true", "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId]
-        }).items;
-    }, defaultMaxRetries);
+    var eventInstanceToPatch = findOwnedEventInstances_({
+        singleEvents: true,
+        privateExtendedProperty: ["fromGAS=true", "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId]
+    });
+    if (eventInstanceToPatch === null) throw new Error("Serientermine konnten nicht vollständig geladen werden.");
 
     if (eventInstanceToPatch == null || eventInstanceToPatch.length == 0) {
         if (recEvent.recurringEventId.length == 10) {
@@ -809,30 +817,30 @@ function processEventInstance_(recEvent) {
         } else if (recEvent.recurringEventId.substr(-1) !== "Z") {
             recEvent.recurringEventId += "Z";
         }
-        eventInstanceToPatch = callWithBackoff_(function() {
-            return Calendar.Events.list(targetCalendarId, {
-                singleEvents: true,
-                orderBy: "startTime",
-                maxResults: 1,
-                timeMin: recEvent.recurringEventId,
-                privateExtendedProperty: ["fromGAS=true", "id=" + recEvent.extendedProperties.private["id"]]
-            }).items;
-        }, defaultMaxRetries);
+        eventInstanceToPatch = findOwnedEventInstances_({
+            singleEvents: true, orderBy: "startTime", timeMin: recEvent.recurringEventId,
+            privateExtendedProperty: ["fromGAS=true", "id=" + recEvent.extendedProperties.private["id"]]
+        });
+        if (eventInstanceToPatch === null) throw new Error("Serientermine konnten nicht vollständig geladen werden.");
     }
 
-    if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1) {
+    if (eventInstanceToPatch.length == 1) {
         if (modifyExistingEvents) {
             Logger.log("Updating existing event instance");
-            callWithBackoff_(function() {
-                Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+            var updated = callWithBackoff_(function() {
+                return Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
             }, defaultMaxRetries);
+            if (updated == null) throw new Error("Ein Serientermin konnte nicht aktualisiert werden.");
+            syncStats.updated++;
         }
     } else {
         if (addEventsToCalendar) {
             Logger.log("No Instance matched, adding as new event!");
-            callWithBackoff_(function() {
-                Calendar.Events.insert(recEvent, targetCalendarId);
+            var inserted = callWithBackoff_(function() {
+                return Calendar.Events.insert(recEvent, targetCalendarId);
             }, defaultMaxRetries);
+            if (inserted == null) throw new Error("Ein Serientermin konnte nicht gespeichert werden.");
+            syncStats.added++;
         }
     }
 }
@@ -863,9 +871,7 @@ function processEventCleanup_() {
         if (ignored) {
             // Explicitly ignored events are always removed, regardless of their date.
             Logger.log("Deleting ignored event " + currentID);
-            callWithBackoff_(function() {
-                Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
-            }, defaultMaxRetries);
+            removeManagedEvent_(calendarEvents[i].id);
         } else if (!feedIds.has(currentID) // Event is no longer in source
             &&
             calendarEvents[i].recurringEventId == null // And it's not a recurring event
@@ -873,11 +879,15 @@ function processEventCleanup_() {
             (removePastEventsFromCalendar || !isPast)
         ) {
             Logger.log("Deleting old event " + currentID);
-            callWithBackoff_(function() {
-                Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
-            }, defaultMaxRetries);
+            removeManagedEvent_(calendarEvents[i].id);
         }
     }
+}
+
+function removeManagedEvent_(id) {
+    var result = callWithBackoff_(function() { return Calendar.Events.remove(targetCalendarId, id); }, defaultMaxRetries);
+    if (result === null) throw new Error("Ein Kalendertermin konnte nicht entfernt werden. Bitte später erneut synchronisieren.");
+    syncStats.removed++;
 }
 
 /**
@@ -968,4 +978,24 @@ function callWithBackoff_(func, maxRetries) {
         }
     }
     return null;
+}
+
+// Pagination plus an ownership check also protects migrated recurrence overrides
+// when different accounts share a destination calendar and source UID.
+function findOwnedEventInstances_(options) {
+    var adoptLegacy = userPrp.getProperty("adoptLegacyEvents") == "true";
+    var params = Object.assign({}, options, {maxResults: 25});
+    params.privateExtendedProperty = options.privateExtendedProperty.slice();
+    if (!adoptLegacy) params.privateExtendedProperty.push("syncOwner=" + syncOwnerId);
+    do {
+        var page = callWithBackoff_(function() { return Calendar.Events.list(targetCalendarId, params); }, defaultMaxRetries);
+        if (page == null) return null;
+        var own = (page.items || []).filter(function(item) {
+            var owner = ((item.extendedProperties || {}).private || {}).syncOwner;
+            return owner == syncOwnerId || (adoptLegacy && !owner);
+        });
+        if (own.length) return own.slice(0, 1);
+        params.pageToken = page.nextPageToken;
+    } while (params.pageToken);
+    return [];
 }

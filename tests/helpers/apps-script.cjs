@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const {createHash} = require('node:crypto');
 const root = path.join(__dirname, '../..');
 const owner = 'owner@example.com', alice = 'alice@example.com', bob = 'bob@example.com';
 
@@ -18,13 +19,17 @@ function store(map) {
 function shared() {
   return {
     project: new Map([['appOwnerEmail', owner], ['allowedUserEmails', JSON.stringify([alice, bob])]]),
-    users: new Map(), triggers: new Map(), locked: new Set(),
+    users: new Map(), triggers: new Map(), locked: new Set(), calendars: new Map(),
   };
 }
 
 function load(app, email, active = email) {
   if (!app.users.has(email)) app.users.set(email, new Map());
   if (!app.triggers.has(email)) app.triggers.set(email, []);
+  if (!app.calendars.has(email)) app.calendars.set(email,[
+    {id:'calendar-'+email,summary:'Dienstplan',timeZone:'Europe/Berlin',accessRole:'owner'},
+    {id:'personal-'+email,summary:'Privat',timeZone:'Europe/Berlin',accessRole:'owner'},
+  ]);
   const context = vm.createContext({
     Date: app.clock ? class extends Date {
       constructor(...args) { super(...(args.length ? args : [app.clock.now])); }
@@ -41,15 +46,29 @@ function load(app, email, active = email) {
       getUserProperties: () => store(app.users.get(email)),
     },
     Utilities: {
-      newBlob: value => ({ getBytes: () => Buffer.from(value) }),
+      newBlob: value => ({getBytes:()=>Buffer.from(value),getDataAsString:()=>Buffer.from(value).toString('utf8')}),
+      DigestAlgorithm:{SHA_256:'sha256',MD5:'md5'},
+      computeDigest:(algorithm,value)=>Array.from(createHash(algorithm).update(value).digest()),
+      Charset:{UTF_8:'UTF-8'},
+      base64EncodeWebSafe:value=>Buffer.from(value).toString('base64url'),
+      base64DecodeWebSafe:value=>Array.from(Buffer.from(value,'base64url')),
+      parseDate:(text,timeZone)=>{
+        const base=Date.parse(text.length===10?text+'T00:00:00Z':text+'Z');let instant=base;
+        for(let n=0;n<3;n++){
+          const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(instant)).map(p=>[p.type,p.value]));
+          instant+=base-Date.parse(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`);
+        }
+        return new Date(instant);
+      },
       formatDate: (date, timeZone, pattern) => {
         const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-          timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+          timeZone, year: 'numeric', month: '2-digit', day: '2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',weekday:'short',hourCycle:'h23',
         }).formatToParts(date).map(p => [p.type, p.value]));
-        return pattern.replace('yyyy', parts.year).replace('MM', parts.month).replace('dd', parts.day);
+        const values={yyyy:parts.year,MM:parts.month,dd:parts.day,HH:parts.hour,mm:parts.minute,ss:parts.second,u:String({Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6,Sun:7}[parts.weekday])};
+        return pattern.replace(/'([^']*)'|yyyy|MM|dd|HH|mm|ss|u/g,(token,literal)=>literal!==undefined?literal:values[token]);
       },
     },
-    LockService: { getUserLock: () => ({
+    LockService: {getScriptLock:()=>({tryLock:()=>true,releaseLock(){}}), getUserLock: () => ({
       tryLock: () => {
         if (app.locked.has(email)) return false;
         app.locked.add(email); return true;
@@ -57,6 +76,7 @@ function load(app, email, active = email) {
       releaseLock: () => app.locked.delete(email),
     }) },
     ScriptApp: {
+      getScriptId:()=>'script-'+email,
       getProjectTriggers: () => app.triggers.get(email).slice(),
       deleteTrigger: trigger => {
         app.triggers.set(email, app.triggers.get(email).filter(t => t !== trigger));
@@ -75,8 +95,13 @@ function load(app, email, active = email) {
         return builder;
       },
     },
+    Calendar:{CalendarList:{
+      list:()=>({items:app.calendars.get(email)}),
+      get:id=>{const calendar=app.calendars.get(email).find(cal=>cal.id===id);if(!calendar)throw new Error('Calendar missing');return calendar;},
+    },Settings:{get:()=>({value:'Europe/Berlin'})}},
+    CalendarApp:{EventColor:{}},
   });
-  for (const name of ['settings.gs', 'Code.gs', 'Preferences.gs', 'WebApp.gs', 'Helpers.gs', 'Roster.gs', 'Updates.gs']) {
+  for (const name of ['ical.js.gs','tzid.gs','settings.gs', 'Code.gs', 'Preferences.gs', 'WebApp.gs', 'Helpers.gs', 'Roster.gs', 'Updates.gs']) {
     vm.runInContext(fs.readFileSync(path.join(root, name), 'utf8'), context, { filename: name });
   }
   return context;

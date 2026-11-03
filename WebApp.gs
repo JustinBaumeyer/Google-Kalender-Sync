@@ -58,12 +58,23 @@ function doGet() {
 function getAppState() {
   var email = requireWebUser_();
   var saved = userPrp.getProperties();
+  var settings = readUserPreferences_(saved);
+  var enabled = ScriptApp.getProjectTriggers().some(function(trigger) { return trigger.getHandlerFunction() == "startSync"; });
   return {
     email: email,
-    settings: JSON.parse(encodePreferences_(readUserPreferences_(saved))),
+    settings: JSON.parse(encodePreferences_(settings)),
     rosterUserId: saved.rosterUserId || "",
     hasToken: !!saved.rosterUserToken,
-    enabled: ScriptApp.getProjectTriggers().some(function(trigger) { return trigger.getHandlerFunction() == "startSync"; }),
+    enabled: enabled,
+    hasSavedPreferences: !!saved.preferences,
+    isOwner: email == scriptPrp.getProperty("appOwnerEmail"),
+    nextRunAt: nextPlannedRun_(saved, enabled),
+    lastStats: saved.lastSyncStats ? JSON.parse(saved.lastSyncStats) : null,
+    upcomingEvents: saved.upcomingEvents ? JSON.parse(saved.upcomingEvents) : [],
+    connectionVerified: !!saved.rosterUserToken && saved.connectionKey == rosterConnectionKey_(saved.rosterUserToken, saved.rosterUserId, settings.rosterUrl),
+    connectionCheckedAt: saved.connectionCheckedAt,
+    migrationImportedAt: saved.migrationImportedAt,
+    needsCalendarSelection: saved.migrationNeedsCalendarSelection == "true",
     lastSync: saved.lastSyncAt,
     lastError: saved.lastSyncError,
     pending: saved.syncPending == "true",
@@ -115,6 +126,7 @@ function stopSync() {
   publishSyncProgress_("Automatische Synchronisierung pausiert", undefined, undefined, "paused");
   userPrp.deleteProperty("initialSyncTriggerId");
   userPrp.deleteProperty("syncContinuationTriggerId");
+  ["nextInitialAt", "nextContinuationAt", "nextRegularAt"].forEach(function(key) { userPrp.deleteProperty(key); });
   return getAppState();
 }
 
@@ -125,4 +137,253 @@ function disconnectApp() {
   try { userPrp.deleteAllProperties(); deleteAllTriggers_(); }
   finally { lock.releaseLock(); }
   return getAppState();
+}
+
+// Calendar IDs are kept alongside legacy source rows, so renames and duplicate
+// display names cannot silently redirect an existing connection.
+function readWritableCalendarRows_() {
+  var result = [], pageToken;
+  do {
+    checkSyncBudget_();
+    var options = {showHidden: true, minAccessRole: "writer", maxResults: 250};
+    if (pageToken) options.pageToken = pageToken;
+    var page = Calendar.CalendarList.list(options);
+    result = result.concat((page.items || []).filter(function(cal) { return ["owner", "writer"].indexOf(cal.accessRole) != -1; }));
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+  return result;
+}
+
+function getCalendarChoices() {
+  requireWebUser_();
+  return readWritableCalendarRows_().map(function(cal) {
+    return {id: cal.id, name: cal.summaryOverride || cal.summary, timeZone: cal.timeZone, primary: !!cal.primary};
+  }).sort(function(a,b) { return a.name.localeCompare(b.name, "de"); });
+}
+
+function bindCalendarId_(name, id) {
+  if (!userPrp.getProperty("preferences")) return;
+  var settings = readUserPreferences_(), changed = false;
+  settings.sourceCalendars.forEach(function(row) {
+    if (row[1] == name && !row[3]) {
+      if (row.length < 3) row.push(null);
+      row[3] = id;
+      changed = true;
+    }
+  });
+  if (changed) {
+    userPrp.setProperty("preferences", validatePreferences_(settings));
+    sourceCalendars = settings.sourceCalendars;
+  }
+}
+
+function rosterConnectionKey_(token, employee, address) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+    JSON.stringify([token || "", employee || "", address || ""])).map(function(byte) {
+      return ("0" + (byte & 255).toString(16)).slice(-2);
+    }).join("");
+}
+
+function markRosterConnectionVerified_() {
+  userPrp.setProperties({connectionKey: rosterConnectionKey_(rosterUserToken, rosterUserId, rosterUrl),
+    connectionCheckedAt: new Date().toISOString()}, false);
+}
+
+function nextPlannedRun_(saved, enabled) {
+  var times = [saved.nextInitialAt, saved.nextContinuationAt].map(Number).filter(function(value) { return value > 0; });
+  if (enabled && saved.nextRegularAt) {
+    var next = Number(saved.nextRegularAt), interval = getValidTriggerFrequency_(readUserPreferences_(saved).howFrequent) * 60000;
+    if (next < Date.now()) next += Math.ceil((Date.now() - next) / interval) * interval;
+    times.push(next);
+  }
+  return times.length ? new Date(Math.min.apply(null, times)).toISOString() : null;
+}
+
+function withDraftPreferences_(input, operation) {
+  requireWebUser_();
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(0)) throw new Error("Eine Synchronisierung läuft. Bitte danach erneut prüfen.");
+  var original = readUserPreferences_(), oldToken = rosterUserToken, oldId = rosterUserId, oldTimeZone = targetCalendarTimeZone;
+  try {
+    var draft = decodePreferences_(JSON.stringify(input && input.settings || {}));
+    validatePreferences_(draft);
+    if (input && input.rosterUserToken !== undefined && typeof input.rosterUserToken != "string") throw new Error("Der Dienstplan-Token ist ungültig.");
+    var settings = Object.assign({}, original, draft);
+    validatePreferences_(settings);
+    Object.keys(settings).forEach(function(name) { globalThis[name] = settings[name]; });
+    rosterUserId = input && input.rosterUserId !== undefined ? String(input.rosterUserId).trim() : userPrp.getProperty("rosterUserId");
+    rosterUserToken = input && input.rosterUserToken && input.rosterUserToken.trim() || userPrp.getProperty("rosterUserToken");
+    if (addRosterToCal && (!/^\d+$/.test(rosterUserId || "") || !rosterUserToken))
+      throw new Error("Bitte Mitarbeiter-ID und Dienstplan-Token eingeben.");
+    syncDeadline = Date.now() + 120000;
+    // Diagnostics never rotate a draft token or write to a destination calendar.
+    return operation(settings);
+  } catch (err) {
+    if (err.syncPaused) throw new Error("Die Prüfung dauert zu lange. Bitte später erneut versuchen.");
+    throw err;
+  } finally {
+    Object.keys(original).forEach(function(name) { globalThis[name] = original[name]; });
+    rosterUserToken = oldToken; rosterUserId = oldId; targetCalendarTimeZone = oldTimeZone; syncDeadline = 0;
+    lock.releaseLock();
+  }
+}
+
+function testRosterConnection(input) {
+  return withDraftPreferences_(input, function() {
+    if (!addRosterToCal) throw new Error("Bitte die Dienstplan-Quelle zum Prüfen aktivieren.");
+    addRosterSinceStart = false; addYearSummary = false; addTeamPartner = false; addRelief = false;
+    var content = getRosterICal_(true);
+    if (!content) throw new Error("Der Dienstplan konnte nicht geladen werden.");
+    var components = new ICAL.Component(ICAL.parse(content)).getAllSubcomponents("vevent");
+    markRosterConnectionVerified_();
+    return {ok: true, message: "Verbindung funktioniert.", eventsFound: components.length};
+  });
+}
+
+function previewEvents_(components, calendarName, calendarTimeZone) {
+  var now = Date.now(), result = [], events = [], parents = new Map();
+  components.forEach(function(component) {
+    if (!component || typeof component.getFirstPropertyValue != "function") return;
+    // Link exceptions by UID below instead of auto-linking every sibling exception.
+    var event = new ICAL.Event(component, {strictExceptions: true, exceptions: []});
+    events.push(event);
+    if (!event.isRecurrenceException()) parents.set(event.uid, event);
+  });
+  events.forEach(function(event) {
+    if (event.isRecurrenceException() && parents.has(event.uid)) parents.get(event.uid).relateException(event);
+  });
+  function add(event, start, end) {
+    if (!start || !end || instant(end) < now) return;
+    function asString(time) {
+      if (time.isDate) return time.toString();
+      if (time.zone && time.zone.tzid == "floating")
+        return Utilities.parseDate(time.toString(), calendarTimeZone || rosterTimeZone, "yyyy-MM-dd'T'HH:mm:ss").toISOString();
+      return time.toJSDate().toISOString();
+    }
+    result.push({title: String(event.summary || "Ohne Titel"), start: asString(start), end: asString(end),
+      allDay: !!start.isDate, calendar: calendarName});
+  }
+  function instant(time) {
+    if (time.isDate) return Utilities.parseDate(time.toString(), calendarTimeZone || rosterTimeZone, "yyyy-MM-dd").getTime();
+    if (time.zone && time.zone.tzid == "floating") return Utilities.parseDate(time.toString(), calendarTimeZone || rosterTimeZone, "yyyy-MM-dd'T'HH:mm:ss").getTime();
+    return time.toJSDate().getTime();
+  }
+  events.forEach(function(event) {
+    checkSyncBudget_();
+    if (event.isRecurrenceException() && parents.has(event.uid)) return;
+    if (event.isRecurring()) {
+      var iterator = event.iterator(), occurrence, found = 0;
+      for (var n = 0; n < 10000 && found < 5 && (occurrence = iterator.next()); n++) {
+        if (n % 100 == 0) checkSyncBudget_();
+        var details = event.getOccurrenceDetails(occurrence);
+        if (instant(details.endDate) >= now) {
+          add(details.item, details.startDate, details.endDate); found++;
+        }
+      }
+    } else add(event, event.startDate, event.endDate);
+  });
+  return result.sort(function(a,b) { return a.start.localeCompare(b.start); }).slice(0,5);
+}
+
+function previewSynchronization(input) {
+  return withDraftPreferences_(input, function(settings) {
+    addTeamPartner = false; addRelief = false;
+    var events = [], errors = [], cachedRoster;
+    var calendars = condenseCalendarMap_(settings.sourceCalendars);
+    calendars.forEach(function(calendar) {
+      try {
+        var sources = [];
+        calendar[1].forEach(function(source) {
+          if (source[0] == "ROSTER") {
+            if (!addRosterToCal) return;
+            if (cachedRoster === undefined) cachedRoster = getRosterICal_(true);
+            if (!cachedRoster) throw new Error("Der Dienstplan konnte nicht geladen werden.");
+            sources.push([cachedRoster, source[1]]);
+          } else {
+            var fetched = fetchSourceCalendars_([source]);
+            if (fetched.failedSources) throw new Error("Ein Kalender-Abo konnte nicht geladen werden.");
+            sources = sources.concat(fetched.responses);
+          }
+        });
+        ignoredEventIds = new Set(); icsEventsIds = [];
+        var timeZone = calendar[2] ? Calendar.CalendarList.get(calendar[2]).timeZone : Calendar.Settings.get("timezone").value;
+        targetCalendarTimeZone = timeZone;
+        events = events.concat(previewEvents_(consolidateVevents_(parseResponses_(sources)), calendar[0], timeZone));
+      } catch (err) {
+        if (err.syncPaused) throw err;
+        errors.push({calendar: calendar[0], message: String(err.message || err).slice(0,250)});
+      }
+    });
+    return {events: events.sort(function(a,b) { return a.start.localeCompare(b.start); }).slice(0,5), errors: errors,
+      note: "Beispiele kommender Termine. Sehr lange Serien können in der Vorschau gekürzt sein. Es wurden keine Kalendertermine geschrieben."};
+  });
+}
+
+function getInvitations() {
+  requireWebUser_(); requireAppOwner_();
+  return {owner: scriptPrp.getProperty("appOwnerEmail"), emails: JSON.parse(scriptPrp.getProperty("allowedUserEmails") || "[]")};
+}
+
+function saveInvitations(emails) {
+  requireWebUser_(); requireAppOwner_();
+  if (!Array.isArray(emails)) throw new Error("Die E-Mail-Liste ist ungültig.");
+  var normalized = Array.from(new Set(emails.map(function(value) {
+    if (typeof value != "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) throw new Error("Bitte gültige E-Mail-Adressen eingeben.");
+    return value.trim().toLowerCase();
+  }))).sort();
+  var text = JSON.stringify(normalized);
+  if (Utilities.newBlob(text).getBytes().length > 9000) throw new Error("Die Zugriffsliste ist zu lang.");
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(0)) throw new Error("Die Zugriffsliste wird gerade bearbeitet. Bitte erneut versuchen.");
+  try { scriptPrp.setProperty("allowedUserEmails", text); }
+  finally { lock.releaseLock(); }
+  return getInvitations();
+}
+
+
+
+function importLegacyCopy(input) {
+  var email = requireWebUser_();
+  if (!input || typeof input.code != "string" || input.code.trim().length > 20000 || input.code.trim().indexOf("DPSYNC1.") !== 0)
+    throw new Error("Bitte einen gültigen Umzugscode aus deiner bisherigen Kopie einfügen.");
+  var payload;
+  try { payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(input.code.trim().slice(8))).getDataAsString("UTF-8")); }
+  catch (err) { throw new Error("Der Umzugscode konnte nicht gelesen werden."); }
+  if (!payload || payload.format != "dienstplan-migration" || payload.version !== 1 || payload.email !== email)
+    throw new Error("Der Umzugscode gehört nicht zu diesem Google-Konto.");
+  if (!Number.isFinite(payload.expiresAt) || payload.expiresAt < Date.now() || payload.expiresAt > Date.now() + 86400000 + 60000)
+    throw new Error("Der Umzugscode ist abgelaufen. Bitte in der bisherigen Kopie neu erstellen.");
+  if (payload.oldSyncPaused !== true) throw new Error("Bitte zuerst die Synchronisierung in der bisherigen Kopie pausieren.");
+  var settings = decodePreferences_(JSON.stringify(payload.settings));
+  var serialized = validatePreferences_(settings);
+  if (!/^\d+$/.test(String(payload.rosterUserId || "")) && settings.addRosterToCal !== false)
+    throw new Error("Im Umzugscode fehlt eine gültige Mitarbeiter-ID.");
+  if (typeof payload.rosterUserToken != "string" || Utilities.newBlob(payload.rosterUserToken).getBytes().length > 9000)
+    throw new Error("Im Umzugscode ist der Dienstplan-Token ungültig.");
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(0)) throw new Error("Eine Synchronisierung läuft. Bitte danach erneut importieren.");
+  try {
+    if (userPrp.getProperty("preferences") && input.replaceExisting !== true)
+      throw new Error("Es sind bereits Einstellungen gespeichert. Bitte das Ersetzen ausdrücklich bestätigen.");
+    var writable = new Set(readWritableCalendarRows_().map(function(cal) { return cal.id; }));
+    settings.sourceCalendars.forEach(function(row) {
+      if (row[3] && !writable.has(row[3])) throw new Error("Ein bisheriger Zielkalender ist für dieses Konto nicht beschreibbar. Bitte Zugriff prüfen.");
+    });
+    deleteAllTriggers_();
+    userPrp.setProperties({preferences: serialized, rosterUserId: String(payload.rosterUserId || ""), rosterUserToken: payload.rosterUserToken,
+      adoptLegacyEvents: "true", migrationNeedsCalendarSelection: String(settings.sourceCalendars.some(function(row) { return row.length < 4; })),
+      migrationSourceId: String(payload.sourceScriptId || ""), migrationImportedAt: new Date().toISOString(),
+      syncPending: "false", migrationRemaining: "0"}, false);
+    ["syncResumeCalendar", "syncContinuationTriggerId", "initialSyncTriggerId", "syncProgress", "nextInitialAt", "nextContinuationAt", "nextRegularAt"].forEach(function(key) { userPrp.deleteProperty(key); });
+  } finally { lock.releaseLock(); }
+  return getAppState();
+}
+
+function getMigrationSnippet() {
+  requireWebUser_();
+  var response=UrlFetchApp.fetch("https://raw.githubusercontent.com/JustinBaumeyer/Google-Kalender-Sync/main/migration/Export.gs",{muteHttpExceptions:true});
+  if(response.getResponseCode()!=200)throw new Error("Die Migrationshilfe konnte nicht geladen werden. Bitte später erneut versuchen.");
+  var source=response.getContentText();
+  if(source.indexOf("function prepareSharedAppMigration()")<0)throw new Error("Die Migrationshilfe hat ein unerwartetes Format.");
+  return source;
 }

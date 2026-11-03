@@ -33,35 +33,54 @@
     progress { display: block; width: 100%; height: 12px; margin: .6rem 0; accent-color: #146947; }
     summary { font-weight: 650; cursor: pointer; } details .grid { margin-top: 1rem; } .danger { margin-top: 1.3rem; }
     .danger button { color: #98504a; } [hidden] { display: none !important; }
+    .metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.7rem; margin:1rem 0; }
+    .metric { background:#f3f7f1; border-radius:9px; padding:.8rem; } .metric strong { display:block; font-size:1.5rem; }
+    .event-list { list-style:none; padding:0; } .event-list li { padding:.8rem 0; border-bottom:1px solid #e1e8df; }
+    .event-list li:last-child { border:0; } .section-head { display:flex; gap:.8rem; justify-content:space-between; align-items:center; flex-wrap:wrap; }
+    textarea { width:100%; min-height:160px; padding:.7rem; border:1px solid #b8c9bd; border-radius:7px; font:14px/1.4 monospace; }
     @media(max-width: 650px) { body { padding: 1.3rem .8rem; } section, details.panel { padding: 1rem; } .grid, .rule-grid { grid-template-columns: 1fr; } .actions button { flex: 1 1 45%; } }
   </style>
 </head>
 <body>
   <header>
     <div class="eyebrow">DIENSTPLAN SYNC</div>
-    <h1>Dein Dienstplan. Dein Kalender.</h1>
-    <p class="muted">Lege fest, welche Dienste und Termine in deinem Google Kalender erscheinen.</p>
+    <h1>Dienstplan-Sync</h1>
+    <p class="muted">Dienstpläne und Kalender-Abos mit Google Kalender synchronisieren.</p>
     <span id="account" class="muted"></span>
   </header>
-  <div class="status" aria-live="polite"><div id="status">Deine Einstellungen werden geladen …</div><div id="lastSync" class="muted"></div><div id="lastError"></div></div>
+  <div class="status" aria-live="polite"><div id="status">Einstellungen werden geladen …</div><div id="lastSync" class="muted"></div><div id="lastError"></div></div>
   <div id="syncPanel" class="progress-panel" hidden>
     <strong id="syncPhase" role="status" aria-live="polite"></strong>
     <progress id="syncProgress" aria-label="Fortschritt des aktuellen Synchronisierungsschritts"></progress>
     <small id="syncCount"></small>
   </div>
+  <p id="globalMessage" role="status" aria-live="polite"></p>
+  <p id="migrationEntry"><button type="button" id="migrationShortcut" class="secondary">Schon eine eigene Skriptkopie? Einstellungen übernehmen</button></p>
+  <section id="overview" hidden>
+    <div class="section-head"><h2>Übersicht</h2><button type="button" id="editSettings" class="secondary">Einstellungen bearbeiten</button></div>
+    <p id="nextRun" class="muted"></p><p id="connectionBadge"></p>
+    <div id="metrics" class="metrics" hidden></div>
+    <div class="actions"><button type="button" id="dashboardSync">Jetzt synchronisieren</button><button type="button" id="dashboardPreview" class="secondary">Vorschau prüfen</button><button type="button" id="dashboardPause" class="secondary">Pausieren</button></div>
+    <h2 style="margin-top:1.5rem">Kommende Termine</h2><p class="muted">Aus dem letzten Sync oder der Vorschau.</p><ul id="upcoming" class="event-list"></ul>
+    <div class="actions"><button type="button" id="openMigration" class="secondary">Aus bisheriger Kopie umziehen</button><button type="button" id="manageAccess" class="secondary" hidden>Zugriff verwalten</button></div>
+  </section>
   <form id="preferences" hidden novalidate>
+    <div class="section-head" style="margin-bottom:1rem"><h2>Einstellungen</h2><button type="button" id="closeSettings" class="secondary">Zur Übersicht</button></div>
     <fieldset id="settingsFields">
       <section>
         <h2>Dienstplan verbinden</h2>
-        <p class="muted">Deine Zugangsdaten und Einstellungen werden für dein Google-Konto gespeichert.</p>
-        <div class="grid">
+        <p class="muted">Die App verwendet deine eigenen Dienstplan-Zugangsdaten.</p>
+        <div id="connectionSummary" hidden><p id="connectionText"></p><button type="button" id="editConnection" class="secondary">Zugangsdaten ändern</button></div>
+        <div id="connectionFields"><div class="grid">
           <label><span>Mitarbeiter-ID</span><input id="employee" inputmode="numeric" autocomplete="off" pattern="[0-9]+"></label>
           <label><span id="tokenLabel">Dienstplan-Token</span><input id="token" type="password" autocomplete="new-password" aria-labelledby="tokenLabel" aria-describedby="tokenHint"><small id="tokenHint"></small></label>
         </div>
+        <details><summary>Wo finde ich Mitarbeiter-ID und Token?</summary><p class="muted">Du brauchst die interne Mitarbeiter-ID des Dienstplans. In deiner alten Skriptkopie findest du ID und Token unter Projekteinstellungen → Skripteigenschaften: „rosterUserId“ und „rosterUserToken“. Wenn du noch keinen Token hast, frag den App-Inhaber.</p></details></div>
+        <button type="button" id="testConnection" class="secondary" style="margin-top:.8rem">Verbindung prüfen</button><p id="connectionResult" role="status"></p>
       </section>
       <section>
         <h2>Kalenderquellen</h2>
-        <p class="muted">Wähle für jede Quelle einen Zielkalender. Ein neuer Kalendername wird automatisch angelegt.</p>
+        <p class="muted">Wähle für jede Quelle einen vorhandenen Kalender oder lege einen neuen an.</p>
         <div id="sources"></div>
         <button type="button" id="addSource" class="secondary">Quelle hinzufügen</button>
       </section>
@@ -89,25 +108,37 @@
       <details class="panel" id="advanced"><summary>Erweiterte Einstellungen</summary><div class="grid" id="advancedSettings"></div></details>
       <div class="savebar">
         <div id="message" role="status" aria-live="polite"></div>
-        <p id="dirtyHint" class="muted">Deine Einstellungen sind gespeichert.</p>
+        <p id="dirtyHint" class="muted">Alle Änderungen gespeichert.</p>
         <div class="actions">
           <button type="submit">Einstellungen speichern</button>
           <button type="button" id="enable" class="secondary">Synchronisierung aktivieren</button>
           <button type="button" id="sync" class="secondary">Jetzt synchronisieren</button>
+          <button type="button" id="preview" class="secondary">Vorschau prüfen</button>
           <button type="button" id="stop" class="secondary">Pausieren</button>
         </div>
       </div>
       <details class="danger"><summary class="muted">Verbindung entfernen</summary>
-        <p class="muted">Löscht nur deine gespeicherten Zugangsdaten und Einstellungen und beendet deine automatischen Läufe. Bereits importierte Kalendertermine bleiben erhalten.</p>
+        <p class="muted">Löscht deine gespeicherten Zugangsdaten und Einstellungen und stoppt den automatischen Sync. Kalendereinträge bleiben erhalten.</p>
         <button type="button" id="disconnect" class="secondary">Meine gespeicherten Daten löschen</button>
       </details>
     </fieldset>
   </form>
+  <section id="previewPanel" hidden><h2>Vorschau kommender Termine</h2><ul id="previewEvents" class="event-list"></ul><div id="previewErrors" role="alert"></div><p id="previewNote" class="muted"></p></section>
+  <section id="adminPanel" hidden><h2>Zugriff verwalten</h2><p id="ownerInfo" class="muted"></p><fieldset id="adminFields"><label><span>Google-E-Mail-Adresse</span><input id="inviteEmail" type="email" autocomplete="email"></label><button type="button" id="addInvite" style="margin-top:.7rem">Zugriff erlauben</button><ul id="inviteList" class="event-list"></ul></fieldset><p class="muted">Es wird keine E-Mail verschickt. Teile den App-Link selbst mit der Person. Falls das Google-Projekt im Testmodus ist, muss das Konto dort zusätzlich als Testnutzer freigeschaltet sein.</p><p id="adminMessage" role="status"></p></section>
+  <section id="migrationPanel" hidden>
+    <h2>Aus deiner bisherigen Kopie umziehen</h2>
+    <ol><li>Öffne deine bisherige Kopie im Skripteditor. Lege eine neue Skriptdatei an und füge die Migrationshilfe unverändert ein. Deine settings.gs bleibt unverändert.</li><li>Wähle <strong>prepareSharedAppMigration</strong> neben „Ausführen“ und starte die Funktion. Sie pausiert nur die alten Sync-Auslöser und speichert einen Umzugscode.</li><li>Kopiere unter <strong>Projekteinstellungen → Skripteigenschaften</strong> den Wert <strong>DienstplanMigration</strong> und füge ihn unten ein.</li></ol>
+    <fieldset id="migrationFields"><button type="button" id="copyMigration" class="secondary">Migrationshilfe kopieren</button><textarea id="migrationSnippet" readonly hidden aria-label="Fertige Migrationshilfe zum Kopieren"></textarea>
+    <p class="muted">Der Code enthält deinen Token und gilt 24 Stunden. Gib ihn nur hier beim Import ein. Danach die Eigenschaft und die Hilfsdatei in der alten Kopie löschen. Die alte Kopie selbst kannst du als Backup behalten.</p>
+    <label><span>Umzugscode einfügen</span><input id="migrationCode" type="password" autocomplete="off" spellcheck="false"></label>
+    <label id="replaceMigrationLabel" class="toggle"><input id="replaceMigration" type="checkbox"><span>Meine bereits gespeicherten Einstellungen durch den Umzug ersetzen</span></label>
+    <button type="button" id="importMigration">Einstellungen übernehmen</button></fieldset><p id="migrationMessage" role="status"></p>
+  </section>
   <p id="initialError" role="alert"></p>
   <script>
     const $ = id => document.getElementById(id);
     const copy = value => JSON.parse(JSON.stringify(value));
-    let current, dirty = false, fieldCounter = 0, progressTimer, progressEpoch = 0, syncRequestActive = false;
+    let current, dirty = false, fieldCounter = 0, progressTimer, progressEpoch = 0, syncRequestActive = false, calendarChoices = [], invitations;
     const readers = new Map(), sourceReaders = new Map(), ruleReaders = new Map();
     const colors = [['', 'Standardfarbe'], ['1', 'Lavendel'], ['2', 'Salbei'], ['3', 'Traube'], ['4', 'Flamingo'], ['5', 'Banane'], ['6', 'Mandarine'], ['7', 'Pfau'], ['8', 'Graphit'], ['9', 'Heidelbeere'], ['10', 'Basilikum'], ['11', 'Tomate']];
     const weekdays = [['', 'Jeder Wochentag'], ['Mo', 'Montag'], ['Di', 'Dienstag'], ['Mi', 'Mittwoch'], ['Do', 'Donnerstag'], ['Fr', 'Freitag'], ['Sa', 'Samstag'], ['So', 'Sonntag']];
@@ -144,9 +175,10 @@
       for (let node = control.parentElement; node; node = node.parentElement) if (node.tagName === 'DETAILS') node.open = true;
       control.setCustomValidity(text); control.reportValidity(); control.focus(); throw new Error(text);
     }
-    function setDirty(value = true) { dirty = value; $('dirtyHint').textContent = value ? 'Ungespeicherte Änderungen. Beim Aktivieren oder Synchronisieren werden sie zuerst gespeichert.' : 'Deine Einstellungen sind gespeichert.'; }
-    function message(text, error = false) { $('message').textContent = text; $('message').className = error ? 'error' : ''; $('initialError').textContent = $('preferences').hidden && error ? text : ''; }
-    function busy(value) { $('settingsFields').disabled = value; }
+    function setDirty(value = true) { dirty = value; $('dirtyHint').textContent = value ? 'Änderungen noch nicht gespeichert. Aktivieren und Synchronisieren speichert sie mit.' : 'Alle Änderungen gespeichert.'; }
+    function message(text, error = false) { $('message').textContent = $('preferences').hidden ? '' : text; $('globalMessage').textContent = $('preferences').hidden ? text : ''; $('message').className = error ? 'error' : ''; $('globalMessage').style.color = error ? '#a32225' : ''; $('initialError').textContent = ''; }
+    function busy(value) { ['settingsFields','adminFields','migrationFields'].forEach(id=>$(id).disabled=value); document.querySelectorAll('#overview button, #closeSettings, #migrationShortcut').forEach(button=>button.disabled=value); }
+    function showSettings(show) { $('preferences').hidden = !show; $('overview').hidden = show; }
     function showProgress(progress) {
       if (!progress) return;
       if (progress.status === 'paused') { progressEpoch++; clearTimeout(progressTimer); $('syncPanel').hidden = true; return; }
@@ -158,7 +190,7 @@
       } else {
         if (progress.status === 'failed') { $('syncProgress').max = 1; $('syncProgress').value = 0; }
         else $('syncProgress').removeAttribute('value');
-        $('syncCount').textContent = progress.status === 'pending' ? 'Die automatische Fortsetzung ist geplant. Du kannst die Seite offen lassen.' : progress.status === 'failed' ? 'Der Lauf wurde unterbrochen.' : 'Bitte warten …';
+        $('syncCount').textContent = progress.status === 'pending' ? 'Der nächste Lauf ist geplant. Du kannst die Seite schließen.' : progress.status === 'failed' ? 'Der Lauf wurde unterbrochen.' : 'Bitte warten …';
       }
       if (['complete', 'failed', 'paused'].includes(progress.status)) {
         progressEpoch++;
@@ -177,6 +209,13 @@
         if (epoch !== progressEpoch) return;
         // A fresh request may still see the previous run before its handler starts.
         if (progress && (!syncRequestActive || progress.status === 'running' || progress.status === 'pending')) showProgress(progress);
+        if (!syncRequestActive && progress && ['complete','failed'].includes(progress.status)) {
+          const finishedEpoch=progressEpoch;
+          call('getAppState').then(state=>{
+            if(finishedEpoch!==progressEpoch)return;
+            if(!dirty)render(state);else{renderDashboard(state);current.pending=state.pending;current.enabled=state.enabled;}
+          }).catch(()=>{});
+        }
         if (syncRequestActive || progress && ['running', 'pending'].includes(progress.status))
           progressTimer = setTimeout(() => pollProgress(epoch), progress && progress.status === 'pending' ? 10000 : 2000);
       }).catch(() => { if (epoch === progressEpoch && (syncRequestActive || current && current.pending)) progressTimer = setTimeout(() => pollProgress(epoch), 3000); });
@@ -192,17 +231,25 @@
       const {row, grid} = editorRow($('sources'), 'Kalenderquelle', sourceReaders); row.dataset.sourceRow = '';
       const kind = field(grid, 'Quelle', select([['ROSTER', 'DRK-Dienstplan'], ['ICS', 'Kalender-Abo (ICS)']], raw[0] === 'ROSTER' ? 'ROSTER' : 'ICS'));
       const url = field(grid, 'Adresse des Kalender-Abos', input('text', raw[0] === 'ROSTER' ? '' : raw[0]), 'https://… oder webcal://…'); url.inputMode = 'url';
-      const target = field(grid, 'Name des Zielkalenders', input('text', raw[1]));
+      const matching = calendarChoices.filter(cal=>cal.name===raw[1]);
+      const selectedId = raw[3] || (matching.length===1 ? matching[0].id : '__new');
+      const options=calendarChoices.map(cal=>[cal.id,cal.name+(cal.primary?' (Hauptkalender)':'')+(calendarChoices.filter(other=>other.name===cal.name).length>1?' · '+cal.id.slice(0,8)+'…':'')]); options.push(['__new','Neuen Kalender anlegen']);
+      if(raw[3]&&!calendarChoices.some(cal=>cal.id===raw[3]))options.unshift([raw[3],raw[1]+' (gespeicherter Kalender)']);
+      const target = field(grid, 'Zielkalender', select(options,selectedId));
+      const newName = field(grid, 'Name des neuen Kalenders', input('text',raw[1]));
+      const targetVisibility=()=>{newName.parentElement.hidden=target.value!=='__new';}; target.onchange=targetVisibility; targetVisibility();
       const color = field(grid, 'Terminfarbe', select(colors, raw[2] == null ? '' : raw[2]));
       const updateKind = () => { url.parentElement.hidden = kind.value === 'ROSTER'; }; kind.onchange = updateKind; updateKind();
       sourceReaders.set(row, () => {
         const source = kind.value === 'ROSTER' ? 'ROSTER' : url.value.trim();
         if (!source || (source !== 'ROSTER' && !/^(https?|webcal):\/\//i.test(source))) invalid(url, 'Bitte eine gültige Kalender-Adresse eingeben.');
-        if (!target.value.trim()) invalid(target, 'Bitte einen Namen für den Zielkalender eingeben.');
-        if (source === raw[0] && target.value === raw[1] && color.value === String(raw[2] == null ? '' : raw[2])) return copy(raw);
-        const result = [source, target.value.trim()];
-        if (color.value !== '') result.push(/^\d+$/.test(color.value) ? Number(color.value) : color.value);
-        return result;
+        if(target.value==='__new'&&!newName.value.trim())invalid(newName,'Bitte einen Namen für den neuen Kalender eingeben.');
+        if(target.value==='__new'&&calendarChoices.some(cal=>cal.name===newName.value.trim()))invalid(newName,'Dieser Kalendername existiert bereits. Bitte den vorhandenen Kalender auswählen.');
+        const selected=calendarChoices.find(cal=>cal.id===target.value);
+        const name=target.value==='__new'?newName.value.trim():selected?selected.name:raw[1];
+        const id=target.value==='__new'?'':target.value;
+        const selectedColor=color.value===String(raw[2]==null?'':raw[2])?(raw[2]===undefined?null:raw[2]):color.value===''?null:/^\d+$/.test(color.value)?Number(color.value):color.value;
+        return [source,name,selectedColor,id];
       });
     }
     function normalizedDay(value) {
@@ -289,6 +336,7 @@
       toggle(advanced, 'showSkipMessage', 'Unveränderte Termine im Protokoll anzeigen');
     }
     function render(state) {
+      const wasEditing=current&&!$('preferences').hidden;
       current = copy(state); readers.clear();
       ['schedule', 'emailSettings', 'rosterSettings', 'eventSettings', 'advancedSettings', 'shiftCodes'].forEach(id => $(id).replaceChildren());
       $('account').textContent = state.email;
@@ -297,16 +345,31 @@
       $('lastError').textContent = state.lastError ? 'Letzte Meldung: ' + state.lastError : '';
       $('employee').value = state.rosterUserId; $('token').value = '';
       $('tokenHint').textContent = state.hasToken ? 'Ein Token ist gespeichert. Leer lassen, um ihn beizubehalten.' : 'Gib den Token aus deinem Dienstplan-Konto ein.';
-      renderFields(); renderLists(); setDirty(false); $('preferences').hidden = false;
+      $('connectionSummary').hidden=!state.hasToken; $('connectionFields').hidden=state.hasToken;
+      $('connectionText').textContent=state.connectionVerified?'Dienstplan verbunden.':'Zugangsdaten gespeichert. Verbindung noch nicht geprüft.';
+      $('manageAccess').hidden=!state.isOwner; $('adminPanel').hidden=!state.isOwner||$('adminPanel').hidden;
+      $('replaceMigrationLabel').hidden=!state.hasSavedPreferences;
+      $('migrationEntry').hidden=!!state.hasSavedPreferences||!!state.migrationImportedAt;
+      renderFields(); renderLists(); renderDashboard(state);setDirty(false);
+      showSettings(!state.hasSavedPreferences||!!wasEditing);
       if (state.progress) showProgress(state.progress);
       if ((state.pending || state.progress && state.progress.status === 'running') && !syncRequestActive) pollProgress();
     }
+    function renderDashboard(state) {
+      $('connectionBadge').textContent=state.hasToken?(state.connectionVerified?'Dienstplan verbunden':'Zugangsdaten gespeichert – Verbindung noch prüfen'):'Dienstplan noch nicht verbunden';
+      $('nextRun').textContent=state.nextRunAt?'Nächster geplanter Lauf: ungefähr '+new Date(state.nextRunAt).toLocaleString('de-DE'):'Kein automatischer Lauf geplant.';
+      $('metrics').replaceChildren();$('metrics').hidden=!state.lastStats;
+      if(state.lastStats)[['added','Hinzugefügt'],['updated','Aktualisiert'],['removed','Entfernt']].forEach(([key,title])=>{
+        const metric=element('div',undefined,'metric');metric.append(element('strong',String(state.lastStats[key]||0)),element('small',title));$('metrics').append(metric);
+      });
+      renderEventList($('upcoming'),state.upcomingEvents||[]);
+    }
     function collect() {
-      document.querySelectorAll('input').forEach(control => control.setCustomValidity(''));
+      document.querySelectorAll('#preferences input').forEach(control => control.setCustomValidity(''));
       const settings = copy(current.settings);
       readers.forEach((read, name) => { settings[name] = read(); });
       $('employee').required = settings.addRosterToCal;
-      document.querySelectorAll('input').forEach(control => { if (!control.disabled && !control.parentElement.hidden && !control.checkValidity()) invalid(control, control.validationMessage); });
+      document.querySelectorAll('#preferences input').forEach(control => { if (!control.disabled && !control.parentElement.hidden && !control.checkValidity()) invalid(control, control.validationMessage); });
       if (settings.errorNotificationEmail === '') invalid($('emailSettings').querySelector('input'), 'Bitte eine E-Mail-Adresse eingeben.');
       return {settings, rosterUserId: $('employee').value.trim(), rosterUserToken: $('token').value};
     }
@@ -318,12 +381,13 @@
     }
     async function action(method, text, saveFirst = false) {
       let payload;
-      try { if (method === 'saveAppSettings' || (saveFirst && dirty)) payload = collect(); }
+      const shouldSave=saveFirst&&(dirty||current.needsCalendarSelection);
+      try { if (method === 'saveAppSettings' || shouldSave) payload = collect(); }
       catch (error) { message(error.message, true); return; }
       busy(true); message('Wird ausgeführt …');
       if (['startSync', 'stopSync', 'disconnectApp'].includes(method)) { progressEpoch++; clearTimeout(progressTimer); }
       try {
-        if (saveFirst && dirty) { await call('saveAppSettings', payload); setDirty(false); }
+        if (shouldSave) { await call('saveAppSettings', payload); setDirty(false); }
         if (method === 'startSync') {
           syncRequestActive = true;
           showProgress({phase: 'Synchronisierung startet …', status: 'running'});
@@ -333,7 +397,7 @@
         syncRequestActive = false;
         if (state) render(state);
         if (method === 'disconnectApp') { clearTimeout(progressTimer); $('syncPanel').hidden = true; }
-        message(state && state.pending ? 'Die Synchronisierung wird automatisch fortgesetzt.' + (state.migrationRemaining ? ' Noch ' + state.migrationRemaining + ' alte Termine zu prüfen.' : '') : text);
+        message(state && state.pending ? 'Der Sync wird automatisch fortgesetzt.' + (state.migrationRemaining ? ' Noch ' + state.migrationRemaining + ' alte Termine zu prüfen.' : '') : text);
       } catch (error) {
         syncRequestActive = false; clearTimeout(progressTimer);
         if (method === 'startSync') showProgress({phase: error.message || String(error), status: 'failed'});
@@ -341,17 +405,85 @@
       }
       finally { busy(false); }
     }
+    function renderEventList(container,events) {
+      container.replaceChildren();
+      if(!events.length){container.append(element('li','Keine kommenden Termine in der Vorschau.','muted'));return;}
+      events.forEach(event=>{
+        const row=element('li'), start=event.allDay?new Date(event.start+'T12:00:00'):new Date(event.start);
+        let when;
+        if(event.allDay){
+          const lastDay=new Date(Date.parse(event.end+'T00:00:00Z')-86400000).toLocaleDateString('de-DE',{timeZone:'UTC'});
+          const firstDay=start.toLocaleDateString('de-DE');when=firstDay+(lastDay!==firstDay?' – '+lastDay:'')+' · ganztägig';
+        }else{
+          const end=new Date(event.end),timeZone=current.settings.rosterTimeZone;
+          const sameDay=start.toLocaleDateString('de-DE',{timeZone})===end.toLocaleDateString('de-DE',{timeZone});
+          when=start.toLocaleString('de-DE',{timeZone})+' – '+(sameDay?end.toLocaleTimeString('de-DE',{timeZone,hour:'2-digit',minute:'2-digit'}):end.toLocaleString('de-DE',{timeZone}));
+        }
+        row.append(element('strong',event.title),element('small',when+' · '+event.calendar));container.append(row);
+      });
+    }
+    async function diagnostic(kind) {
+      let payload;
+      try{payload=kind==='preview'?collect():{settings:{rosterUrl:readers.get('rosterUrl')(),addRosterToCal:readers.get('addRosterToCal')()},rosterUserId:$('employee').value.trim(),rosterUserToken:$('token').value};}
+      catch(error){message(error.message,true);return;}
+      busy(true);message(kind==='preview'?'Vorschau wird geladen …':'Verbindung wird geprüft …');
+      try{
+        const result=await call(kind==='preview'?'previewSynchronization':'testRosterConnection',payload);
+        if(kind==='preview'){
+          $('previewPanel').hidden=false;renderEventList($('previewEvents'),result.events);
+          $('previewErrors').replaceChildren();result.errors.forEach(error=>$('previewErrors').append(element('p',error.calendar+': '+error.message)));
+          $('previewNote').textContent=result.note;renderEventList($('upcoming'),result.events);message(result.errors.length?'Einige Quellen konnten nicht geladen werden.':'Vorschau geladen. Im Kalender wurde nichts geändert.');
+        }else{if(!dirty)render(await call('getAppState'));$('connectionResult').textContent=result.message;message(result.message);}
+      }catch(error){message(error.message||String(error),true);if(kind==='test')$('connectionResult').textContent=error.message||String(error);}
+      finally{busy(false);}
+    }
+    function renderInvitations(result){
+      invitations=result;$('adminPanel').hidden=false;$('ownerInfo').textContent='App-Inhaber: '+result.owner+' (Zugriff bleibt immer erhalten)';$('inviteList').replaceChildren();
+      result.emails.filter(email=>email!==result.owner).forEach(email=>{
+        const row=element('li'), remove=element('button','Zugriff entziehen','remove');remove.type='button';remove.setAttribute('aria-label','Zugriff für '+email+' entziehen');
+        row.append(element('span',email),remove);$('inviteList').append(row);
+        remove.onclick=()=>updateInvitations(result.emails.filter(value=>value!==email));
+      });
+    }
+    async function updateInvitations(emails){
+      busy(true);try{renderInvitations(await call('saveInvitations',emails));$('inviteEmail').value='';$('adminMessage').textContent='Zugriff gespeichert. Den App-Link bitte selbst weitergeben.';}
+      catch(error){$('adminMessage').textContent=error.message||String(error);}finally{busy(false);}
+    }
+    async function openInvitations(){busy(true);try{renderInvitations(await call('getInvitations'));$('adminPanel').scrollIntoView({behavior:'smooth'});}catch(error){message(error.message,true);}finally{busy(false);}}
+    function openMigration(){ $('migrationPanel').hidden=false;$('migrationPanel').scrollIntoView({behavior:'smooth'}); }
+    async function copyMigration(){
+      busy(true);try{
+        const text=await call('getMigrationSnippet');
+        try{await navigator.clipboard.writeText(text);$('migrationMessage').textContent='Kopiert. In eine neue Datei der alten Kopie einfügen und prepareSharedAppMigration ausführen.';}
+        catch(_){$('migrationSnippet').value=text;$('migrationSnippet').hidden=false;$('migrationSnippet').select();$('migrationMessage').textContent='Den markierten Text kopieren und unverändert in eine neue Datei der alten Kopie einfügen.';}
+      }catch(error){$('migrationMessage').textContent=error.message||String(error);}finally{busy(false);}
+    }
+    async function importMigration(){
+      busy(true);try{
+        const state=await call('importLegacyCopy',{code:$('migrationCode').value,replaceExisting:$('replaceMigration').checked});
+        $('migrationCode').value='';$('migrationPanel').hidden=true;render(state);showSettings(true);
+        message('Einstellungen und Zugangsdaten übernommen. Prüfe Verbindung, Zielkalender und Vorschau. Danach kannst du den neuen Sync aktivieren.');
+      }catch(error){$('migrationMessage').textContent=error.message||String(error);}finally{busy(false);}
+    }
+    async function initialize(){busy(true);try{const [choices,state]=await Promise.all([call('getCalendarChoices'),call('getAppState')]);calendarChoices=choices;render(state);}catch(error){message(error.message||String(error),true);}finally{busy(false);}}
     $('preferences').addEventListener('input', event => { if (event.target.setCustomValidity) event.target.setCustomValidity(''); setDirty(); });
     $('preferences').addEventListener('change', () => setDirty());
-    $('preferences').addEventListener('submit', event => { event.preventDefault(); action('saveAppSettings', 'Deine Einstellungen wurden gespeichert.'); });
+    $('preferences').addEventListener('submit', event => { event.preventDefault(); action('saveAppSettings', 'Einstellungen gespeichert.'); });
     $('addSource').onclick = () => { addSource(['', '']); setDirty(); };
     $('addRule').onclick = () => { addRule(); setDirty(); };
-    $('enable').onclick = () => action('install', 'Die Synchronisierung ist aktiviert. Der erste Lauf startet in Kürze.', true);
-    $('sync').onclick = () => action('startSync', 'Der Synchronisierungslauf ist beendet.', true);
-    $('stop').onclick = () => { if (!dirty || confirm('Synchronisierung pausieren und ungespeicherte Änderungen verwerfen?')) action('stopSync', 'Die Synchronisierung ist pausiert. Deine gespeicherten Einstellungen bleiben erhalten.'); };
-    $('disconnect').onclick = () => { if (confirm('Deine gespeicherten Zugangsdaten und Einstellungen wirklich löschen? Bereits importierte Kalendertermine bleiben erhalten.')) action('disconnectApp', 'Deine gespeicherten Daten wurden gelöscht.'); };
+    $('editSettings').onclick=()=>showSettings(true);$('closeSettings').onclick=()=>showSettings(false);
+    $('editConnection').onclick=()=>{$('connectionFields').hidden=false;$('connectionSummary').hidden=true;$('employee').focus();};
+    $('testConnection').onclick=()=>diagnostic('test');$('preview').onclick=()=>diagnostic('preview');$('dashboardPreview').onclick=()=>diagnostic('preview');
+    $('dashboardSync').onclick=()=>action('startSync','Sync beendet.',true);
+    $('dashboardPause').onclick=()=>action('stopSync','Automatischer Sync pausiert.');
+    $('manageAccess').onclick=openInvitations;$('addInvite').onclick=()=>{if(!$('inviteEmail').value||!$('inviteEmail').reportValidity())return;updateInvitations(invitations.emails.concat($('inviteEmail').value));};
+    $('migrationShortcut').onclick=openMigration;$('openMigration').onclick=openMigration;$('copyMigration').onclick=copyMigration;$('importMigration').onclick=importMigration;
+    $('enable').onclick = () => action('install', 'Automatischer Sync aktiviert.', true);
+    $('sync').onclick = () => action('startSync', 'Sync beendet.', true);
+    $('stop').onclick = () => { if (!dirty || confirm('Synchronisierung pausieren und ungespeicherte Änderungen verwerfen?')) action('stopSync', 'Automatischer Sync pausiert. Die Einstellungen bleiben gespeichert.'); };
+    $('disconnect').onclick = () => { if (confirm('Deine gespeicherten Zugangsdaten und Einstellungen wirklich löschen? Bereits importierte Kalendertermine bleiben erhalten.')) action('disconnectApp', 'Gespeicherte Daten gelöscht.'); };
     window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
-    action('getAppState', '');
+    initialize();
   </script>
 </body>
 </html>
