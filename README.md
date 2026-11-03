@@ -27,6 +27,40 @@ sein. Testfreigaben können nach sieben Tagen ablaufen; für dauerhafte Hintergr
 die passende interne bzw. produktive Veröffentlichung konfigurieren. Googles
 Nutzergrenzen und gegebenenfalls erforderliche Verifizierung gelten weiterhin.
 
+## Öffentliche Website und OAuth-Angaben
+
+Startseite und Datenschutzerklärung liegen unter `docs/`. Sie benötigen keine
+Anmeldung und verwenden als öffentlichen Kontakt **justin.baumeyer@pm.me**.
+Die Dateien gehören nicht in das Apps-Script-Projekt.
+
+Nach dem Merge im Repository unter **Settings → Pages → Build and deployment**
+die Quelle **Deploy from a branch**, den Branch **main** und den Ordner **/docs**
+auswählen und speichern. Sobald GitHub die Seite veröffentlicht hat, beide Links
+ohne Anmeldung öffnen und unter **Google Auth Platform → Branding** eintragen:
+
+| Feld | Wert |
+| --- | --- |
+| Anwendungsname | Dienstplan Sync |
+| Startseite | https://justinbaumeyer.github.io/Google-Kalender-Sync/ |
+| Datenschutzerklärung | https://justinbaumeyer.github.io/Google-Kalender-Sync/datenschutz.html |
+
+Die Support-E-Mail im Google-Formular muss eine dort angebotene Adresse deines
+Google-Kontos oder einer passenden Google-Gruppe sein. Der öffentliche Kontakt
+auf der Website bleibt `justin.baumeyer@pm.me`.
+
+Diese URLs füllen die fehlenden Website-Angaben aus. Die Veröffentlichung unter
+**Zielgruppe → App veröffentlichen** und eine Google-Verifizierung sind getrennte
+Schritte. Für die Verifizierung verlangt Google einen Eigentumsnachweis als
+**Domain-Property mit DNS-Eintrag** in der Search Console; eine URL-Präfix-Property
+reicht laut [Googles Anleitung](https://support.google.com/cloud/answer/13804266?hl=en)
+nicht aus. Die normale `github.io`-Adresse bietet dir keinen DNS-Zugriff. Für diesen
+Nachweis eine eigene Domain mit GitHub Pages verbinden, deren DNS bestätigen und
+anschließend beide Branding-URLs sowie die autorisierte Domain anpassen.
+
+Unter einer eigenen Domain funktionieren dieselben Dateien ohne Codeänderung.
+Die Datenschutzerklärung beschreibt den aktuellen Programmstand. Bei Änderungen
+an Datenverarbeitung, Protokollaufbewahrung oder Hosting die Angaben mit anpassen.
+
 ## Nutzer bisheriger Skriptkopien umziehen
 
 Die bisherigen Dateien und insbesondere `settings.gs` bleiben unverändert.
