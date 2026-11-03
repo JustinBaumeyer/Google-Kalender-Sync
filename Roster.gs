@@ -518,8 +518,8 @@ function generateRosterPayload_(now) {
     return JSON.stringify(months);
 }
 
-function getRosterICal_() {
-    callWithBackoff_(function() {
+function getRosterICal_(skipTokenRefresh) {
+    if (!skipTokenRefresh) callWithBackoff_(function() {
         refreshRosterToken_();
         return;
     },defaultMaxRetries);

@@ -64,7 +64,7 @@ function load(now = '2026-11-03T12:00:00Z') {
     Calendar: { Events: { remove: (_, id) => removed.push(id) } },
     CalendarApp: { EventColor: {} },
   });
-  for (const file of ['ical.js.gs', 'tzid.gs', 'settings.gs', 'Code.gs', 'Helpers.gs', 'Roster.gs']) {
+  for (const file of ['ical.js.gs', 'tzid.gs', 'settings.gs', 'Code.gs', 'Preferences.gs', 'WebApp.gs', 'Helpers.gs', 'Roster.gs']) {
     vm.runInContext(fs.readFileSync(path.join(sourceDir, file), 'utf8'), context, { filename: file });
   }
   context.rosterUserId = '123';

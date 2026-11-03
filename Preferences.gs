@@ -41,10 +41,11 @@ function validatePreferences_(settings) {
       throw new Error("Ungültiger Wert für " + name);
   });
   if (settings.sourceCalendars && !settings.sourceCalendars.every(function(row) {
-    return Array.isArray(row) && row.length >= 2 && row.length <= 3 &&
+    return Array.isArray(row) && row.length >= 2 && row.length <= 4 &&
       typeof row[0] == "string" && !!row[0].trim() &&
       typeof row[1] == "string" && !!row[1].trim() &&
-      (row[0] == "ROSTER" || /^(https?|webcal):\/\//i.test(row[0]));
+      (row[0] == "ROSTER" || /^(https?|webcal):\/\//i.test(row[0])) &&
+      (row.length < 4 || typeof row[3] == "string");
   })) throw new Error("Jede Quelle benötigt einen Dienstplan oder eine Kalender-Adresse und einen Zielkalender");
   if (settings.howFrequent !== undefined && (settings.howFrequent < 1 || settings.howFrequent > 1440))
     throw new Error("Das Intervall muss zwischen 1 und 1440 Minuten liegen");
