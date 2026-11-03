@@ -61,7 +61,6 @@
     <p id="nextRun" class="muted"></p><p id="connectionBadge"></p>
     <div id="metrics" class="metrics" hidden></div>
     <div class="actions"><button type="button" id="dashboardSync">Jetzt synchronisieren</button><button type="button" id="dashboardPreview" class="secondary">Vorschau prüfen</button><button type="button" id="dashboardPause" class="secondary">Pausieren</button></div>
-    <h2 style="margin-top:1.5rem">Kommende Termine</h2><p class="muted">Aus dem letzten Sync oder der Vorschau.</p><ul id="upcoming" class="event-list"></ul>
     <div class="actions"><button type="button" id="openMigration" class="secondary">Aus bisheriger Kopie umziehen</button><button type="button" id="manageAccess" class="secondary" hidden>Zugriff verwalten</button></div>
   </section>
   <form id="preferences" hidden novalidate>
@@ -362,7 +361,6 @@
       if(state.lastStats)[['added','Hinzugefügt'],['updated','Aktualisiert'],['removed','Entfernt']].forEach(([key,title])=>{
         const metric=element('div',undefined,'metric');metric.append(element('strong',String(state.lastStats[key]||0)),element('small',title));$('metrics').append(metric);
       });
-      renderEventList($('upcoming'),state.upcomingEvents||[]);
     }
     function collect() {
       document.querySelectorAll('#preferences input').forEach(control => control.setCustomValidity(''));
@@ -432,7 +430,7 @@
         if(kind==='preview'){
           $('previewPanel').hidden=false;renderEventList($('previewEvents'),result.events);
           $('previewErrors').replaceChildren();result.errors.forEach(error=>$('previewErrors').append(element('p',error.calendar+': '+error.message)));
-          $('previewNote').textContent=result.note;renderEventList($('upcoming'),result.events);message(result.errors.length?'Einige Quellen konnten nicht geladen werden.':'Vorschau geladen. Im Kalender wurde nichts geändert.');
+          $('previewNote').textContent=result.note;message(result.errors.length?'Einige Quellen konnten nicht geladen werden.':'Vorschau geladen. Im Kalender wurde nichts geändert.');
         }else{if(!dirty)render(await call('getAppState'));$('connectionResult').textContent=result.message;message(result.message);}
       }catch(error){message(error.message||String(error),true);if(kind==='test')$('connectionResult').textContent=error.message||String(error);}
       finally{busy(false);}

@@ -1,6 +1,5 @@
-var version = 8;
+var version = 9;
 var syncStats = {added: 0, updated: 0, removed: 0};
-var upcomingSyncEvents = [];
 var defaultMaxRetries = 4;
 var syncStartedAt = 0;
 var syncDeadline = 0;
@@ -133,7 +132,7 @@ function startSync(event){
     syncStats = userPrp.getProperty("syncPending") == "true"
       ? JSON.parse(userPrp.getProperty("syncStats") || '{"added":0,"updated":0,"removed":0}')
       : {added: 0, updated: 0, removed: 0};
-    upcomingSyncEvents = [];
+    userPrp.deleteProperty("upcomingEvents"); // Remove the former dashboard preview cache.
     publishSyncProgress_("Synchronisierung wird vorbereitet", undefined, undefined, "running");
     if (event && event.triggerUid) {
       var initialId = userPrp.getProperty("initialSyncTriggerId");
@@ -162,7 +161,7 @@ function startSync(event){
     if (migrationRemaining) scheduleSyncContinuation_(migrationRemaining);
     else {
       if (addRosterToCal && sourceCalendars.some(function(row) { return row[0] == "ROSTER"; })) markRosterConnectionVerified_();
-      userPrp.setProperties({lastSyncStats: JSON.stringify(syncStats), upcomingEvents: JSON.stringify(upcomingSyncEvents.slice(0, 5))}, false);
+      userPrp.setProperty("lastSyncStats", JSON.stringify(syncStats));
       publishSyncProgress_("Synchronisierung abgeschlossen", 1, 1, "complete");
     }
     if (!event || !event.triggerUid) return getAppState();
@@ -320,8 +319,6 @@ function runSync_(){
           return consolidateVevents_(parseResponses_(responses));
         });
         Logger.log("Parsed " + vevents.length + " events from ical sources");
-        upcomingSyncEvents = upcomingSyncEvents.concat(previewEvents_(vevents, targetCalendarName, targetCalendarTimeZone))
-          .sort(function(a,b) { return a.start.localeCompare(b.start); }).slice(0,5);
       }
 
       //------------------------ Process ical events ------------------------

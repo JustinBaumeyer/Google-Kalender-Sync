@@ -957,7 +957,7 @@ function callWithBackoff_(func, maxRetries) {
             result = func();
             return result;
         } catch (err) {
-            if (err.syncPaused) throw err;
+            if (err.syncPaused || err.rosterAuthRejected) throw err;
             err = err.message || err;
             if (err.includes("is not a function") || !backoffRecoverableErrors.some(function(e) {
                     return err.toLowerCase().includes(e);

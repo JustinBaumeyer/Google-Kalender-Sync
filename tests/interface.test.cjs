@@ -133,9 +133,11 @@ test('migration rejects wrong accounts, expired codes, unpaused copies and lost 
 test('next-run estimates and successful-run counts are scoped to the current account',()=>{
   const app=shared(),c=load(app,alice);
   c.saveAppSettings({settings:{},rosterUserId:'123',rosterUserToken:'test'});c.install();
-  c.runSync_=()=>{c.syncStats.added++;c.upcomingSyncEvents=[{title:'Dienst',start:'2099-01-01',end:'2099-01-02',allDay:true,calendar:'Dienstplan'}];return 0;};
+  app.users.get(alice).set('upcomingEvents','obsolete dashboard cache');
+  c.runSync_=()=>{c.syncStats.added++;return 0;};
   c.startSync();const result=c.getAppState();
-  assert.ok(result.nextRunAt);assert.equal(result.lastStats.added,1);assert.equal(result.upcomingEvents[0].title,'Dienst');
+  assert.ok(result.nextRunAt);assert.equal(result.lastStats.added,1);
+  assert.equal(app.users.get(alice).has('upcomingEvents'),false);
   assert.equal(load(app,bob).getAppState().lastStats,null);
 });
 

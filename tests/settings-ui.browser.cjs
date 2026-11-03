@@ -180,13 +180,13 @@ test('overview is compact, shows run results, and stores a calendar selection by
   const {page,app,server}=await open();
   try{
     app.users.get(alice).set('lastSyncStats',JSON.stringify({added:5,updated:2,removed:0}));
-    app.users.get(alice).set('upcomingEvents',JSON.stringify([{title:'Frühdienst · Rettungswache',start:new Date(Date.now()+86400000).toISOString(),end:new Date(Date.now()+115200000).toISOString(),allDay:false,calendar:'Dienstplan'}]));
     server.install();await page.evaluate(()=>action('getAppState',''));
     await page.locator('#closeSettings').click();
     assert.equal(await page.locator('#preferences').isVisible(),false);
     assert.equal(await page.locator('#overview').isVisible(),true);
     assert.ok((await page.locator('#nextRun').textContent()).includes('ungefähr'));
     assert.equal(await page.locator('#metrics strong').first().textContent(),'5');
+    assert.equal(await page.getByRole('heading',{name:'Kommende Termine',exact:true}).count(),0);
     await page.screenshot({path:'/tmp/dienstplan-overview-desktop.png',fullPage:true});
     await page.locator('#editSettings').click();
     assert.equal(await page.locator('#connectionFields').isVisible(),false);
@@ -213,6 +213,30 @@ test('connection check and preview display real parsed data without saving draft
     assert.ok((await page.locator('#previewNote').textContent()).includes('keine Kalendertermine geschrieben'));
     assert.equal(app.users.get(alice).get('preferences'),original);
     assert.equal(app.users.get(alice).get('rosterUserToken'),'saved-token');
+  }finally{await page.close();}
+});
+
+test('connection check renews rejected saved credentials and the following preview succeeds',async()=>{
+  const {page,server,app,errors}=await open();
+  try{
+    const original=app.users.get(alice).get('preferences'),requests=[];
+    server.UrlFetchApp={fetch:(url,options)=>{
+      requests.push(url);
+      const refresh=url.endsWith('auth/refreshToken');
+      const rejected=!refresh&&options.headers.authorization!=='Bearer renewed-token';
+      return {getResponseCode:()=>rejected?403:200,getContentText:()=>JSON.stringify(rejected?{message:'Authorization has been denied for this request.'}:refresh?{data:'renewed-token'}:[])};
+    }};
+    await page.locator('#testConnection').click();
+    await page.getByText('Verbindung funktioniert.',{exact:true}).first().waitFor();
+    assert.equal(app.users.get(alice).get('rosterUserToken'),'renewed-token');
+    await page.locator('#preview').click();
+    await page.locator('#previewPanel').waitFor({state:'visible'});
+    assert.equal(await page.locator('#previewErrors').textContent(),'');
+    assert.equal(requests.filter(url=>url.endsWith('auth/refreshToken')).length,1);
+    assert.equal(requests.length,4);
+    assert.equal(app.users.get(alice).get('preferences'),original);
+    assert.equal((await page.locator('body').textContent()).includes('renewed-token'),false);
+    assert.deepEqual(errors,[]);
   }finally{await page.close();}
 });
 
