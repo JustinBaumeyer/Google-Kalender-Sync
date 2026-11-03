@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { font: 16px system-ui, sans-serif; color: #172b38; background: #f3f6f7; }
+    body { max-width: 900px; margin: 3rem auto; padding: 0 1rem; }
+    h1 { margin-bottom: .3rem; } h2 { font-size: 1.2rem; }
+    section { background: white; padding: 1.5rem; border-radius: 12px; margin: 1rem 0; }
+    label { display: block; margin: .8rem 0; }
+    label span { display: block; margin-bottom: .3rem; }
+    input:not([type=checkbox]), textarea { box-sizing: border-box; width: 100%; padding: .6rem; border: 1px solid #b8c8cf; border-radius: 5px; font: inherit; }
+    textarea { font: 14px monospace; min-height: 90px; }
+    button { background: #135f6d; color: white; border: 0; border-radius: 6px; padding: .75rem 1rem; margin: .3rem; cursor: pointer; font: inherit; }
+    button.secondary { background: #e5edef; color: #172b38; }
+    button:disabled { opacity: .5; cursor: wait; }
+    .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 1.5rem; }
+    .muted { color: #526773; font-size: .9rem; }
+    #message { padding: .8rem 0; white-space: pre-wrap; } .error { color: #a61c25; }
+    details { margin-top: 1rem; } summary { cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Dienstplan Sync</h1>
+  <p class="muted">Your roster and calendar, connected.</p>
+  <p id="account"></p>
+  <p id="status" aria-live="polite">Loading your preferences…</p>
+  <form id="preferences" hidden>
+    <section>
+      <h2>Roster connection</h2>
+      <label><span>Employee ID</span><input id="employee" inputmode="numeric" autocomplete="off"></label>
+      <label><span>Roster token</span><input id="token" type="password" autocomplete="new-password"></label>
+      <p id="tokenHint" class="muted"></p>
+      <p class="muted">Your credentials and preferences are saved for your Google account.</p>
+    </section>
+    <section>
+      <h2>Sync preferences</h2>
+      <div id="basic" class="fields"></div>
+      <details><summary>Advanced preferences</summary><div id="advanced" class="fields"></div></details>
+    </section>
+    <button type="submit">Save preferences</button>
+    <button type="button" id="enable">Enable sync</button>
+    <button type="button" id="sync" class="secondary">Sync now</button>
+    <button type="button" id="stop" class="secondary">Pause sync</button>
+    <button type="button" id="disconnect" class="secondary">Delete my saved data</button>
+  </form>
+  <p id="message" role="status" aria-live="polite"></p>
+  <script>
+    const labels = {
+      sourceCalendars: 'Sources and destination calendars', howFrequent: 'Sync interval (minutes)',
+      onlyFutureEvents: 'Only import future events', removePastEventsFromCalendar: 'Delete past events missing from the source',
+      addRosterRequests: 'Include shift requests', addAbsences: 'Include absences', oncallAsFree: 'Mark on-call shifts as available',
+      addTeamPartner: 'Include team partners', addRelief: 'Include relief crew',
+      addEventsToCalendar: 'Add new events', modifyExistingEvents: 'Update changed events',
+      removeEventsFromCalendar: 'Remove events missing from the source', addCalToTitle: 'Include source name in titles',
+      defaultAllDayReminder: 'All-day reminder (minutes; -1 disables)', showSkipMessage: 'Log unchanged events',
+      overrideVisibility: 'Visibility override', errorNotificationEmail: 'Error emails (false, true, or an email address)',
+      consolidateEvents: 'Merge overlapping events', consolidateMaxGapMinutes: 'Maximum merge gap (minutes)',
+      ignoreEvents: 'Ignore rules', addRosterToCal: 'Enable roster source', addRosterSinceStart: 'Import full roster history',
+      rosterTimeZone: 'Roster timezone', rosterPlanningGroups: 'Planning group IDs',
+      addYearSummary: 'Log annual summary', summaryYear: 'Summary year', rosterUrl: 'Roster service address',
+      rosterIgnoreList: 'Ignored shift codes'
+    };
+    const basic = new Set(['howFrequent', 'onlyFutureEvents', 'removePastEventsFromCalendar', 'addRosterRequests', 'addAbsences', 'oncallAsFree']);
+    function busy(value) { document.querySelectorAll('button').forEach(button => button.disabled = value); }
+    function message(text, error = false) {
+      document.getElementById('message').textContent = text;
+      document.getElementById('message').className = error ? 'error' : '';
+    }
+    function render(state) {
+      document.getElementById('account').textContent = state.email;
+      document.getElementById('status').textContent = (state.enabled ? 'Sync enabled.' : 'Sync paused.') +
+        (state.lastSync ? ' Last sync: ' + new Date(state.lastSync).toLocaleString() : '') +
+        (state.lastError ? ' Last error: ' + state.lastError : '');
+      document.getElementById('employee').value = state.rosterUserId;
+      document.getElementById('token').value = '';
+      document.getElementById('tokenHint').textContent = state.hasToken ? 'A token is saved. Leave this empty to keep it.' : 'Enter the token from your roster account.';
+      document.getElementById('basic').replaceChildren();
+      document.getElementById('advanced').replaceChildren();
+      Object.entries(state.settings).forEach(([name, value]) => {
+        const label = document.createElement('label');
+        const title = document.createElement('span');
+        title.textContent = labels[name] || name;
+        const json = Array.isArray(value);
+        const input = document.createElement(json ? 'textarea' : 'input');
+        input.dataset.preference = name;
+        input.dataset.kind = name === 'errorNotificationEmail' ? 'emailPolicy' : json ? 'json' : typeof value;
+        if (!json && typeof value === 'boolean' && name !== 'errorNotificationEmail') { input.type = 'checkbox'; input.checked = value; }
+        else { input.type = typeof value === 'number' ? 'number' : 'text'; input.value = json ? JSON.stringify(value, null, 2) : value; }
+        label.append(title, input);
+        if (name === 'sourceCalendars') {
+          const help = document.createElement('small');
+          help.textContent = 'Each row is ["ROSTER" or feed URL, "Calendar name", color number].';
+          label.append(help);
+        }
+        document.getElementById(basic.has(name) ? 'basic' : 'advanced').append(label);
+      });
+      document.getElementById('preferences').hidden = false;
+    }
+    function request(method, argument, successText) {
+      busy(true); message('Working…');
+      const runner = google.script.run.withSuccessHandler(state => {
+        busy(false); if (state) render(state); message(successText || '');
+      }).withFailureHandler(error => { busy(false); message(error.message || String(error), true); });
+      if (argument === undefined) runner[method](); else runner[method](argument);
+    }
+    document.getElementById('preferences').addEventListener('submit', event => {
+      event.preventDefault();
+      try {
+        const settings = {};
+        document.querySelectorAll('[data-preference]').forEach(input => {
+          settings[input.dataset.preference] = input.dataset.kind === 'boolean' ? input.checked :
+            input.dataset.kind === 'emailPolicy' ? (input.value === 'true' ? true : input.value === 'false' ? false : input.value) :
+            input.dataset.kind === 'number' ? Number(input.value) : input.dataset.kind === 'json' ? JSON.parse(input.value) : input.value;
+        });
+        request('saveAppSettings', {settings, rosterUserId: document.getElementById('employee').value,
+          rosterUserToken: document.getElementById('token').value}, 'Preferences saved.');
+      } catch (error) { message('Please check the preference values: ' + error.message, true); }
+    });
+    document.getElementById('enable').onclick = () => request('install', undefined, 'Sync enabled. The first run will start shortly.');
+    document.getElementById('sync').onclick = () => request('startSync', undefined, 'Sync finished.');
+    document.getElementById('stop').onclick = () => request('stopSync', undefined, 'Sync paused. Your saved preferences are kept.');
+    document.getElementById('disconnect').onclick = () => {
+      if (confirm('Delete your saved roster credentials and preferences? Calendar events will remain.'))
+        request('disconnectApp', undefined, 'Your saved credentials and preferences have been deleted.');
+    };
+    request('getAppState');
+  </script>
+</body>
+</html>

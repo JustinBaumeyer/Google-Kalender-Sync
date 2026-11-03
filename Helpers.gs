@@ -6,7 +6,7 @@
  * @param {?integer} The manually set frequency that the user intends to set.
  * @return {integer} The closest valid value to the intended frequency setting. Defaulting to 15 if no valid input is provided.
  */
-function getValidTriggerFrequency(origFrequency) {
+function getValidTriggerFrequency_(origFrequency) {
     if (!origFrequency || origFrequency <= 0) {
         Logger.log("No valid frequency specified. Defaulting to 15 minutes.");
         return 15;
@@ -36,35 +36,21 @@ function getValidTriggerFrequency(origFrequency) {
  * @param {Array.string} calendarMap - User-defined calendar map
  * @return {Array.string} Condensed calendar map
  */
-function condenseCalendarMap(calendarMap) {
-    var result = [];
+function condenseCalendarMap_(calendarMap) {
+    var byTarget = new Map();
     for (var mapping of calendarMap) {
-        var index = -1;
-        for (var i = 0; i < result.length; i++) {
-            if (result[i][0] == mapping[1]) {
-                index = i;
-                break;
-            }
-        }
-
-        if (index > -1)
-            result[index][1].push([mapping[0], mapping[2]]);
-        else
-            result.push([mapping[1],
-                [
-                    [mapping[0], mapping[2]]
-                ]
-            ]);
+        if (!byTarget.has(mapping[1]))
+            byTarget.set(mapping[1], []);
+        byTarget.get(mapping[1]).push([mapping[0], mapping[2]]);
     }
-
-    return result;
+    return Array.from(byTarget.entries());
 }
 
 /**
  * Removes all triggers created by this script (sync, install and update check),
  * so repeated installs can't accumulate triggers until the quota is hit.
  */
-function deleteAllTriggers() {
+function deleteAllTriggers_() {
     var triggers = ScriptApp.getProjectTriggers();
     for (var i = 0; i < triggers.length; i++) {
         if (["startSync", "install", "main", "checkForUpdates"].includes(triggers[i].getHandlerFunction())) {
@@ -81,7 +67,7 @@ function deleteAllTriggers() {
  * @param {Array.string} sourceCalendarURLs - Array with URLs to fetch
  * @return {{responses: Array, failedSources: number}} [content, colorId] pairs and the failure count
  */
-function fetchSourceCalendars(sourceCalendarURLs) {
+function fetchSourceCalendars_(sourceCalendarURLs) {
     var result = [];
     var failedSources = 0;
     for (var source of sourceCalendarURLs) {
@@ -93,18 +79,18 @@ function fetchSourceCalendars(sourceCalendarURLs) {
                 Logger.log("Skipping ROSTER source (addRosterToCal is disabled)");
                 continue;
             }
-            var rosterContent = getRosterICal();
+            var rosterContent = getRosterICal_();
             if (rosterContent != null)
                 result.push([rosterContent, colorId]);
             else
                 failedSources++;
         } else {
-            var urlContent = callWithBackoff(function() {
+            var urlContent = callWithBackoff_(function() {
                 var urlResponse = UrlFetchApp.fetch(url, {
                     'validateHttpsCertificates': false,
                     'muteHttpExceptions': true
                 });
-                if (urlResponse.getResponseCode() != 200) //Throw here to make callWithBackoff run again
+                if (urlResponse.getResponseCode() != 200) //Throw here to make callWithBackoff_ run again
                     throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url;
 
                 var icsContent = urlResponse.getContentText()
@@ -147,7 +133,7 @@ function fetchSourceCalendars(sourceCalendarURLs) {
  * @param {string} targetCalendarName - The name of the calendar to return
  * @return {Calendar} The calendar retrieved or created
  */
-function setupTargetCalendar(targetCalendarName) {
+function setupTargetCalendar_(targetCalendarName) {
     var targetCalendar = Calendar.CalendarList.list({
         showHidden: true,
         maxResults: 250
@@ -172,7 +158,7 @@ function setupTargetCalendar(targetCalendarName) {
  * missing (e.g. a settings.gs that predates the feature). consolidateShifts is
  * honored as the pre-v4 name of the setting.
  */
-function consolidationEnabled() {
+function consolidationEnabled_() {
     if (typeof consolidateEvents !== "undefined") return !!consolidateEvents;
     if (typeof consolidateShifts !== "undefined") return !!consolidateShifts;
     return true;
@@ -182,7 +168,7 @@ function consolidationEnabled() {
  * Maximum gap in milliseconds between two same-titled events that still get
  * consolidated. 0 (the default) merges only touching or overlapping events.
  */
-function consolidateGapMillis() {
+function consolidateGapMillis_() {
     return (typeof consolidateMaxGapMinutes !== "undefined" && consolidateMaxGapMinutes > 0)
         ? consolidateMaxGapMinutes * 60000 : 0;
 }
@@ -200,8 +186,8 @@ function consolidateGapMillis() {
  * @param {Array.ICALComponent} vevents - All parsed events of the target calendar
  * @return {Array.ICALComponent} Events with merged-away duplicates removed
  */
-function consolidateVevents(vevents) {
-    if (!consolidationEnabled())
+function consolidateVevents_(vevents) {
+    if (!consolidationEnabled_())
         return vevents;
 
     var result = [];
@@ -226,7 +212,7 @@ function consolidateVevents(vevents) {
 
     singles.sort(function(a, b) { return a.event.startDate.compare(b.event.startDate); });
 
-    var gapSeconds = consolidateGapMillis() / 1000;
+    var gapSeconds = consolidateGapMillis_() / 1000;
     var mergedCount = 0;
     // Track the newest event per title so an interleaved different event
     // doesn't break a chain of same-titled ones.
@@ -241,7 +227,7 @@ function consolidateVevents(vevents) {
                     newEnd = newEnd.convertToZone(prev.event.startDate.zone);
                 prev.event.endDate = newEnd;
             }
-            mergeEventDescriptions(prev.comp, item.comp);
+            mergeEventDescriptions_(prev.comp, item.comp);
             var uid = item.comp.getFirstPropertyValue('uid').toString();
             var uidIndex = icsEventsIds.indexOf(uid);
             if (uidIndex > -1)
@@ -264,7 +250,7 @@ function consolidateVevents(vevents) {
  * doesn't already contain, so a merged event keeps both parts' details
  * without repeating shared paragraphs.
  */
-function mergeEventDescriptions(targetComp, sourceComp) {
+function mergeEventDescriptions_(targetComp, sourceComp) {
     var sourceDesc = sourceComp.getFirstPropertyValue('description');
     if (sourceDesc == null || String(sourceDesc) == "")
         return;
@@ -288,7 +274,7 @@ function mergeEventDescriptions(targetComp, sourceComp) {
  * @return {number} UTC offset in milliseconds
  */
 var tzOffsetCache = {};
-function getUTCOffsetMillis(tz) {
+function getUTCOffsetMillis_(tz) {
     if (tz in tzOffsetCache)
         return tzOffsetCache[tz];
     var jsTime = new Date();
@@ -302,7 +288,7 @@ function getUTCOffsetMillis(tz) {
  * Returns the configured ignore rules, or an empty array when the setting is
  * missing (e.g. a settings.gs that predates the feature).
  */
-function getIgnoreRules() {
+function getIgnoreRules_() {
     return (typeof ignoreEvents !== "undefined" && Array.isArray(ignoreEvents)) ? ignoreEvents : [];
 }
 
@@ -321,7 +307,7 @@ var IGNORE_WEEKDAYS = {
  * and "HH:MM" time the event shows in the calendar. UTC times are converted to
  * the script timezone; times with a TZID or floating times are used as written.
  */
-function getIgnoreWallClock(time) {
+function getIgnoreWallClock_(time) {
     if (time.zone && time.zone.tzid == "UTC") {
         var parts = Utilities.formatDate(time.toJSDate(), Session.getScriptTimeZone(), "u|HH:mm").split("|");
         return {weekday: (parseInt(parts[0], 10) % 7) + 1, time: parts[1]};
@@ -334,7 +320,7 @@ function getIgnoreWallClock(time) {
  * Checks whether a title matches a rule's title pattern: a RegExp is tested
  * against the title, a string matches case-insensitively as a substring.
  */
-function ignoreTitleMatches(pattern, title) {
+function ignoreTitleMatches_(pattern, title) {
     if (pattern instanceof RegExp) return pattern.test(title);
     return title.toLowerCase().indexOf(String(pattern).trim().toLowerCase()) > -1;
 }
@@ -342,7 +328,7 @@ function ignoreTitleMatches(pattern, title) {
 /**
  * Normalizes a "H:MM" / "HH:MM" string to "HH:MM" for comparison.
  */
-function normalizeIgnoreTime(value) {
+function normalizeIgnoreTime_(value) {
     var m = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(String(value));
     return m ? (m[1].length == 1 ? "0" : "") + m[1] + ":" + m[2] : String(value).trim();
 }
@@ -357,8 +343,8 @@ function normalizeIgnoreTime(value) {
  * @param {ICAL.Component} event - The event to check
  * @return {boolean} Whether the event should be ignored
  */
-function isIgnoredEvent(event) {
-    var rules = getIgnoreRules();
+function isIgnoredEvent_(event) {
+    var rules = getIgnoreRules_();
     if (rules.length == 0 || !event.hasProperty('summary'))
         return false;
 
@@ -366,8 +352,8 @@ function isIgnoredEvent(event) {
     var start = null, end = null;
     try {
         var icalEvent = new ICAL.Event(event);
-        if (icalEvent.startDate) start = getIgnoreWallClock(icalEvent.startDate);
-        if (icalEvent.endDate) end = getIgnoreWallClock(icalEvent.endDate);
+        if (icalEvent.startDate) start = getIgnoreWallClock_(icalEvent.startDate);
+        if (icalEvent.endDate) end = getIgnoreWallClock_(icalEvent.endDate);
     } catch (e) {
         // Without usable times only title-only rules can match.
     }
@@ -375,18 +361,18 @@ function isIgnoredEvent(event) {
     return rules.some(function(rule) {
         if (rule == null) return false;
         if (typeof rule === "string" || rule instanceof RegExp)
-            return ignoreTitleMatches(rule, title);
+            return ignoreTitleMatches_(rule, title);
 
-        if (rule.title != null && !ignoreTitleMatches(rule.title, title))
+        if (rule.title != null && !ignoreTitleMatches_(rule.title, title))
             return false;
         if (rule.weekday != null) {
             var wd = typeof rule.weekday === "number" ? rule.weekday : IGNORE_WEEKDAYS[String(rule.weekday).trim().toLowerCase()];
             if (start == null || wd == null || start.weekday != wd)
                 return false;
         }
-        if (rule.start != null && (start == null || start.time != normalizeIgnoreTime(rule.start)))
+        if (rule.start != null && (start == null || start.time != normalizeIgnoreTime_(rule.start)))
             return false;
-        if (rule.end != null && (end == null || end.time != normalizeIgnoreTime(rule.end)))
+        if (rule.end != null && (end == null || end.time != normalizeIgnoreTime_(rule.end)))
             return false;
         // An empty object would ignore everything, so require at least one criterion.
         return rule.title != null || rule.weekday != null || rule.start != null || rule.end != null;
@@ -401,7 +387,7 @@ function isIgnoredEvent(event) {
  * @param {Array.string} responses - Array with all ical sources
  * @return {Array.ICALComponent} Array with all events found
  */
-function parseResponses(responses) {
+function parseResponses_(responses) {
     var result = [];
     for (var itm of responses) {
         var resp = itm[0];
@@ -446,9 +432,9 @@ function parseResponses(responses) {
         });
     }
 
-    if (getIgnoreRules().length > 0) {
+    if (getIgnoreRules_().length > 0) {
         result = result.filter(function(event) {
-            if (!isIgnoredEvent(event))
+            if (!isIgnoredEvent_(event))
                 return true;
             // Remember the id so an already synced copy is removed during cleanup,
             // even if it lies in the past or is a recurring series.
@@ -473,7 +459,7 @@ function parseResponses(responses) {
                 if (tz in tzidreplace) {
                     tz = tzidreplace[tz];
                 }
-                let recUTCOffset = getUTCOffsetMillis(tz) / -1000;
+                let recUTCOffset = getUTCOffsetMillis_(tz) / -1000;
                 recID = recID.adjust(0, 0, 0, recUTCOffset).toString() + "Z";
                 event.updatePropertyWithValue('recurrence-id', recID);
             }
@@ -492,15 +478,14 @@ function parseResponses(responses) {
  * @param {ICAL.Component} event - The event to process
  * @param {string} calendarTz - The timezone of the target calendar
  */
-function processEvent(event, calendarTz) {
+function processEvent_(event, calendarTz) {
     //------------------------ Create the event object ------------------------
-    var newEvent = createEvent(event, calendarTz);
+    var newEvent = createEvent_(event, calendarTz);
     if (newEvent == null)
         return;
 
     var eventId = newEvent.extendedProperties.private["id"];
     var index = calendarEventsIndex.has(eventId) ? calendarEventsIndex.get(eventId) : -1;
-    var needsUpdate = index > -1;
 
     //------------------------ Save instance overrides ------------------------
     //----------- To make sure the parent event is actually created -----------
@@ -508,23 +493,18 @@ function processEvent(event, calendarTz) {
         Logger.log("Saving event instance for later: " + newEvent.recurringEventId);
         recurringEvents.push(newEvent);
         return;
-    } else {
-        //------------------------ Send event object to gcal ------------------------
-        if (needsUpdate) {
-            if (modifyExistingEvents) {
-                Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
-                newEvent = callWithBackoff(function() {
-                    return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
-                }, defaultMaxRetries);
-            }
-        } else {
-            if (addEventsToCalendar) {
-                Logger.log("Adding new event " + newEvent.extendedProperties.private["id"]);
-                newEvent = callWithBackoff(function() {
-                    return Calendar.Events.insert(newEvent, targetCalendarId);
-                }, defaultMaxRetries);
-            }
-        }
+    }
+
+    if (index > -1 && modifyExistingEvents) {
+        Logger.log("Updating existing event " + eventId);
+        callWithBackoff_(function() {
+            return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
+        }, defaultMaxRetries);
+    } else if (index == -1 && addEventsToCalendar) {
+        Logger.log("Adding new event " + eventId);
+        callWithBackoff_(function() {
+            return Calendar.Events.insert(newEvent, targetCalendarId);
+        }, defaultMaxRetries);
     }
 }
 
@@ -539,12 +519,12 @@ function processEvent(event, calendarTz) {
  * @param {string} calendarTz - The timezone of the target calendar
  * @return {?Calendar.Event} The Calendar.Event that will be added to the target calendar
  */
-function createEvent(event, calendarTz) {
+function createEvent_(event, calendarTz) {
     event.removeProperty('dtstamp');
     var icalEvent = new ICAL.Event(event, {
         strictExceptions: true
     });
-    if (onlyFutureEvents && checkSkipEvent(event, icalEvent)) {
+    if (onlyFutureEvents && checkSkipEvent_(event, icalEvent)) {
         return;
     }
 
@@ -655,13 +635,14 @@ function createEvent(event, calendarTz) {
     }
 
     if (icalEvent.isRecurring()) {
-        newEvent.recurrence = parseRecurrenceRule(event, getUTCOffsetMillis(calendarTz));
+        newEvent.recurrence = parseRecurrenceRule_(event, getUTCOffsetMillis_(calendarTz));
     }
 
     newEvent.extendedProperties = {
         private: {
             MD5: digest,
             fromGAS: "true",
+            syncOwner: syncOwnerId,
             id: icalEvent.uid
         }
     };
@@ -691,7 +672,7 @@ function createEvent(event, calendarTz) {
  * @param {ICAL.Event} icalEvent - The event to process as ICAL.Event object
  * @return {boolean} Wether it's a past event or not
  */
-function checkSkipEvent(event, icalEvent) {
+function checkSkipEvent_(event, icalEvent) {
     if (icalEvent.isRecurrenceException()) {
         if ((icalEvent.startDate.compare(startUpdateTime) < 0) && (icalEvent.recurrenceId.compare(startUpdateTime) < 0)) {
             Logger.log("Skipping past recurrence exception");
@@ -807,10 +788,10 @@ function checkSkipEvent(event, icalEvent) {
  *
  * @param {Calendar.Event} recEvent - The event instance to process
  */
-function processEventInstance(recEvent) {
+function processEventInstance_(recEvent) {
     Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: " + recEvent.recurringEventId);
 
-    var eventInstanceToPatch = callWithBackoff(function() {
+    var eventInstanceToPatch = callWithBackoff_(function() {
         return Calendar.Events.list(targetCalendarId, {
             singleEvents: true,
             // Both filters must be passed as an array: a duplicate object key would
@@ -825,7 +806,7 @@ function processEventInstance(recEvent) {
         } else if (recEvent.recurringEventId.substr(-1) !== "Z") {
             recEvent.recurringEventId += "Z";
         }
-        eventInstanceToPatch = callWithBackoff(function() {
+        eventInstanceToPatch = callWithBackoff_(function() {
             return Calendar.Events.list(targetCalendarId, {
                 singleEvents: true,
                 orderBy: "startTime",
@@ -839,14 +820,14 @@ function processEventInstance(recEvent) {
     if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1) {
         if (modifyExistingEvents) {
             Logger.log("Updating existing event instance");
-            callWithBackoff(function() {
+            callWithBackoff_(function() {
                 Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
             }, defaultMaxRetries);
         }
     } else {
         if (addEventsToCalendar) {
             Logger.log("No Instance matched, adding as new event!");
-            callWithBackoff(function() {
+            callWithBackoff_(function() {
                 Calendar.Events.insert(recEvent, targetCalendarId);
             }, defaultMaxRetries);
         }
@@ -855,37 +836,39 @@ function processEventInstance(recEvent) {
 
 /**
  * Deletes all events from the target calendar that no longer exist in the source calendars.
- * If onlyFutureEvents is set to true, events that have taken place since the last sync are also removed.
+ * Past events are preserved unless removePastEventsFromCalendar is enabled.
+ * Explicit ignore rules still take precedence over retention.
  */
-function processEventCleanup() {
+function processEventCleanup_() {
     var feedIds = new Set(icsEventsIds);
     var compareDate = new Date();
-    compareDate.setDate(compareDate.getDate() - 5);
+    var today = Utilities.formatDate(compareDate,
+        targetCalendarTimeZone || Session.getScriptTimeZone(), "yyyy-MM-dd");
 
     for (var i = 0; i < calendarEvents.length; i++) {
         var currentID = calendarEventsIds[i];
+        // Use the end so a shift crossing midnight remains eligible for cleanup
+        // until it finishes. All-day DTEND is exclusive in the target timezone.
+        var eventEnd = calendarEvents[i].end || calendarEvents[i].start;
+        var isPast = eventEnd.dateTime
+            ? new Date(eventEnd.dateTime) <= compareDate
+            : eventEnd.date <= today;
 
         var ignored = ignoredEventIds.has(currentID) && !feedIds.has(currentID);
         if (ignored) {
             // Explicitly ignored events are always removed, regardless of their date.
             Logger.log("Deleting ignored event " + currentID);
-            callWithBackoff(function() {
+            callWithBackoff_(function() {
                 Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
             }, defaultMaxRetries);
         } else if (!feedIds.has(currentID) // Event is no longer in source
             &&
             calendarEvents[i].recurringEventId == null // And it's not a recurring event
             &&
-            ( // And one of:
-                removePastEventsFromCalendar // We want to remove past events
-                ||
-                new Date(calendarEvents[i].start.dateTime) > compareDate // Or the event is in the future
-                ||
-                new Date(calendarEvents[i].start.date) > compareDate // (2 different ways event start can be stored)
-            )
+            (removePastEventsFromCalendar || !isPast)
         ) {
             Logger.log("Deleting old event " + currentID);
-            callWithBackoff(function() {
+            callWithBackoff_(function() {
                 Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
             }, defaultMaxRetries);
         }
@@ -899,7 +882,7 @@ function processEventCleanup() {
  * @param {number} utcOffset - utc offset of the target calendar
  * @return {Array.String} Array with all recurrence components found in the provided event
  */
-function parseRecurrenceRule(vevent, utcOffset) {
+function parseRecurrenceRule_(vevent, utcOffset) {
     var recurrenceRules = vevent.getAllProperties('rrule');
     var exRules = vevent.getAllProperties('exrule'); //deprecated, for compatibility only
     var exDates = vevent.getAllProperties('exdate');
@@ -949,7 +932,7 @@ var backoffRecoverableErrors = [
     "internal error"
 ];
 
-function callWithBackoff(func, maxRetries) {
+function callWithBackoff_(func, maxRetries) {
     var tries = 0;
     var result;
     while (tries <= maxRetries) {
