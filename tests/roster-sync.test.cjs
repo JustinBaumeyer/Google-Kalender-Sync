@@ -68,6 +68,7 @@ function load(now = '2026-11-03T12:00:00Z') {
     vm.runInContext(fs.readFileSync(path.join(sourceDir, file), 'utf8'), context, { filename: file });
   }
   context.rosterUserId = '123';
+  context.rosterUserToken = 'test-token';
   context.defaultMaxRetries = 0;
   context.targetCalendarTimeZone = 'Europe/Berlin';
   context.syncOwnerId = 'test@example.com';
@@ -228,4 +229,8 @@ test('syncs month-edge shifts and keeps them through rollover without duplicates
   context.runSync_();
   assert.equal(stored.length, 3);
   assert.deepEqual(removed, []);
+  const deleted=stored.pop();
+  context.runSync_();
+  assert.equal(stored.length,3);
+  assert.equal(stored.filter(event=>event.extendedProperties.private.id===deleted.extendedProperties.private.id).length,1);
 });

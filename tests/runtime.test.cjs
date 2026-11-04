@@ -88,6 +88,7 @@ test('backoff never sleeps beyond the remaining runtime budget', () => {
 
 test('retry delays are capped and a roster shared by sources is fetched only once per run', () => {
   const c=load(shared(),owner),delays=[];
+  c.rosterUserId='123';c.rosterUserToken='test-token';
   c.Utilities.sleep=value=>delays.push(value);
   assert.equal(c.callWithBackoff_(()=>{throw new Error('internal error');},4),null);
   assert.equal(delays.length,4);assert.ok(delays.every(value=>value<8100));

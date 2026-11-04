@@ -170,6 +170,48 @@ test('editing credentials validates the visible employee ID in German and saves 
   }finally{await page.close();}
 });
 
+test('an unconfigured ROSTER source does not block saving, previewing or enabling subscriptions',async()=>{
+  const {page,app,server}=await open({sourceCalendars:[['ROSTER','Dienstplan',5,'calendar-'+alice],['https://example.com/feed.ics','Dienstplan',3,'calendar-'+alice]]});
+  try{
+    app.users.get(alice).delete('rosterUserId');app.users.get(alice).delete('rosterUserToken');
+    server.getRosterICal_=()=>assert.fail('Unconfigured ROSTER must stay inactive');
+    server.UrlFetchApp={fetch:()=>({getResponseCode:()=>200,getContentText:()=> 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR'})};
+    await page.evaluate(()=>action('getAppState',''));
+    assert.equal(await page.locator('#employee').inputValue(),'');
+    await save(page);
+    await page.locator('#preview').click();await page.locator('#previewPanel').waitFor({state:'visible'});
+    assert.equal(await page.locator('#previewErrors').textContent(),'');
+    await page.locator('#enable').click();await page.waitForFunction(()=>document.getElementById('status').textContent.includes('aktiv'));
+    assert.equal(server.getAppState().enabled,true);assert.equal(server.getAppState().hasToken,false);
+  }finally{await page.close();}
+});
+
+test('a failing user can copy a private error report directly from the app',async()=>{
+  const {page,server,errors}=await open();
+  try{
+    server.runSync_=()=>{
+      server.syncPhase='Private calendar: Termine verarbeiten';
+      const error=new TypeError("Cannot read properties of undefined (reading 'private')");
+      error.stack=error.message+'\n at processEvent_ (Helpers.gs:497:44)\n at runSync_ (Code:338:17)';
+      throw error;
+    };
+    await page.locator('#sync').click();await page.locator('#errorDetails').waitFor({state:'visible'});
+    await page.locator('#errorDetails summary').click();
+    const report=await page.locator('#errorReport').inputValue();
+    assert.ok(report.includes('Version: '+server.version));assert.ok(report.includes('Helpers.gs:497:44'));
+    assert.equal(report.includes('saved-token'),false);assert.equal(report.includes('Private calendar'),false);
+    assert.equal(await page.locator('#appVersion').textContent(),'Version '+server.version);
+    await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedReport=text;}}}));
+    await page.locator('#copyErrorReport').click();await page.getByText('Fehlerbericht kopiert.',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.copiedReport),report);
+    await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new Error('Clipboard blocked');}}}));
+    await page.locator('#copyErrorReport').click();await page.getByText('Den markierten Bericht kopieren und weitergeben.',{exact:true}).waitFor();
+    assert.equal(await page.locator('#errorReport').evaluate(el=>el.selectionEnd-el.selectionStart),report.length);
+    server.runSync_=()=>0;await page.locator('#sync').click();await page.locator('#errorDetails').waitFor({state:'hidden'});
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
 test('invalid regex and incomplete sources keep the existing saved preferences untouched',async()=>{
   const {page,server,calls}=await open();
   try {
