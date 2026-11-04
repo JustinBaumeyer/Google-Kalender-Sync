@@ -47,8 +47,16 @@
     <h1>Dienstplan-Sync</h1>
     <p class="muted">Dienstpläne und Kalender-Abos mit Google Kalender synchronisieren.</p>
     <span id="account" class="muted"></span>
+    <span id="appVersion" class="muted" style="margin-left:.7rem"></span>
   </header>
   <div class="status" aria-live="polite"><div id="status">Einstellungen werden geladen …</div><div id="lastSync" class="muted"></div><div id="lastError"></div></div>
+  <details id="errorDetails" class="panel" hidden>
+    <summary>Fehlerdetails</summary>
+    <p class="muted">Dieser Bericht enthält die Version, den fehlgeschlagenen Schritt und Dateipositionen. Zugangsdaten und Kalenderinhalte werden nicht übernommen. Du kannst ihn zur Fehlersuche weitergeben.</p>
+    <textarea id="errorReport" readonly aria-label="Fehlerbericht"></textarea>
+    <button type="button" id="copyErrorReport" class="secondary">Fehlerbericht kopieren</button>
+    <p id="errorReportMessage" class="muted" role="status"></p>
+  </details>
   <div id="syncPanel" class="progress-panel" hidden>
     <strong id="syncPhase" role="status" aria-live="polite"></strong>
     <progress id="syncProgress" aria-label="Fortschritt des aktuellen Synchronisierungsschritts"></progress>
@@ -68,7 +76,7 @@
     <fieldset id="settingsFields">
       <section>
         <h2>Dienstplan verbinden</h2>
-        <p class="muted">Die App verwendet deine eigenen Dienstplan-Zugangsdaten.</p>
+        <p class="muted">Die App verwendet deine eigenen Dienstplan-Zugangsdaten. Ohne Mitarbeiter-ID und Token bleibt die ROSTER-Quelle inaktiv. Kalender-Abos kannst du trotzdem verwenden.</p>
         <div id="connectionSummary" hidden><p id="connectionText"></p><button type="button" id="editConnection" class="secondary">Zugangsdaten ändern</button></div>
         <div id="connectionFields"><div class="grid">
           <label><span>Mitarbeiter-ID</span><input id="employee" inputmode="numeric" autocomplete="off" pattern="[0-9]+"></label>
@@ -354,8 +362,19 @@
       if (state.progress) showProgress(state.progress);
       if ((state.pending || state.progress && state.progress.status === 'running') && !syncRequestActive) pollProgress();
     }
+    function renderDiagnostics(state) {
+      $('appVersion').textContent = 'Version ' + state.version;
+      $('errorDetails').hidden = !state.diagnostic;
+      $('errorReport').value = state.diagnostic || '';
+      $('errorReportMessage').textContent = '';
+    }
+    async function copyErrorReport() {
+      try { await navigator.clipboard.writeText($('errorReport').value); $('errorReportMessage').textContent = 'Fehlerbericht kopiert.'; }
+      catch (_) { $('errorReport').focus(); $('errorReport').select(); $('errorReportMessage').textContent = 'Den markierten Bericht kopieren und weitergeben.'; }
+    }
     function renderDashboard(state) {
-      $('connectionBadge').textContent=state.hasToken?(state.connectionVerified?'Dienstplan verbunden':'Zugangsdaten gespeichert – Verbindung noch prüfen'):'Dienstplan noch nicht verbunden';
+      renderDiagnostics(state);
+      $('connectionBadge').textContent=!state.settings.addRosterToCal?'Dienstplan deaktiviert':state.rosterConfigured?(state.connectionVerified?'Dienstplan verbunden':'Zugangsdaten gespeichert – Verbindung noch prüfen'):'Dienstplan nicht eingerichtet. ROSTER wird übersprungen; Kalender-Abos können verwendet werden.';
       $('nextRun').textContent=state.nextRunAt?'Nächster geplanter Lauf: ungefähr '+new Date(state.nextRunAt).toLocaleString('de-DE'):'Kein automatischer Lauf geplant.';
       $('metrics').replaceChildren();$('metrics').hidden=!state.lastStats;
       if(state.lastStats)[['added','Hinzugefügt'],['updated','Aktualisiert'],['removed','Entfernt']].forEach(([key,title])=>{
@@ -375,7 +394,7 @@
       document.querySelectorAll('#preferences input').forEach(control => control.setCustomValidity(''));
       const settings = copy(current.settings);
       readers.forEach((read, name) => { settings[name] = read(); });
-      const credentials = collectRosterCredentials(settings.addRosterToCal);
+      const credentials = collectRosterCredentials(settings.addRosterToCal && settings.sourceCalendars.some(row=>row[0]==='ROSTER') && !!(current.hasToken || $('token').value.trim()));
       document.querySelectorAll('#preferences input').forEach(control => { if (!control.disabled && !control.closest('[hidden]') && !control.checkValidity()) invalid(control, control.validationMessage); });
       if (settings.errorNotificationEmail === '') invalid($('emailSettings').querySelector('input'), 'Bitte eine E-Mail-Adresse eingeben.');
       return Object.assign({settings}, credentials);
@@ -409,6 +428,9 @@
         syncRequestActive = false; clearTimeout(progressTimer);
         if (method === 'startSync') showProgress({phase: error.message || String(error), status: 'failed'});
         message(error.message || String(error), true);
+        if (method === 'startSync') {
+          try { renderDiagnostics(await call('getAppState')); } catch (_) {}
+        }
       }
       finally { busy(false); }
     }
@@ -473,6 +495,7 @@
       }catch(error){$('migrationMessage').textContent=error.message||String(error);}finally{busy(false);}
     }
     async function initialize(){busy(true);try{const [choices,state]=await Promise.all([call('getCalendarChoices'),call('getAppState')]);calendarChoices=choices;render(state);}catch(error){message(error.message||String(error),true);}finally{busy(false);}}
+    $('copyErrorReport').onclick = copyErrorReport;
     $('preferences').addEventListener('input', event => { if (event.target.setCustomValidity) event.target.setCustomValidity(''); setDirty(); });
     $('preferences').addEventListener('change', () => setDirty());
     $('preferences').addEventListener('submit', event => { event.preventDefault(); action('saveAppSettings', 'Einstellungen gespeichert.'); });

@@ -1,4 +1,4 @@
-var version = 10;
+var version = 11;
 var syncStats = {added: 0, updated: 0, removed: 0};
 var defaultMaxRetries = 4;
 var syncStartedAt = 0;
@@ -35,6 +35,25 @@ function timedSyncStep_(label, action) {
   finally { Logger.log(label + ": " + ((Date.now() - started) / 1000).toFixed(1) + " s"); }
 }
 
+/** Share only program locations and known phase names, never raw error bodies. */
+function buildSyncDiagnostic_(error) {
+  var phases = ["Synchronisierung wird vorbereitet", "Quellen laden", "Kalender öffnen", "vorhandene Termine laden",
+    "alte Termine zuordnen", "Termine auswerten", "Termine verarbeiten", "Termine prüfen", "Serientermine verarbeiten", "Serientermine wiederherstellen", "Laufstatus speichern"];
+  var phase = phases.find(function(name) { return syncPhase == name || syncPhase.endsWith(": " + name); }) || "Synchronisierung";
+  var types = ["Error", "TypeError", "ReferenceError", "RangeError", "SyntaxError", "URIError", "EvalError"];
+  var type = error && types.indexOf(error.name) != -1 ? error.name : "Error";
+  var lines = ["Dienstplan Sync – Fehlerbericht", "Version: " + version, "Zeit (UTC): " + new Date().toISOString(),
+    "Schritt: " + phase, "Fehlertyp: " + type];
+  var missing = /Cannot read properties of (undefined|null) \(reading '(private|extendedProperties|id|data|length)'\)/.exec(String(error && error.message || ""));
+  if (missing) lines.push("Fehler: " + missing[0]);
+  var frames = [];
+  String(error && error.stack || "").split("\n").forEach(function(line) {
+    var match = /(?:\(|\s)(Code|Helpers|Roster|WebApp|Preferences|Updates)(?:\.gs)?:(\d+)(?::(\d+))?\)?\s*$/.exec(line);
+    if (match && frames.length < 12) frames.push(match[1] + ".gs:" + match[2] + (match[3] ? ":" + match[3] : ""));
+  });
+  return lines.concat(frames.length ? ["Dateipositionen:"].concat(frames) : ["Keine Dateiposition verfügbar."]).join("\n");
+}
+
 function scheduleSyncContinuation_(remaining) {
   if (!ScriptApp.getProjectTriggers().some(function(trigger) { return trigger.getHandlerFunction() == "continueSync_"; })) {
     var continuation = ScriptApp.newTrigger("continueSync_").timeBased().after(60000).create();
@@ -66,8 +85,7 @@ function install_() {
   loadUserPreferences_();
   if (userPrp.getProperty("migrationNeedsCalendarSelection") == "true" && sourceCalendars.some(function(row) { return row.length < 4; }))
     throw new Error("Bitte zuerst die Zielkalender der übernommenen Quellen auswählen und speichern");
-  if (addRosterToCal && (rosterUserToken == null || rosterUserToken == defaultRosterToken || !/^\d+$/.test(rosterUserId || "")))
-    throw new Error("Bitte zuerst Dienstplan-Token und Mitarbeiter-ID speichern");
+  if (!hasActiveSyncSources_()) throw new Error("Bitte zuerst einen Dienstplan verbinden oder ein Kalender-Abo hinzufügen.");
 
   // Apps Script only returns triggers belonging to the current user.
   deleteAllTriggers_();
@@ -103,6 +121,7 @@ var startUpdateTime;
 
 // Per-calendar global variables (must be reset before processing each new calendar!)
 var calendarEvents = [];
+var cancelledCalendarEvents = [];
 var calendarEventsIds = [];
 var calendarEventsIndex = new Map(); // event id -> position in calendarEvents (first occurrence)
 var calendarEventsMD5Set = new Set();
@@ -126,6 +145,7 @@ function startSync(event){
 
   try {
     syncStartedAt = Date.now();
+    syncPhase = "Synchronisierung wird vorbereitet";
     syncDeadline = syncStartedAt + 240000; // Leave room before Google's execution limit.
     lastProgressWriteAt = 0;
     lastProgressPhase = "";
@@ -149,18 +169,17 @@ function startSync(event){
       });
     }
     loadUserPreferences_();
-    if (addRosterToCal && (rosterUserToken == null || rosterUserToken == defaultRosterToken)) {
-      throw new Error("Bitte zuerst deine Dienstplan-Zugangsdaten speichern");
-    }
+    if (!hasActiveSyncSources_()) throw new Error("Bitte zuerst einen Dienstplan verbinden oder ein Kalender-Abo hinzufügen.");
     var migrationRemaining = runSync_() || 0;
     timedSyncStep_("Laufstatus speichern", function() {
       userPrp.setProperties({lastSyncAt: new Date().toISOString(), lastSyncError: "",
         lastSyncDurationMs: String(Date.now() - syncStartedAt), migrationRemaining: String(migrationRemaining), syncPending: "false",
         syncStats: JSON.stringify(syncStats)}, false);
+      userPrp.deleteProperty("lastSyncDiagnostic");
     });
     if (migrationRemaining) scheduleSyncContinuation_(migrationRemaining);
     else {
-      if (addRosterToCal && sourceCalendars.some(function(row) { return row[0] == "ROSTER"; })) markRosterConnectionVerified_();
+      if (isRosterSourceActive_() && sourceCalendars.some(function(row) { return row[0] == "ROSTER"; })) markRosterConnectionVerified_();
       userPrp.setProperty("lastSyncStats", JSON.stringify(syncStats));
       publishSyncProgress_("Synchronisierung abgeschlossen", 1, 1, "complete");
     }
@@ -174,6 +193,7 @@ function startSync(event){
       return;
     }
     var message = err.message || err;
+    userPrp.setProperty("lastSyncDiagnostic", buildSyncDiagnostic_(err));
     Logger.log("Sync failed: " + message);
     userPrp.setProperty("lastSyncError", String(message));
     userPrp.setProperty("syncPending", "false");
@@ -199,6 +219,7 @@ function runSync_(){
   var failedCalendars = [];
   var adoptLegacyMigration = userPrp.getProperty("adoptLegacyEvents") == "true";
   var migrationAdopted = 0, migrationRemaining = 0;
+  var migrationDeferred = false;
   var resumeAt = Number(userPrp.getProperty("syncResumeCalendar")) || 0;
   for (var position = 0; position < calendars.length; position++){
       var calendarIndex = (resumeAt + position) % calendars.length;
@@ -206,6 +227,7 @@ function runSync_(){
       userPrp.setProperty("syncResumeCalendar", String(calendarIndex));
       //------------------------ Reset globals ------------------------
       calendarEvents = [];
+      cancelledCalendarEvents = [];
       calendarEventsIds = [];
       calendarEventsIndex = new Map();
       calendarEventsMD5Set = new Set();
@@ -223,6 +245,7 @@ function runSync_(){
         return fetchSourceCalendars_(sourceCalendarURLs);
       });
       var responses = fetched.responses;
+      if (fetched.inactiveSources) migrationDeferred = true;
       if (fetched.failedSources > 0){
         // Proceeding with missing sources would delete all their events from the
         // target calendar, so leave this calendar untouched until the next run.
@@ -264,6 +287,9 @@ function runSync_(){
             listFailed = true;
             break;
           }
+          cancelledCalendarEvents = cancelledCalendarEvents.concat((eventList.items || []).filter(function(item) {
+            return item.status == "cancelled" && item.recurringEventId && item.originalStartTime;
+          }));
           var ownItems = (eventList.items || []).filter(function(item) {
             return !!getOwnedSyncProperties_(item, adoptLegacy);
           });
@@ -339,7 +365,12 @@ function runSync_(){
       }
 
       //------------------------ Remove old events from calendar ------------------------
-      if(removeEventsFromCalendar){
+      if (addEventsToCalendar && cancelledCalendarEvents.length) {
+        syncPhase = targetCalendarName + ": Serientermine wiederherstellen";
+        restoreDeletedOccurrences_(vevents, targetCalendarTimeZone);
+      }
+      // An inactive source's events cannot be compared with the partial feed.
+      if(removeEventsFromCalendar && !fetched.inactiveSources){
         syncPhase = targetCalendarName + ": Termine prüfen";
         Logger.log("Checking " + calendarEvents.length + " events for removal");
         processEventCleanup_();
@@ -348,6 +379,7 @@ function runSync_(){
 
       //------------------------ Add Recurring Event Instances ------------------------
       Logger.log("Processing " + recurringEvents.length + " Recurrence Instances!");
+      syncPhase = targetCalendarName + ": Serientermine verarbeiten";
       for (var recEvent of recurringEvents){
         checkSyncBudget_();
         processEventInstance_(recEvent);
@@ -355,7 +387,7 @@ function runSync_(){
   }
   if (failedCalendars.length > 0)
     throw new Error("Sync incomplete, could not fetch all sources for: " + failedCalendars.join(", "));
-  if (adoptLegacyMigration && !migrationRemaining) userPrp.deleteProperty("adoptLegacyEvents");
+  if (adoptLegacyMigration && !migrationRemaining && !migrationDeferred) userPrp.deleteProperty("adoptLegacyEvents");
   userPrp.deleteProperty("syncResumeCalendar");
   Logger.log("Sync finished!");
   return migrationRemaining;

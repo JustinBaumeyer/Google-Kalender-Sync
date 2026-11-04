@@ -61,10 +61,12 @@ function getAppState() {
   var settings = readUserPreferences_(saved);
   var enabled = ScriptApp.getProjectTriggers().some(function(trigger) { return trigger.getHandlerFunction() == "startSync"; });
   return {
+    version: version,
     email: email,
     settings: JSON.parse(encodePreferences_(settings)),
     rosterUserId: saved.rosterUserId || "",
     hasToken: !!saved.rosterUserToken,
+    rosterConfigured: hasRosterCredentials_(saved.rosterUserId, saved.rosterUserToken),
     enabled: enabled,
     hasSavedPreferences: !!saved.preferences,
     isOwner: email == scriptPrp.getProperty("appOwnerEmail"),
@@ -76,6 +78,7 @@ function getAppState() {
     needsCalendarSelection: saved.migrationNeedsCalendarSelection == "true",
     lastSync: saved.lastSyncAt,
     lastError: saved.lastSyncError,
+    diagnostic: saved.lastSyncDiagnostic || "",
     pending: saved.syncPending == "true",
     migrationRemaining: Number(saved.migrationRemaining) || 0,
     progress: saved.syncProgress ? JSON.parse(saved.syncProgress) : null
@@ -95,7 +98,7 @@ function saveAppSettings(input) {
   var serialized = validatePreferences_(preferences);
   var values = {preferences: serialized};
   if (input.rosterUserId !== undefined) {
-    if (!/^\d+$/.test(String(input.rosterUserId)) && !(input.rosterUserId === "" && preferences.addRosterToCal === false))
+    if (input.rosterUserId !== "" && !/^\d+$/.test(String(input.rosterUserId)))
       throw new Error("Die Mitarbeiter-ID darf nur Ziffern enthalten");
     values.rosterUserId = String(input.rosterUserId);
   }
@@ -214,8 +217,6 @@ function withDraftPreferences_(input, operation) {
     var draftToken = input && input.rosterUserToken && input.rosterUserToken.trim();
     rosterUserId = input && input.rosterUserId !== undefined ? String(input.rosterUserId).trim() : savedId;
     rosterUserToken = draftToken || savedToken;
-    if (addRosterToCal && (!/^\d+$/.test(rosterUserId || "") || !rosterUserToken))
-      throw new Error("Bitte Mitarbeiter-ID und Dienstplan-Token eingeben.");
     syncDeadline = Date.now() + 120000;
     // Diagnostics never rotate a draft token or write to a destination calendar.
     var mayRefresh = !draftToken && savedToken && rosterUserId == savedId && settings.rosterUrl == original.rosterUrl;
@@ -241,6 +242,7 @@ function withDraftPreferences_(input, operation) {
 function testRosterConnection(input) {
   return withDraftPreferences_(input, function(settings, fetchRoster) {
     if (!addRosterToCal) throw new Error("Bitte die Dienstplan-Quelle zum Prüfen aktivieren.");
+    if (!hasRosterCredentials_(rosterUserId, rosterUserToken)) throw new Error("Bitte Mitarbeiter-ID und Dienstplan-Token eingeben.");
     addRosterSinceStart = false; addYearSummary = false; addTeamPartner = false; addRelief = false;
     var content = fetchRoster();
     if (!content) throw new Error("Der Dienstplan konnte nicht geladen werden.");
@@ -305,7 +307,7 @@ function previewSynchronization(input) {
         var sources = [];
         calendar[1].forEach(function(source) {
           if (source[0] == "ROSTER") {
-            if (!addRosterToCal) return;
+            if (!isRosterSourceActive_()) return;
             if (cachedRoster === undefined) cachedRoster = fetchRoster();
             if (!cachedRoster) throw new Error("Der Dienstplan konnte nicht geladen werden.");
             sources.push([cachedRoster, source[1]]);
@@ -366,7 +368,7 @@ function importLegacyCopy(input) {
   if (payload.oldSyncPaused !== true) throw new Error("Bitte zuerst die Synchronisierung in der bisherigen Kopie pausieren.");
   var settings = decodePreferences_(JSON.stringify(payload.settings));
   var serialized = validatePreferences_(settings);
-  if (!/^\d+$/.test(String(payload.rosterUserId || "")) && settings.addRosterToCal !== false)
+  if (String(payload.rosterUserId || "") && !/^\d+$/.test(String(payload.rosterUserId)))
     throw new Error("Im Umzugscode fehlt eine gültige Mitarbeiter-ID.");
   if (typeof payload.rosterUserToken != "string" || Utilities.newBlob(payload.rosterUserToken).getBytes().length > 9000)
     throw new Error("Im Umzugscode ist der Dienstplan-Token ungültig.");
