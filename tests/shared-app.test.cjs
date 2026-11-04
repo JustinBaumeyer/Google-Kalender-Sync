@@ -189,6 +189,38 @@ test('legacy adoption tags unowned events, excludes other accounts and finishes 
   assert.equal(app.users.get(owner).has('adoptLegacyEvents'), false);
 });
 
+test('sync ignores incomplete or unmarked event metadata in regular runs and legacy adoption', () => {
+  for (const adopt of [true,false]) {
+    const app=shared(),c=load(app,owner);
+    save(c,'100','owner-token');c.loadUserPreferences_();
+    if(adopt)app.users.get(owner).set('adoptLegacyEvents','true');
+    const untouched=[
+      {id:'no-metadata'},
+      {id:'shared-only',extendedProperties:{shared:{fromGAS:'true'}}},
+      {id:'empty-private',extendedProperties:{private:{}}},
+      {id:'missing-source-id',extendedProperties:{private:{fromGAS:'true',syncOwner:owner}}},
+      {id:'unmarked',extendedProperties:{private:{id:'unmarked',syncOwner:owner}}},
+    ].map(event=>({...event,start:{date:'2099-01-01'},end:{date:'2099-01-02'}}));
+    const original=JSON.stringify(untouched),claimed=[];
+    const valid={id:'keep-google',start:{date:'2099-01-01'},end:{date:'2099-01-02'},
+      extendedProperties:{private:{id:'keep',fromGAS:'true',MD5:'unchanged',...(adopt?{}:{syncOwner:owner})}}};
+    c.fetchSourceCalendars_=()=>({responses:[['unused']],failedSources:0});
+    c.setupTargetCalendar_=()=>({id:'shared',timeZone:'Europe/Berlin'});
+    c.parseResponses_=()=>{c.icsEventsIds=['keep'];return [];};c.consolidateVevents_=events=>events;
+    c.Calendar={Events:{
+      list:()=>({items:untouched.concat(valid)}),
+      patch:(_,__,id)=>{claimed.push(id);return valid;},
+      remove:()=>assert.fail('Existing events must be preserved'),
+      insert:()=>assert.fail('Existing events must not be duplicated'),
+      update:()=>assert.fail('Existing events must not be rewritten'),
+    }};
+    c.runSync_();
+    assert.deepEqual(claimed,adopt?['keep-google']:[]);
+    assert.equal(JSON.stringify(untouched),original);
+    assert.deepEqual(Array.from(c.calendarEventsIds),['keep']);
+  }
+});
+
 test('scheduled error emails use the current account and throttle separately', () => {
   const app = shared(), a = load(app, alice), b = load(app, bob);
   save(a, '100', 'a', { errorNotificationEmail: true });

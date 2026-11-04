@@ -980,6 +980,13 @@ function callWithBackoff_(func, maxRetries) {
     return null;
 }
 
+// A missing owner alone does not identify a legacy sync event.
+function getOwnedSyncProperties_(event, allowLegacy) {
+    var properties = event && event.extendedProperties && event.extendedProperties.private;
+    if (!properties || properties.fromGAS !== "true" || !(properties["rec-id"] || properties.id)) return null;
+    return properties.syncOwner === syncOwnerId || (allowLegacy && !properties.syncOwner) ? properties : null;
+}
+
 // Pagination plus an ownership check also protects migrated recurrence overrides
 // when different accounts share a destination calendar and source UID.
 function findOwnedEventInstances_(options) {
@@ -991,8 +998,7 @@ function findOwnedEventInstances_(options) {
         var page = callWithBackoff_(function() { return Calendar.Events.list(targetCalendarId, params); }, defaultMaxRetries);
         if (page == null) return null;
         var own = (page.items || []).filter(function(item) {
-            var owner = ((item.extendedProperties || {}).private || {}).syncOwner;
-            return owner == syncOwnerId || (adoptLegacy && !owner);
+            return !!getOwnedSyncProperties_(item, adoptLegacy);
         });
         if (own.length) return own.slice(0, 1);
         params.pageToken = page.nextPageToken;

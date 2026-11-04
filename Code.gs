@@ -265,8 +265,7 @@ function runSync_(){
             break;
           }
           var ownItems = (eventList.items || []).filter(function(item) {
-            var owner = ((item.extendedProperties || {}).private || {}).syncOwner;
-            return owner == syncOwnerId || (adoptLegacy && !owner);
+            return !!getOwnedSyncProperties_(item, adoptLegacy);
           });
           var legacyCount = ownItems.filter(function(item) { return !item.extendedProperties.private.syncOwner; }).length;
           var calendarAdopted = 0;
