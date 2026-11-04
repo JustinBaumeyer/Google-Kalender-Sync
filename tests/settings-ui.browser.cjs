@@ -124,6 +124,52 @@ test('sources, colors, weekdays, times and shift codes save through real server 
   }finally{await page.close();}
 });
 
+test('hidden autofilled credentials do not block saving, diagnostics or synchronization',async()=>{
+  const {page,server,app,errors}=await open();
+  const autofill=()=>page.evaluate(()=>{
+    document.getElementById('employee').value='autofilled@example.com';
+    document.getElementById('token').value='autofilled-password';
+    document.getElementById('employee').dispatchEvent(new Event('input',{bubbles:true}));
+  });
+  try{
+    assert.equal(await page.locator('#connectionFields').isVisible(),false);
+    server.getRosterICal_=()=>{
+      assert.equal(server.rosterUserId,'123');assert.equal(server.rosterUserToken,'saved-token');
+      return 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR';
+    };
+    server.runSync_=()=>{assert.equal(server.rosterUserId,'123');assert.equal(server.rosterUserToken,'saved-token');return 0;};
+    await autofill();
+    await page.getByRole('button',{name:'Einstellungen speichern',exact:true}).click();
+    await page.getByText('Einstellungen gespeichert.',{exact:true}).waitFor({timeout:2000});
+    await autofill();await page.locator('#testConnection').click();
+    await page.locator('#connectionResult').getByText('Verbindung funktioniert.',{exact:true}).waitFor({timeout:2000});
+    await autofill();await page.locator('#preview').click();
+    await page.locator('#previewPanel').waitFor({state:'visible',timeout:2000});
+    assert.equal(await page.locator('#previewErrors').textContent(),'');
+    await autofill();await page.locator('#sync').click();
+    await page.getByText('Synchronisierung abgeschlossen',{exact:true}).waitFor({timeout:3000});
+    assert.equal(app.users.get(alice).get('rosterUserId'),'123');
+    assert.equal(app.users.get(alice).get('rosterUserToken'),'saved-token');
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+test('editing credentials validates the visible employee ID in German and saves intentional changes',async()=>{
+  const {page,app,calls}=await open();
+  try{
+    await page.locator('#editConnection').click();
+    await page.locator('#employee').fill('not-a-number');
+    await page.getByRole('button',{name:'Einstellungen speichern',exact:true}).click();
+    await page.getByText('Die Mitarbeiter-ID darf nur Ziffern enthalten.',{exact:true}).waitFor({timeout:2000});
+    assert.equal(await page.locator('#employee').evaluate(el=>el===document.activeElement),true);
+    assert.equal(calls.includes('saveAppSettings'),false);
+    await page.locator('#employee').fill(' 456 ');await page.locator('#token').fill('new-token');
+    await save(page);
+    assert.equal(app.users.get(alice).get('rosterUserId'),'456');
+    assert.equal(app.users.get(alice).get('rosterUserToken'),'new-token');
+  }finally{await page.close();}
+});
+
 test('invalid regex and incomplete sources keep the existing saved preferences untouched',async()=>{
   const {page,server,calls}=await open();
   try {
@@ -290,5 +336,15 @@ test('migration provides an unchanged snippet, imports a pasted code and leaves 
     assert.equal(server.getAppState().settings.howFrequent,60);assert.equal(server.getAppState().enabled,false);
     assert.equal(server.getAppState().rosterUserId,'777');assert.equal(await page.locator('#migrationCode').inputValue(),'');
     assert.equal((await page.locator('body').textContent()).includes('migration-test-secret'),false);
+    await page.evaluate(()=>{
+      document.getElementById('employee').value='autofilled@example.com';
+      document.getElementById('token').value='autofilled-password';
+      document.getElementById('employee').dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await save(page);
+    server.runSync_=()=>{assert.equal(server.rosterUserId,'777');assert.equal(server.rosterUserToken,'migration-test-secret');return 0;};
+    await page.locator('#sync').click();
+    await page.getByText('Synchronisierung abgeschlossen',{exact:true}).waitFor();
+    assert.equal(server.getAppState().rosterUserId,'777');
   }finally{await page.close();}
 });
