@@ -184,7 +184,7 @@ test('recurring overrides never patch another account and empty pages can safely
   const c=load(shared(),alice);c.loadUserPreferences_();let patched;
   c.Calendar.Events={
     list:(_,options)=>{assert.ok(Array.from(options.privateExtendedProperty).includes('syncOwner='+alice));return {items:[
-      {id:'other',extendedProperties:{private:{syncOwner:bob}}},{id:'own',extendedProperties:{private:{syncOwner:alice}}},
+      {id:'other',extendedProperties:{private:{id:'series',fromGAS:'true',syncOwner:bob}}},{id:'own',extendedProperties:{private:{id:'series',fromGAS:'true',syncOwner:alice}}},
     ]};},
     update:(_,__,id)=>{patched=id;return {};},insert:()=>assert.fail('Existing override duplicated'),
   };
@@ -192,4 +192,17 @@ test('recurring overrides never patch another account and empty pages can safely
   c.processEventInstance_(event);assert.equal(patched,'own');assert.equal(c.syncStats.updated,1);
   c.Calendar.Events.list=()=>({});let inserted=0;c.Calendar.Events.insert=()=>{inserted++;return {};};
   c.processEventInstance_(event);assert.equal(inserted,1);
+});
+
+test('legacy recurrence lookup skips incomplete metadata and continues to the matching page',()=>{
+  const app=shared(),c=load(app,alice);c.loadUserPreferences_();app.users.get(alice).set('adoptLegacyEvents','true');
+  let pages=0;
+  c.Calendar.Events={list:(_,options)=>{
+    pages++;
+    if(!options.pageToken)return {items:[{id:'missing'},{id:'shared-only',extendedProperties:{shared:{id:'series'}}},
+      {id:'unmarked',extendedProperties:{private:{id:'series'}}}],nextPageToken:'next'};
+    return {items:[{id:'legacy',extendedProperties:{private:{id:'series',fromGAS:'true'}}}]};
+  }};
+  const events=c.findOwnedEventInstances_({privateExtendedProperty:['fromGAS=true','id=series']});
+  assert.equal(pages,2);assert.equal(events[0].id,'legacy');
 });

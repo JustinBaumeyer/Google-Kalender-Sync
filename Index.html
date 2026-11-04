@@ -129,7 +129,7 @@
     <ol><li>Öffne deine bisherige Kopie im Skripteditor. Lege eine neue Skriptdatei an und füge die Migrationshilfe unverändert ein. Deine settings.gs bleibt unverändert.</li><li>Wähle <strong>prepareSharedAppMigration</strong> neben „Ausführen“ und starte die Funktion. Sie pausiert nur die alten Sync-Auslöser und speichert einen Umzugscode.</li><li>Kopiere unter <strong>Projekteinstellungen → Skripteigenschaften</strong> den Wert <strong>DienstplanMigration</strong> und füge ihn unten ein.</li></ol>
     <fieldset id="migrationFields"><button type="button" id="copyMigration" class="secondary">Migrationshilfe kopieren</button><textarea id="migrationSnippet" readonly hidden aria-label="Fertige Migrationshilfe zum Kopieren"></textarea>
     <p class="muted">Der Code enthält deinen Token und gilt 24 Stunden. Gib ihn nur hier beim Import ein. Danach die Eigenschaft und die Hilfsdatei in der alten Kopie löschen. Die alte Kopie selbst kannst du als Backup behalten.</p>
-    <label><span>Umzugscode einfügen</span><input id="migrationCode" type="password" autocomplete="off" spellcheck="false"></label>
+    <label><span>Umzugscode einfügen</span><input id="migrationCode" type="password" autocomplete="off" spellcheck="false" aria-describedby="migrationCodeHint"><small id="migrationCodeHint">Den vollständigen Wert der Skripteigenschaft kopieren. Er beginnt mit DPSYNC1.</small></label>
     <label id="replaceMigrationLabel" class="toggle"><input id="replaceMigration" type="checkbox"><span>Meine bereits gespeicherten Einstellungen durch den Umzug ersetzen</span></label>
     <button type="button" id="importMigration">Einstellungen übernehmen</button></fieldset><p id="migrationMessage" role="status"></p>
   </section>
@@ -362,14 +362,23 @@
         const metric=element('div',undefined,'metric');metric.append(element('strong',String(state.lastStats[key]||0)),element('small',title));$('metrics').append(metric);
       });
     }
+    function collectRosterCredentials(required) {
+      if ($('connectionFields').hidden) return {};
+      const employee = $('employee');
+      employee.setCustomValidity(''); employee.value = employee.value.trim(); employee.required = required;
+      if (employee.value.startsWith('DPSYNC1.')) invalid(employee, 'Das ist ein Umzugscode. Bitte unter „Aus deiner bisherigen Kopie umziehen“ in „Umzugscode einfügen“ verwenden.');
+      if (required && !employee.value) invalid(employee, 'Bitte die Mitarbeiter-ID eingeben.');
+      if (employee.value && !/^[0-9]+$/.test(employee.value)) invalid(employee, 'Die Mitarbeiter-ID darf nur Ziffern enthalten.');
+      return {rosterUserId: employee.value, rosterUserToken: $('token').value};
+    }
     function collect() {
       document.querySelectorAll('#preferences input').forEach(control => control.setCustomValidity(''));
       const settings = copy(current.settings);
       readers.forEach((read, name) => { settings[name] = read(); });
-      $('employee').required = settings.addRosterToCal;
-      document.querySelectorAll('#preferences input').forEach(control => { if (!control.disabled && !control.parentElement.hidden && !control.checkValidity()) invalid(control, control.validationMessage); });
+      const credentials = collectRosterCredentials(settings.addRosterToCal);
+      document.querySelectorAll('#preferences input').forEach(control => { if (!control.disabled && !control.closest('[hidden]') && !control.checkValidity()) invalid(control, control.validationMessage); });
       if (settings.errorNotificationEmail === '') invalid($('emailSettings').querySelector('input'), 'Bitte eine E-Mail-Adresse eingeben.');
-      return {settings, rosterUserId: $('employee').value.trim(), rosterUserToken: $('token').value};
+      return Object.assign({settings}, credentials);
     }
     function call(method, argument) {
       return new Promise((resolve, reject) => {
@@ -422,7 +431,7 @@
     }
     async function diagnostic(kind) {
       let payload;
-      try{payload=kind==='preview'?collect():{settings:{rosterUrl:readers.get('rosterUrl')(),addRosterToCal:readers.get('addRosterToCal')()},rosterUserId:$('employee').value.trim(),rosterUserToken:$('token').value};}
+      try{payload=kind==='preview'?collect():Object.assign({settings:{rosterUrl:readers.get('rosterUrl')(),addRosterToCal:readers.get('addRosterToCal')()}},collectRosterCredentials(readers.get('addRosterToCal')()));}
       catch(error){message(error.message,true);return;}
       busy(true);message(kind==='preview'?'Vorschau wird geladen …':'Verbindung wird geprüft …');
       try{
