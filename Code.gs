@@ -1,4 +1,4 @@
-var version = 11;
+var version = 12;
 var syncStats = {added: 0, updated: 0, removed: 0};
 var defaultMaxRetries = 4;
 var syncStartedAt = 0;

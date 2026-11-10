@@ -136,7 +136,7 @@ function disconnectApp() {
   requireWebUser_();
   var lock = LockService.getUserLock();
   if (!lock.tryLock(0)) throw new Error("Eine Synchronisierung läuft. Bitte danach erneut versuchen");
-  try { userPrp.deleteAllProperties(); deleteAllTriggers_(); }
+  try { clearAnnualRosterCache_(); userPrp.deleteAllProperties(); deleteAllTriggers_(); }
   finally { lock.releaseLock(); }
   return getAppState();
 }
@@ -243,12 +243,30 @@ function testRosterConnection(input) {
   return withDraftPreferences_(input, function(settings, fetchRoster) {
     if (!addRosterToCal) throw new Error("Bitte die Dienstplan-Quelle zum Prüfen aktivieren.");
     if (!hasRosterCredentials_(rosterUserId, rosterUserToken)) throw new Error("Bitte Mitarbeiter-ID und Dienstplan-Token eingeben.");
-    addRosterSinceStart = false; addYearSummary = false; addTeamPartner = false; addRelief = false;
+    addRosterSinceStart = false; addTeamPartner = false; addRelief = false;
     var content = fetchRoster();
     if (!content) throw new Error("Der Dienstplan konnte nicht geladen werden.");
     var components = new ICAL.Component(ICAL.parse(content)).getAllSubcomponents("vevent");
     markRosterConnectionVerified_();
     return {ok: true, message: "Verbindung funktioniert.", eventsFound: components.length};
+  });
+}
+
+function getAnnualRosterSummary(input) {
+  requireWebUser_();
+  if(!input||!Number.isInteger(input.year)||input.year<2020||input.year>2099||['BW','BY','BE','BB','HB','HH','HE','MV','NI','NW','RP','SL','SN','ST','SH','TH','DE'].indexOf(input.region)==-1||typeof input.includeFuture!='boolean')
+    throw new Error('Bitte ein Jahr ab 2020 und einen Feiertagskalender auswählen.');
+  var dates=input.extraDates||[];
+  if(input.forceReload!==undefined&&typeof input.forceReload!='boolean')throw new Error('Die Aktualisierungsoption ist ungültig.');
+  if(!Array.isArray(dates)||dates.length>100||!dates.every(function(day){return typeof day=='string'&&/^\d{4}-\d{2}-\d{2}$/.test(day)&&!isNaN(Date.parse(day))&&new Date(day+'T12:00:00Z').toISOString().slice(0,10)==day;}))
+    throw new Error('Bitte gültige zusätzliche Feiertage auswählen.');
+  return withDraftPreferences_({},function(){
+    if(!hasRosterCredentials_(rosterUserId,rosterUserToken))throw new Error('Bitte zuerst Mitarbeiter-ID und Dienstplan-Token speichern.');
+    var reportTimeZone='Europe/Berlin'; // German tax/tariff windows use local German time.
+    var holidayData=fetchRosterReportHolidays_(input.year,input.region);
+    var source=loadAnnualRosterData_(input.year,reportTimeZone,!!input.forceReload);
+    return calculateAnnualRosterSummary_(source,{year:input.year,timeZone:reportTimeZone,region:input.region,extraDates:dates,includeFuture:input.includeFuture,
+      holidayDates:holidayData.dates,holidayProvider:holidayData.provider,holidayNotes:holidayData.notes});
   });
 }
 

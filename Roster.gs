@@ -340,7 +340,6 @@ function parseShiftToCal_(shift, legend, teamIndex) {
     var tagesbemerkung = shift.data.rosterDetails.tagesbemerkung; // day-level note, applies to every block
 
     var result = [];
-    var summary = [];
     blocks.forEach(block => {
         var leg = legend[block.shortName] || {};
         var shiftType = leg.shiftTypeName || block.nameShiftType || "";
@@ -397,9 +396,8 @@ function parseShiftToCal_(shift, legend, teamIndex) {
             end: block.end,
             transparent: transparent
         });
-        summary.push(block.shortName);
     });
-    return {"blocks": result, "list": summary};
+    return {blocks: result};
 }
 
 /**
@@ -497,18 +495,14 @@ function generateRosterPayload_(now) {
             throw new Error("Could not determine roster contract start date");
         startMonth = new Date(Date.UTC(contractStart.getUTCFullYear(), contractStart.getUTCMonth(), 1));
     }
-    if (addYearSummary) {
-        if (!/^\d{4}$/.test(String(summaryYear)) || Number(summaryYear) < 1000)
-            throw new Error("summaryYear must be a four-digit year");
-        startMonth = new Date(Date.UTC(Number(summaryYear), 0, 1));
-        endMonth = new Date(Date.UTC(Number(summaryYear) + 1, 0, 1));
-    }
 
+    return buildRosterMonthPayload_(startMonth, endMonth, timeZone);
+}
+
+function buildRosterMonthPayload_(startMonth, endMonth, timeZone) {
     function monthStart(date) {
-        var day = Utilities.formatDate(date, "GMT", "yyyy-MM-dd");
-        return Utilities.parseDate(day, timeZone, "yyyy-MM-dd");
+        return Utilities.parseDate(date.toISOString().slice(0,10), timeZone, 'yyyy-MM-dd');
     }
-
     var months = [];
     while (startMonth < endMonth) {
         var nextMonth = new Date(Date.UTC(startMonth.getUTCFullYear(), startMonth.getUTCMonth() + 1, 1));
@@ -533,7 +527,6 @@ function getRosterICal_(skipTokenRefresh) {
             var jsonResponse = JSON.parse(rosterFetch_("rosters/preload", "POST", generateRosterPayload_()))
             var icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//GoogleKalenderSync/EN\nMETHOD:REQUEST\nNAME:Roster\nX-WR-CALNAME:Roster\n";
             
-            var dienstCount = new Map();
             var seenAbsences = {}; // fehlzeiten are repeated in every month, so dedupe by approvalId
             var allShiftBlocks = []; // collected across all months so consolidation can span month boundaries
 
@@ -573,15 +566,6 @@ function getRosterICal_(skipTokenRefresh) {
                 month.rosterDetails.forEach(shift => {
                   var data = parseShiftToCal_(shift, legend, teamIndex)
                     allShiftBlocks = allShiftBlocks.concat(data.blocks)
-                    if (addYearSummary) {
-                        data.list.forEach(d => {
-                            if(dienstCount.has(d)) {
-                                dienstCount.set(d, dienstCount.get(d)+1)
-                            } else {
-                                dienstCount.set(d, 1)
-                            }
-                        })
-                    }
                 })
                 if(addRosterRequests) {
                   month.rosterUrlaubEinsatzwunsch.data.data[0].item2.data.forEach(day => {
@@ -622,15 +606,6 @@ function getRosterICal_(skipTokenRefresh) {
                 icsContent += shiftBlockToICal_(block);
             });
 
-            if (addYearSummary) {
-              Logger.log("Year: " + summaryYear);
-              var loggerText = ""
-              dienstCount = new Map([...dienstCount.entries()].sort());
-              dienstCount.forEach((key, value) => {
-                  loggerText += value + ": " + key + ","
-              })
-              Logger.log(loggerText.slice(0,-1))
-            }
             if(updateAvailable== "true") {
               var date = toICalDate_(new Date())
               icsContent += generateICalEntry_(date+"-updateNotification",date,date,"Dienstplan Update verfügbar","Es ist ein Update für das Dienstplanprogramm verfügbar. Bitte den Updateanweisungen in der Gruppe folgen.");
@@ -640,4 +615,179 @@ function getRosterICal_(skipTokenRefresh) {
             icsContent += "END:VCALENDAR"
             return icsContent;
     }, defaultMaxRetries);
+}
+
+function rosterReportPayload_(year, timeZone) {
+    return buildRosterMonthPayload_(new Date(Date.UTC(year,-1,1)), new Date(Date.UTC(year,13,1)), timeZone);
+}
+
+function fetchRosterReportHolidays_(year, region) {
+    var cache=typeof CacheService!='undefined'?CacheService.getScriptCache():null,key='roster-tax-holidays:v1:'+year+':'+region;
+    var raw=cache&&cache.get(key),data;
+    if(raw){try{data=JSON.parse(raw);}catch(_){raw=null;}}
+    if(!raw){
+        var response=UrlFetchApp.fetch('https://feiertage-api.de/api/?jahr='+year+'&nur_land='+(region=='DE'?'NATIONAL':region),{muteHttpExceptions:true});
+        if(response.getResponseCode()!=200)throw new Error('Die Feiertags-API ist derzeit nicht erreichbar (HTTP '+response.getResponseCode()+'). Bitte später erneut versuchen.');
+        try{data=JSON.parse(response.getContentText());}catch(_){throw new Error('Die Feiertags-API hat keine gültigen Daten geliefert.');}
+    }
+    if(!data||typeof data!='object'||Array.isArray(data))throw new Error('Die Feiertags-API hat ein unbekanntes Format geliefert.');
+    var entries=Object.keys(data).map(function(name){
+        var item=data[name],date=item&&item.datum;
+        if(typeof date!='string'||!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number(date.slice(0,4))!=year||isNaN(Date.parse(date))||new Date(date+'T12:00:00Z').toISOString().slice(0,10)!=date)
+            throw new Error('Die Feiertags-API hat ein ungültiges Datum geliefert.');
+        return {name:name.slice(0,120),date:date,note:String(item.hinweis||'').slice(0,600)};
+    });
+    var dates=new Set(entries.map(function(entry){return entry.date;}));
+    if(entries.length<9||entries.length>40||!['01-01','05-01','10-03','12-25','12-26'].every(function(day){return dates.has(year+'-'+day);}))
+        throw new Error('Die Feiertagsdaten sind unvollständig. Es wird keine geschätzte Feiertagsberechnung verwendet.');
+    if(cache&&!raw)cache.put(key,JSON.stringify(data),21600);
+    return {provider:'feiertage-api.de',dates:entries.filter(function(entry){return !entry.note.trim();}).map(function(entry){return entry.date;}),
+        notes:entries.filter(function(entry){return !!entry.note.trim();}),region:region};
+}
+
+function rosterReportUnion_(entries) {
+    var result = [];
+    entries.slice().sort(function(a,b) { return a.start-b.start || a.end-b.end; }).forEach(function(entry) {
+        var last=result[result.length-1];
+        if (last && entry.start <= last.end) {
+            last.end=Math.max(last.end,entry.end);
+            last.sites=Array.from(new Set(last.sites.concat(entry.sites)));
+            last.codes=Array.from(new Set(last.codes.concat(entry.codes)));
+        } else result.push({start:entry.start,end:entry.end,sites:entry.sites.slice(),codes:entry.codes.slice()});
+    });
+    return result;
+}
+
+function collectAnnualRosterEntries_(months, year, timeZone, ignoreCodes) {
+    var from=Utilities.parseDate(year+'-01-01',timeZone,'yyyy-MM-dd').getTime();
+    var until=Utilities.parseDate((year+1)+'-01-01',timeZone,'yyyy-MM-dd').getTime();
+    var entries=[],standby=[],seen=new Set(),invalid=0,duplicates=0,visited=0;
+    if (!Array.isArray(months)||!months.length) throw new Error('Die Dienstplan-Antwort enthält keine Monatsdaten.');
+    months.forEach(function(month) {
+        checkSyncBudget_();
+        if(!month||!Array.isArray(month.rosterDetails))throw new Error('Die Monatsdaten des Dienstplans sind unvollständig.');
+        var legend={};
+        var definitions=((((month.rosterUrlaubEinsatzwunsch||{}).data||{}).legendDuties||{}).entries||[]);
+        definitions.forEach(function(item) { legend[item.shortName]=item; });
+        (month.rosterDetails||[]).forEach(function(shift) {
+            (((shift.data||{}).rosterDetails||{}).entries||[]).forEach(function(entry) {
+                if(++visited%100==0)checkSyncBudget_();
+                if(visited>50000)throw new Error('Die Quelle enthält zu viele Diensteinträge für eine Jahresübersicht.');
+                if (ignoreCodes.indexOf(entry.shortName)!=-1) return;
+                if(typeof entry.from!='string'||typeof entry.to!='string'){invalid++;return;}
+                var start=new Date(entry.from).getTime(),end=new Date(entry.to).getTime();
+                if (!Number.isFinite(start)||!Number.isFinite(end)||end<=start) { invalid++;return; }
+                if (end<=from||start>=until) return;
+                var site=String(entry.nameWorkplace||'Einsatzort fehlt'),code=String(entry.shortName||'Ohne Kürzel');
+                var key=JSON.stringify([start,end,site,code]);
+                if(seen.has(key)) {duplicates++;return;}seen.add(key);
+                var type=String((legend[code]||{}).shiftTypeName||entry.nameShiftType||'').trim().toLowerCase();
+                if(/^(frei|dienstfrei|freier tag|urlaub|krank|krankheit|abwesenheit)$/.test(type))return;
+                (type=='rufbereitschaft'?standby:entries).push({start:start,end:end,sites:[site],codes:[code]});
+            });
+        });
+    });
+    if (entries.length>10000) throw new Error('Zu viele Diensteinträge für eine Jahresübersicht. Bitte die Quelle prüfen.');
+    return {entries:entries,standby:standby,invalid:invalid,duplicates:duplicates,receivedMonths:months.length};
+}
+
+/** Cache only the small time/location dataset, not raw roster responses or remarks. */
+function loadAnnualRosterData_(year, timeZone, forceReload) {
+    var cache=typeof CacheService!='undefined'&&typeof CacheService.getUserCache=='function'?CacheService.getUserCache():null;
+    var identity=JSON.stringify([year,timeZone,rosterUserId,rosterUrl,rosterIgnoreList.slice().sort()]);
+    var digest=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,identity).map(function(byte){return ('0'+(byte&255).toString(16)).slice(-2);}).join('');
+    var key='annual-roster:v1:'+digest,raw=cache&&!forceReload&&cache.get(key),data;
+    if(raw){
+        try{data=JSON.parse(raw);if(Array.isArray(data.entries)&&Array.isArray(data.standby))return Object.assign(data,{cacheHit:true});}catch(_){}
+    }
+    if(!callWithBackoff_(function(){refreshRosterToken_();return true;},defaultMaxRetries))throw new Error('Der Dienstplan-Zugang konnte nicht erneuert werden.');
+    var body=rosterReportPayload_(year,timeZone);
+    var response=callWithBackoff_(function(){return JSON.parse(rosterFetch_('rosters/preload','POST',body));},defaultMaxRetries);
+    if(!response)throw new Error('Die Jahresdaten konnten nicht vollständig geladen werden.');
+    data=collectAnnualRosterEntries_(response,year,timeZone,rosterIgnoreList);
+    data.sourceLoadedAt=new Date().toISOString();data.cacheHit=false;
+    raw=JSON.stringify(data);
+    if(cache&&Utilities.newBlob(raw).getBytes().length<90000){
+        var keys=JSON.parse(userPrp.getProperty('annualCacheKeys')||'[]').filter(function(item){return item!=key;});
+        keys.push(key);while(keys.length>12)cache.remove(keys.shift());
+        // Record the key first so disconnect can always remove private cached data.
+        userPrp.setProperty('annualCacheKeys',JSON.stringify(keys));cache.put(key,raw,900);
+    }
+    return data;
+}
+
+function clearAnnualRosterCache_() {
+    if(typeof CacheService!='undefined'&&typeof CacheService.getUserCache=='function')
+        CacheService.getUserCache().removeAll(JSON.parse(userPrp.getProperty('annualCacheKeys')||'[]'));
+}
+
+function calculateAnnualRosterSummary_(data, options) {
+    var year=options.year,timeZone=options.timeZone,holidays=new Set((options.holidayDates||[]).concat(options.extraDates||[]));
+    var from=Utilities.parseDate(year+'-01-01',timeZone,'yyyy-MM-dd').getTime();
+    var until=Utilities.parseDate((year+1)+'-01-01',timeZone,'yyyy-MM-dd').getTime();
+    var entries=data.entries,standby=data.standby;
+    var planned=0,rows=[],days=new Map(),boundaries=new Map(),sites=new Map(),overlap=false,now=Date.now();
+    var sorted=entries.slice().sort(function(a,b){return a.start-b.start;});
+    var furthest=-Infinity;
+    sorted.forEach(function(entry){if(entry.start<furthest)overlap=true;furthest=Math.max(furthest,entry.end);});
+    function dateAt(instant){return Utilities.formatDate(new Date(instant),timeZone,'yyyy-MM-dd');}
+    function nextDay(day,offset){return new Date(Date.parse(day+'T12:00:00Z')+offset*86400000).toISOString().slice(0,10);}
+    function cuts(day){
+        if(!boundaries.has(day))boundaries.set(day,[0,4,6,14,20,21].map(function(hour){
+            return Utilities.parseDate(day+'T'+String(hour).padStart(2,'0')+':00:00',timeZone,"yyyy-MM-dd'T'HH:mm:ss").getTime();
+        }).concat(Utilities.parseDate(nextDay(day,1),timeZone,'yyyy-MM-dd').getTime()));
+        return boundaries.get(day);
+    }
+    function empty(){return {minutes:0,nightMinutes:0,night21Minutes:0,night40Minutes:0,sunday50Minutes:0,holiday125Minutes:0,holiday150Minutes:0};}
+    var metricKeys=Object.keys(empty());
+    function add(to,values){metricKeys.forEach(function(key){to[key]+=values[key];});}
+    function special(day){var md=day.slice(5);return md=='05-01'||md=='12-25'||md=='12-26'||md=='12-24';}
+    var blocks=rosterReportUnion_(entries);
+    var ongoing=blocks.find(function(block){return block.start<=now&&block.end>now;});
+    blocks.forEach(function(block){
+        checkSyncBudget_();
+        if(!options.includeFuture&&block.end>now){planned++;return;}
+        var start=Math.max(block.start,from),end=Math.min(block.end,until),metrics=empty();
+        if(end<=start)return;
+        for(var day=dateAt(start);day<=dateAt(end-1);day=nextDay(day,1)){
+            var cut=cuts(day),previous=nextDay(day,-1),weekday=new Date(day+'T12:00:00Z').getUTCDay(),values=empty();
+            for(var segment=0;segment<cut.length-1;segment++){
+                var duration=Math.max(0,Math.min(end,cut[segment+1])-Math.max(start,cut[segment]))/60000;
+                if(!duration)continue;
+                values.minutes+=duration;
+                if(segment<2||segment>=4)values.nightMinutes+=duration;
+                if(segment<2||segment==5)values.night21Minutes+=duration;
+                var carry=segment==0&&block.start<cut[0];
+                if(carry)values.night40Minutes+=duration;
+                var md=day.slice(5),rate=0;
+                if((special(day)&&(md!='12-24'||segment>=3))||(carry&&special(previous)))rate=150;
+                else if(holidays.has(day)||(md=='12-31'&&segment>=3)||(carry&&(holidays.has(previous)||previous.slice(5)=='12-31')))rate=125;
+                else if(weekday==0||(carry&&weekday==1))rate=50;
+                if(rate==150)values.holiday150Minutes+=duration;
+                else if(rate==125)values.holiday125Minutes+=duration;
+                else if(rate==50)values.sunday50Minutes+=duration;
+            }
+            add(metrics,values);
+            if(!days.has(day))days.set(day,empty());add(days.get(day),values);
+        }
+        rows.push(Object.assign({key:block.start+'-'+block.end,start:new Date(block.start).toISOString(),end:new Date(block.end).toISOString(),
+            date:dateAt(start),startLocal:Utilities.formatDate(new Date(block.start),timeZone,'yyyy-MM-dd HH:mm'),
+            endLocal:Utilities.formatDate(new Date(block.end),timeZone,'yyyy-MM-dd HH:mm'),
+            fullMinutes:(block.end-block.start)/60000,sites:block.sites.sort(),codes:block.codes.sort(),crossYear:block.start<from||block.end>until},metrics));
+    });
+    var total=empty(),monthly=Array.from({length:12},function(_,i){return Object.assign({month:String(i+1).padStart(2,'0'),days:0,blocks:0,over8:0,over12:0},empty());});
+    days.forEach(function(values,day){add(total,values);var month=monthly[Number(day.slice(5,7))-1];add(month,values);month.days++;});
+    rows.forEach(function(row){var month=monthly[Number(row.date.slice(5,7))-1];month.blocks++;if(row.fullMinutes>480)month.over8++;if(row.fullMinutes>720)month.over12++;});
+    entries.forEach(function(entry){
+        if(!options.includeFuture&&(entry.end>now||(ongoing&&entry.start>=ongoing.start&&entry.end<=ongoing.end)))return;
+        var site=entry.sites[0];if(!sites.has(site))sites.set(site,[]);sites.get(site).push(entry);
+    });
+    var workplaces=Array.from(sites,function(pair){return {name:pair[0],minutes:rosterReportUnion_(pair[1]).reduce(function(sum,entry){return sum+Math.max(0,Math.min(entry.end,until)-Math.max(entry.start,from))/60000;},0)};}).sort(function(a,b){return a.name.localeCompare(b.name);});
+    var standbyMinutes=rosterReportUnion_(standby).reduce(function(sum,entry){return sum+(!options.includeFuture&&entry.end>now?0:Math.max(0,Math.min(entry.end,until)-Math.max(entry.start,from))/60000);},0);
+    return {year:year,timeZone:timeZone,region:options.region,includeFuture:options.includeFuture,generatedAt:new Date().toISOString(),
+        requestedMonths:14,receivedMonths:data.receivedMonths,rows:rows,monthly:monthly,workplaces:workplaces,holidayProvider:options.holidayProvider||'',holidayNotes:options.holidayNotes||[],
+        sourceLoadedAt:data.sourceLoadedAt||new Date().toISOString(),cacheHit:!!data.cacheHit,
+        totals:Object.assign({blocks:rows.length,days:days.size,over8:rows.filter(function(row){return row.fullMinutes>480;}).length,
+            over12:rows.filter(function(row){return row.fullMinutes>720;}).length,standbyMinutes:standbyMinutes},total),
+        warnings:{invalid:data.invalid,duplicates:data.duplicates,overlap:overlap,planned:planned}};
 }

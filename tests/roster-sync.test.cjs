@@ -130,16 +130,16 @@ test('history starts at the complete contract month; a failed lookup aborts', ()
   assert.throws(() => payload(context), /contract start date/);
 });
 
-test('year summary covers all twelve months including the final December day', () => {
+test('legacy year-summary settings do not change the normal sync range', () => {
   const { context } = load();
   context.addYearSummary = true;
   context.summaryYear = '2024';
   const months = payload(context);
-  assert.equal(months.length, 12);
-  assert.equal(months[0].begin, '2023-12-31T23:00:00.000Z');
-  assert.equal(months[11].end, '2024-12-31T22:59:59.999Z');
+  assert.equal(months.length, 4);
+  assert.equal(months[0].begin, '2026-09-30T22:00:00.000Z');
+  assert.equal(months[3].end, '2027-01-31T22:59:59.999Z');
   context.summaryYear = 'invalid';
-  assert.throws(() => payload(context), /summaryYear/);
+  assert.deepEqual(payload(context),months);
 });
 
 function timed(id, start, end) {

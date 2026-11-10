@@ -240,7 +240,7 @@ test('scheduled error emails use the current account and throttle separately', (
 
 test('internal and migration functions are private to google.script.run', () => {
   const publicNames = new Set(['install', 'uninstall', 'startSync', 'checkForUpdates', 'getSyncProgress',
-    'getCalendarChoices','testRosterConnection','previewSynchronization','getInvitations','saveInvitations','importLegacyCopy','getMigrationSnippet',
+    'getCalendarChoices','testRosterConnection','getAnnualRosterSummary','previewSynchronization','getInvitations','saveInvitations','importLegacyCopy','getMigrationSnippet',
     'doGet', 'getAppState', 'saveAppSettings', 'stopSync', 'disconnectApp']);
   for (const file of ['Code.gs', 'Helpers.gs', 'Roster.gs', 'Preferences.gs', 'Updates.gs', 'WebApp.gs']) {
     for (const match of fs.readFileSync(path.join(root, file), 'utf8').matchAll(/^function (\w+)\(/gm)) {

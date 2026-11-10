@@ -124,6 +124,24 @@ alte, nicht mehr benötigte Versionen gelegentlich in der Projekthistorie entfer
 **Der separate Updater aktualisiert sich selbst nicht.** Änderungen unter `admin/`
 werden dort weiterhin manuell übernommen.
 
+## Jahresübersicht
+
+Die Jahresübersicht wird im Webinterface separat aus ROSTER erstellt und lässt
+Kalendertermine sowie den Zeitraum des normalen Syncs unverändert. Der frühere
+Schalter `addYearSummary` wird nicht mehr ausgewertet; vorhandene Einstellungen
+müssen dafür nicht bearbeitet werden. CSV und Druckansicht enthalten die Details.
+Eigene Abwesenheitsangaben und die Zuordnung der ersten Tätigkeitsstätte bleiben
+nur im Browser und sollten bei Bedarf vor dem Neuladen exportiert werden.
+
+Beim ersten Abruf werden die Jahresdaten mit Randmonaten in einer Dienstplan-Anfrage
+geladen. Die auf Zeit, Kürzel und Dienstort reduzierten Daten bleiben höchstens
+15 Minuten im nutzerbezogenen Zwischenspeicher. Feiertagsdaten von
+[feiertage-api.de](https://feiertage-api.de/) werden je Jahr und Bundesland für
+sechs Stunden gemeinsam zwischengespeichert. An den Dienst gehen nur Jahr und
+Bundesland. Die Option zum erneuten ROSTER-Abruf umgeht dessen Zwischenspeicher.
+Ein Wechsel der Tarifnachtzeit, der ersten Tätigkeitsstätte oder eigene
+Abwesenheitsangaben benötigen keine weiteren API-Aufrufe.
+
 ## Entwicklung und Prüfungen
 
 Mit Node.js 18 oder neuer:
@@ -141,6 +159,14 @@ Einstellungs- und Importlogik mit simulierten Google-Diensten; echte OAuth-Anmel
 Dienstplan-Zugriff und die erste Bereitstellung mit zwei Konten separat prüfen.
 Ausführungsprotokolle enthalten Phasenlaufzeiten; lange Importe werden in kleinen
 Schritten automatisch fortgesetzt.
+
+Die HTTP-Endpunkte und Zugriffskontrollen stehen in `WebApp.gs`. `Roster.gs` trennt
+Dienstplan-Abfragen, Monatsgrenzen, Feiertagsabruf, Zeitdaten-Aufbereitung und
+Berechnung der Jahreswerte. Die Zeitberechnung selbst macht keine API-Aufrufe.
+`Helpers.gs` enthält die Kalenderverarbeitung, `Preferences.gs` die Einstellungen
+und Validierung. Die Jahresansicht in `Index.html` hält Laden, Darstellung,
+Ergänzungen und Export in eigenen Funktionen. Alles wird weiterhin über die
+bestehende Dateiliste des Updaters ausgeliefert.
 
 Die ursprüngliche Synchronisierung basiert auf
 [GAS-ICS-Sync](https://github.com/derekantrican/GAS-ICS-Sync). Die iCal-Verarbeitung
