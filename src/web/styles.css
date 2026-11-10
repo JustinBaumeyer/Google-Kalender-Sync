@@ -1,0 +1,391 @@
+:root {
+  font:
+    16px/1.5 system-ui,
+    sans-serif;
+  color: #19392f;
+  background: #f3f6f3;
+  accent-color: #146947;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 3rem;
+}
+h1 {
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+  margin: 0.6rem 0;
+}
+h2 {
+  font-size: 1.15rem;
+  margin: 0 0 0.35rem;
+}
+p {
+  margin: 0.35rem 0 0.9rem;
+}
+.eyebrow {
+  color: #32664c;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  font-weight: 750;
+}
+.muted,
+small {
+  color: #5b6e64;
+  font-size: 0.88rem;
+}
+small {
+  display: block;
+  margin-top: 0.25rem;
+}
+header {
+  margin-bottom: 1.5rem;
+}
+#account {
+  display: inline-block;
+  overflow-wrap: anywhere;
+}
+.status {
+  background: #e7f0e9;
+  border: 1px solid #ccddcf;
+  padding: 0.9rem 1.1rem;
+  border-radius: 12px;
+  margin: 1rem 0;
+}
+#status {
+  font-weight: 650;
+}
+#lastError {
+  color: #9c2927;
+  overflow-wrap: anywhere;
+}
+section,
+details.panel {
+  background: #fff;
+  border: 1px solid #dce4dd;
+  border-radius: 14px;
+  padding: 1.4rem;
+  margin-bottom: 1rem;
+}
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+legend {
+  font-weight: 700;
+  padding: 0;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.4rem;
+}
+label {
+  display: block;
+}
+label > span {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 650;
+  margin-bottom: 0.35rem;
+}
+input:not([type="checkbox"]),
+select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #b8c9bd;
+  border-radius: 7px;
+  background: white;
+  color: inherit;
+  font: inherit;
+}
+input:focus-visible,
+select:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #b0d1b9;
+  outline-offset: 2px;
+}
+.toggle {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  padding: 0.7rem 0;
+}
+.toggle input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-top: 0.25rem;
+}
+.toggle span {
+  margin: 0;
+  font-weight: 500;
+}
+.row {
+  background: #f7f9f6;
+  border: 1px solid #dce5dc;
+  border-radius: 10px;
+  padding: 1rem;
+  margin: 0.85rem 0;
+}
+.row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.7rem;
+}
+.row-head strong {
+  font-size: 0.9rem;
+}
+.rule-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+button {
+  min-height: 44px;
+  padding: 0.6rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: #146947;
+  color: white;
+  cursor: pointer;
+  font: 600 0.9rem system-ui;
+}
+button.secondary {
+  background: white;
+  color: #23543b;
+  border-color: #bfcec2;
+}
+button.remove {
+  background: transparent;
+  color: #98504a;
+  padding: 0.35rem 0.65rem;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+.savebar {
+  position: sticky;
+  bottom: 0;
+  background: #f3f6f3f5;
+  border-top: 1px solid #d6e0d8;
+  padding: 1rem 0;
+  margin-top: 1.4rem;
+}
+#message {
+  white-space: pre-wrap;
+  margin: 0.5rem 0;
+}
+#message.error {
+  color: #a32225;
+}
+#message:empty {
+  display: none;
+}
+.progress-panel {
+  margin: 0.8rem 0;
+  padding: 0.8rem 1rem;
+  border: 1px solid #cdded0;
+  border-radius: 10px;
+  background: #eff6ef;
+}
+progress {
+  display: block;
+  width: 100%;
+  height: 12px;
+  margin: 0.6rem 0;
+  accent-color: #146947;
+}
+summary {
+  font-weight: 650;
+  cursor: pointer;
+}
+details .grid {
+  margin-top: 1rem;
+}
+.danger {
+  margin-top: 1.3rem;
+}
+.danger button {
+  color: #98504a;
+}
+[hidden] {
+  display: none !important;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 1rem 0;
+}
+.metric {
+  background: #f3f7f1;
+  border-radius: 9px;
+  padding: 0.8rem;
+}
+.metric strong {
+  display: block;
+  font-size: 1.5rem;
+}
+.event-list {
+  list-style: none;
+  padding: 0;
+}
+.event-list li {
+  padding: 0.8rem 0;
+  border-bottom: 1px solid #e1e8df;
+}
+.event-list li:last-child {
+  border: 0;
+}
+.section-head {
+  display: flex;
+  gap: 0.8rem;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+textarea {
+  width: 100%;
+  min-height: 160px;
+  padding: 0.7rem;
+  border: 1px solid #b8c9bd;
+  border-radius: 7px;
+  font: 14px/1.4 monospace;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+th,
+td {
+  padding: 0.65rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #dce4dd;
+  vertical-align: top;
+}
+th {
+  white-space: nowrap;
+}
+.annual-absence {
+  min-width: 100px;
+}
+.annual-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  padding: 1rem 0;
+  margin: 1rem 0;
+  border-top: 1px solid #dce4dd;
+  border-bottom: 1px solid #dce4dd;
+}
+.annual-summary h4 {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+}
+.annual-summary dl {
+  margin: 0;
+}
+.annual-summary .summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.2rem 0;
+  font-size: 0.88rem;
+}
+.annual-summary dt {
+  color: #5b6e64;
+}
+.annual-summary dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
+}
+#annualResults > details {
+  border-top: 1px solid #dce4dd;
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+@media (max-width: 650px) {
+  .annual-summary {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+#annualRows small {
+  white-space: nowrap;
+}
+#annualProgress {
+  margin: 1rem 0;
+}
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+  body {
+    max-width: none;
+    background: white;
+    padding: 0;
+  }
+  body > :not(#annualPanel) {
+    display: none !important;
+  }
+  #annualPanel {
+    display: block !important;
+    border: 0;
+    padding: 0;
+  }
+  #annualPanel .annual-controls,
+  #annualPanel .annual-actions,
+  #annualPanel button {
+    display: none !important;
+  }
+  .table-scroll {
+    overflow: visible;
+  }
+  th,
+  td {
+    padding: 0.25rem;
+  }
+  tr {
+    break-inside: avoid;
+  }
+}
+@media (max-width: 650px) {
+  body {
+    padding: 1.3rem 0.8rem;
+  }
+  section,
+  details.panel {
+    padding: 1rem;
+  }
+  .grid,
+  .rule-grid {
+    grid-template-columns: 1fr;
+  }
+  .actions button {
+    flex: 1 1 45%;
+  }
+}

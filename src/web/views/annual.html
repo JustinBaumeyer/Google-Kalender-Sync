@@ -1,0 +1,156 @@
+<section id="annualPanel" hidden>
+  <div class="section-head"
+    ><h2>Jahresübersicht für die Steuerunterlagen</h2
+    ><button type="button" id="annualClose" class="secondary">Schließen</button></div
+  >
+  <p class="muted"
+    >Nur ROSTER. Planzeiten bitte mit tatsächlich geleisteter Arbeit und Pausen abgleichen. Die
+    Übersicht ändert keine Kalendertermine oder Sync-Einstellungen.</p
+  >
+  <fieldset id="annualFields">
+    <div class="grid annual-controls">
+      <label
+        ><span>Jahr</span><input id="annualYear" type="number" min="2020" max="2099" step="1"
+      /></label>
+      <label
+        ><span>Bundesland des Arbeitsorts</span
+        ><select id="annualRegion"></select
+        ><small
+          >Feiertage werden von feiertage-api.de geladen. Örtlich beschränkte Feiertage bei Bedarf
+          unten bestätigen. Alle Diensttage zählen, auch Sonn- und Feiertage.</small
+        ></label
+      >
+    </div>
+    <details class="annual-controls"
+      ><summary>Weitere Optionen</summary>
+      <label
+        ><span>Tarifliches Nachtzeitfenster für den Abgleich</span
+        ><select id="annualNightStart"
+          ><option value="20">20–6 Uhr – aktuelle DRK-RTV-Fassung (§ 13 Abs. 6)</option
+          ><option value="21"
+            >21–6 Uhr – nur bei entsprechend älterer / abweichender Fassung</option
+          ></select
+        ><small
+          >Für frühere Jahre die damals geltende Fassung oder Lohnabrechnung prüfen. Das steuerliche
+          Fenster bleibt 20–6 Uhr.</small
+        ></label
+      >
+      <label class="toggle"
+        ><input id="annualFuture" type="checkbox" /><span
+          >Auch noch nicht abgeschlossene, geplante Dienste einbeziehen</span
+        ></label
+      >
+      <label class="toggle"
+        ><input id="annualRefresh" type="checkbox" /><span
+          >ROSTER neu abrufen (15-Minuten-Zwischenspeicher umgehen)</span
+        ></label
+      >
+      <div class="actions"
+        ><label
+          ><span>Zusätzlicher Feiertag am Arbeitsort</span
+          ><input id="annualHoliday" type="date" /></label
+        ><button type="button" id="annualAddHoliday" class="secondary"
+          >Feiertag ergänzen</button
+        ></div
+      ><ul id="annualHolidays"></ul>
+    </details>
+    <div class="actions annual-actions" style="margin-top: 1rem"
+      ><button type="button" id="annualLoad">Jahresübersicht erstellen</button
+      ><button type="button" id="annualDownload" class="secondary" disabled
+        >CSV herunterladen</button
+      ><button type="button" id="annualPrint" class="secondary" disabled>Drucken / PDF</button></div
+    >
+    <div id="annualResults" hidden>
+      <h3 id="annualTitle"></h3><p id="annualProvenance" class="muted"></p
+      ><p id="annualWarnings" class="muted"></p> <p id="annualHeadline"></p
+      ><div id="annualMetrics" class="annual-summary"></div>
+      <label class="annual-controls"
+        ><span>Deine erste Tätigkeitsstätte laut Arbeitgeber</span
+        ><select id="annualFirstSite"
+          ><option value="">Bitte zuordnen</option></select
+        ><small
+          >Die Zuordnung vergleicht die Dienstort-Namen aus ROSTER. Ein anderer Dienstort allein
+          bestätigt noch keine steuerlich anerkannte Auswärtstätigkeit.</small
+        ></label
+      >
+      <p id="annualSiteSummary" class="muted"></p>
+      <details id="annualMonthDetails"
+        ><summary>Monatswerte</summary
+        ><div class="table-scroll"
+          ><table
+            ><thead
+              ><tr
+                ><th>Monat</th><th>Kalendertage mit Dienst</th><th>Blöcke</th><th>über 8 h</th
+                ><th>über 12 h</th><th>Dienstzeit h</th><th>Nacht 20–6 h<br />(Steuer)</th
+                ><th id="annualTariffHeader">Nacht 20–6 h (DRK-RTV)</th><th>davon 0–4 h¹</th></tr
+              ></thead
+            ><tbody id="annualMonths"></tbody></table></div
+      ></details>
+      <details id="annualDutyDetails"
+        ><summary>Dienste und Abwesenheiten ergänzen</summary
+        ><p class="muted"
+          >Abwesenheit nicht aus der Dienstdauer ableiten: Trage bei Bedarf die tatsächliche Dauer
+          einschließlich der relevanten Wege ein. Die Zähler zählen erfasste Abwesenheiten, keine
+          steuerlichen Pauschaltage.</p
+        >
+        <p id="annualAbsenceTotals" class="muted"></p
+        ><div class="table-scroll"
+          ><table
+            ><thead
+              ><tr
+                ><th>Beginn / Ende</th><th>Einsatzorte / Kürzel</th><th>Zuordnung</th
+                ><th>Blockdauer h</th><th>Zeit im Jahr h</th><th>Nacht h</th
+                ><th>Abwesenheit h<br />(eigene Angabe)</th></tr
+              ></thead
+            ><tbody id="annualRows"></tbody></table
+        ></div> </details
+      ><details id="annualTaxDetails"
+        ><summary>Steuerliche Einordnung und Quellen</summary>
+        <p class="muted"
+          >In Deutschland gelten bei erfüllten Voraussetzungen 14 € für eintägige Auswärtstätigkeit
+          über 8 Stunden und 28 € für volle 24-Stunden-Tage. Über 12 Stunden ist keine eigene
+          Pauschalstufe. Bei Arbeit über Mitternacht ohne Übernachtung kommt die Zuordnung zum Tag
+          mit der überwiegenden Abwesenheit hinzu. Erste Tätigkeitsstätte, Dreimonatsfrist,
+          gestellte Mahlzeiten und steuerfreie Erstattungen sind gesondert zu prüfen.</p
+        >
+        <p class="muted"
+          >Nacht-, Sonn- und Feiertagszeiten dienen dem Abgleich tatsächlich gezahlter
+          Arbeitgeberzuschläge, nicht einem zusätzlichen Stundenabzug in der Steuererklärung.
+          Steuerliches Nachtzeitfenster: 20–6 Uhr (§ 3b EStG). Die aktuelle DRK-RTV-Fassung (§ 13
+          Abs. 6) nennt ebenfalls 20–6 Uhr; für ältere oder abweichende Fassungen ist 21–6 Uhr
+          auswählbar. ¹Das Fenster 0–4 Uhr wird für den steuerlichen 40-%-Satz nur bei Arbeitsbeginn
+          vor Mitternacht gezählt. Sonn-/Feiertagsfenster überschneiden sich untereinander nicht;
+          Nachtstunden können zusätzlich darin liegen. Die steuerlichen Höchstsätze sind keine
+          tariflichen Auszahlungssätze. Es werden keine Zuschlagsbeträge berechnet.</p
+        >
+        <p class="muted"
+          >Arbeitszeit-Pausen, tatsächliche Wege, Mahlzeiten, Fahrtkilometer und Erstattungen sind
+          im Dienstplan nicht zuverlässig enthalten. Ergänzungsspalten dafür stehen im CSV.
+          Rufbereitschaft wird separat ausgewiesen. Überlappende Einträge werden für die Gesamtzeit
+          vereinigt; Lücken werden nicht als Arbeit aufgefüllt. Zeitwerte sind auf das gewählte Jahr
+          begrenzt, die Blockdauer zeigt den ganzen zusammenhängenden Dienst.</p
+        >
+        <p class="muted"
+          >Quellen:
+          <a href="https://www.gesetze-im-internet.de/estg/__9.html" target="_blank" rel="noopener"
+            >§ 9 EStG</a
+          >
+          ·
+          <a href="https://www.gesetze-im-internet.de/estg/__3b.html" target="_blank" rel="noopener"
+            >§ 3b EStG</a
+          >
+          ·
+          <a
+            href="https://www.drk.de/fileadmin/user_upload/PDFs/Das_DRK/Verbandsstruktur/DRK-RTV_idF_52.AETV_14.AETV-TVUE_durchgeschriebene_Fassung.pdf"
+            target="_blank"
+            rel="noopener"
+            >DRK-Reformtarifvertrag</a
+          >
+          · <a href="https://feiertage-api.de/" target="_blank" rel="noopener">Feiertags-API</a></p
+        ></details
+      >
+    </div>
+  </fieldset>
+  <progress id="annualProgress" aria-label="Jahresdaten werden geladen" hidden></progress
+  ><p id="annualMessage" role="status"></p>
+</section>

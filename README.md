@@ -144,10 +144,12 @@ Abwesenheitsangaben benötigen keine weiteren API-Aufrufe.
 
 ## Entwicklung und Prüfungen
 
-Mit Node.js 18 oder neuer:
+Mit Node.js 22 oder neuer:
 
 ```sh
 npm ci
+npm run format
+npm run build
 npm test
 npx playwright install chromium
 npm run test:browser
@@ -160,13 +162,41 @@ Dienstplan-Zugriff und die erste Bereitstellung mit zwei Konten separat prüfen.
 Ausführungsprotokolle enthalten Phasenlaufzeiten; lange Importe werden in kleinen
 Schritten automatisch fortgesetzt.
 
-Die HTTP-Endpunkte und Zugriffskontrollen stehen in `WebApp.gs`. `Roster.gs` trennt
-Dienstplan-Abfragen, Monatsgrenzen, Feiertagsabruf, Zeitdaten-Aufbereitung und
-Berechnung der Jahreswerte. Die Zeitberechnung selbst macht keine API-Aufrufe.
-`Helpers.gs` enthält die Kalenderverarbeitung, `Preferences.gs` die Einstellungen
-und Validierung. Die Jahresansicht in `Index.html` hält Laden, Darstellung,
-Ergänzungen und Export in eigenen Funktionen. Alles wird weiterhin über die
-bestehende Dateiliste des Updaters ausgeliefert.
+Änderungen am Programm gehören nach **`src/`**. `npm run build` erzeugt daraus
+die installierbaren `.gs`-Dateien und `Index.html`. Die erzeugten Dateien werden
+mit eingecheckt, damit Installation und Updater ohne Node.js funktionieren.
+Die vorhandene Updater-Version kann diese Dateien weiter einspielen.
+
+| Verzeichnis | Inhalt |
+| --- | --- |
+| `src/sync/` | Ablauf, Fortsetzung, Zeitsteuerung und Verarbeitung eines Zielkalenders |
+| `src/calendar/` | Kalenderzuordnung, Laden und Abgleichen von Terminen, Serien und Löschungen |
+| `src/roster/` | Dienstplan-API, Token, Monatsabfragen, Teamdaten und iCal-Ausgabe |
+| `src/reports/` | Feiertagsabruf, Nutzer-Cache, Dienstaufbereitung und Jahresberechnung |
+| `src/settings/` | Standardwerte, Speicherung, Validierung und Altdaten |
+| `src/web/` | Zugriffskontrolle und Web-Endpunkte, HTML-Vorlagen und CSS |
+| `src/web/client/` | Browsercode für Einstellungen, Vorschau, Fortschritt, Umzug und Jahresansicht |
+| `src/runtime/` | Laufzeitbudget, Fortschrittsstatus, Fehlerberichte und Wiederholungen |
+| `src/updates/` | Update-Prüfung der App und separater Inhaber-Updater |
+
+`src/manifest.json` legt Zuordnung und Reihenfolge der Quelldateien fest. Der Build
+fügt sie ohne zusätzliche Laufzeit-Bibliothek zusammen. Die Funktionen verwenden
+weiterhin den gemeinsamen Apps-Script-Namensraum; neue Hilfsfunktionen enden auf
+`_`, damit sie nicht über `google.script.run` aufrufbar sind. `settings.gs`, die
+Apps-Script-Manifeste, `migration/Export.gs` und die mitgelieferten Bibliotheken
+werden direkt an ihrem bisherigen Ort gepflegt.
+
+`npm test` prüft zuerst, ob die erzeugten Dateien zum Quellcode passen. CI prüft
+zusätzlich die Formatierung und die Browseroberfläche. Auch eine neue Quelldatei,
+die in der Build-Liste fehlt, lässt die Prüfung fehlschlagen. Quellcode und
+erzeugte Dateien deshalb immer zusammen committen; die Kommentare in den
+erzeugten Dateien verweisen auf die jeweilige Quelle.
+
+Der Sync lädt vorhandene Termine vollständig, bevor er einen Zielkalender
+abgleicht. Die Zuordnung alter Termine hat ein gemeinsames Limit für den gesamten
+Lauf. Kalender, die in älteren Einstellungen nur über ihren Namen hinterlegt sind,
+teilen sich während eines Laufs eine Kalenderliste. Spätere Läufe prüfen wieder
+den aktuellen Kalenderzugriff.
 
 Die ursprüngliche Synchronisierung basiert auf
 [GAS-ICS-Sync](https://github.com/derekantrican/GAS-ICS-Sync). Die iCal-Verarbeitung

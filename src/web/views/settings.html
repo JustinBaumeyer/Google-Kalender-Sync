@@ -1,0 +1,106 @@
+<form id="preferences" hidden novalidate>
+  <div class="section-head" style="margin-bottom: 1rem"
+    ><h2>Einstellungen</h2
+    ><button type="button" id="closeSettings" class="secondary">Zur Übersicht</button></div
+  >
+  <fieldset id="settingsFields">
+    <section>
+      <h2>Dienstplan verbinden</h2>
+      <p class="muted"
+        >Die App verwendet deine eigenen Dienstplan-Zugangsdaten. Ohne Mitarbeiter-ID und Token
+        bleibt die ROSTER-Quelle inaktiv. Kalender-Abos kannst du trotzdem verwenden.</p
+      >
+      <div id="connectionSummary" hidden
+        ><p id="connectionText"></p
+        ><button type="button" id="editConnection" class="secondary"
+          >Zugangsdaten ändern</button
+        ></div
+      >
+      <div id="connectionFields"
+        ><div class="grid">
+          <label
+            ><span>Mitarbeiter-ID</span
+            ><input id="employee" inputmode="numeric" autocomplete="off" pattern="[0-9]+"
+          /></label>
+          <label
+            ><span id="tokenLabel">Dienstplan-Token</span
+            ><input
+              id="token"
+              type="password"
+              autocomplete="new-password"
+              aria-labelledby="tokenLabel"
+              aria-describedby="tokenHint" /><small id="tokenHint"></small
+          ></label>
+        </div>
+        <details
+          ><summary>Wo finde ich Mitarbeiter-ID und Token?</summary
+          ><p class="muted"
+            >Du brauchst die interne Mitarbeiter-ID des Dienstplans. In deiner alten Skriptkopie
+            findest du ID und Token unter Projekteinstellungen → Skripteigenschaften: „rosterUserId“
+            und „rosterUserToken“. Wenn du noch keinen Token hast, frag den App-Inhaber.</p
+          ></details
+        ></div
+      >
+      <button type="button" id="testConnection" class="secondary" style="margin-top: 0.8rem"
+        >Verbindung prüfen</button
+      ><p id="connectionResult" role="status"></p>
+    </section>
+    <section>
+      <h2>Kalenderquellen</h2>
+      <p class="muted"
+        >Wähle für jede Quelle einen vorhandenen Kalender oder lege einen neuen an.</p
+      >
+      <div id="sources"></div>
+      <button type="button" id="addSource" class="secondary">Quelle hinzufügen</button>
+    </section>
+    <section>
+      <h2>Synchronisierung</h2>
+      <div class="grid" id="schedule"></div>
+      <div class="grid" id="emailSettings"></div>
+    </section>
+    <section>
+      <h2>Was soll übernommen werden?</h2>
+      <div class="grid" id="rosterSettings"></div>
+    </section>
+    <section>
+      <h2>Termine & Verlauf</h2>
+      <p class="muted">Vergangene Termine bleiben standardmäßig erhalten.</p>
+      <div class="grid" id="eventSettings"></div>
+    </section>
+    <section>
+      <h2>Termine ausblenden</h2>
+      <p class="muted"
+        >Eine Regel kann nach Titel, Wochentag oder Uhrzeit filtern. Alle ausgefüllten Felder einer
+        Regel müssen passen.</p
+      >
+      <div id="rules"></div>
+      <button type="button" id="addRule" class="secondary">Regel hinzufügen</button>
+      <div id="shiftCodes" style="margin-top: 1.2rem"></div>
+    </section>
+    <details class="panel" id="advanced"
+      ><summary>Erweiterte Einstellungen</summary><div class="grid" id="advancedSettings"></div
+    ></details>
+    <div class="savebar">
+      <div id="message" role="status" aria-live="polite"></div>
+      <p id="dirtyHint" class="muted">Alle Änderungen gespeichert.</p>
+      <div class="actions">
+        <button type="submit">Einstellungen speichern</button>
+        <button type="button" id="enable" class="secondary">Synchronisierung aktivieren</button>
+        <button type="button" id="sync" class="secondary">Jetzt synchronisieren</button>
+        <button type="button" id="preview" class="secondary">Vorschau prüfen</button>
+        <button type="button" id="annualOpenSettings" class="secondary">Jahresübersicht</button>
+        <button type="button" id="stop" class="secondary">Pausieren</button>
+      </div>
+    </div>
+    <details class="danger"
+      ><summary class="muted">Verbindung entfernen</summary>
+      <p class="muted"
+        >Löscht deine gespeicherten Zugangsdaten und Einstellungen und stoppt den automatischen
+        Sync. Kalendereinträge bleiben erhalten.</p
+      >
+      <button type="button" id="disconnect" class="secondary"
+        >Meine gespeicherten Daten löschen</button
+      >
+    </details>
+  </fieldset>
+</form>
