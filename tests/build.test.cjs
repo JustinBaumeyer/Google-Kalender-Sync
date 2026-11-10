@@ -15,8 +15,7 @@ test('built installation files match the source and the updater file list', () =
   const appFiles = [...outputs.keys()].filter(name => !name.startsWith('admin/')).sort();
   const managed = Array.from(context.managedUpdateFiles,
     name => name + (name === 'Index' ? '.html' : '.gs'));
-  // These bundled third-party files are maintained independently.
-  assert.deepEqual(appFiles, managed.filter(name => !['ical.js.gs', 'tzid.gs'].includes(name)).sort());
+  assert.deepEqual(appFiles, managed.sort());
   assert.ok(!outputs.has('settings.gs'));
   assert.ok(!outputs.has('appsscript.json'));
   assert.match(outputs.get('Code.gs'), /^var version = \d+;/);
@@ -26,6 +25,7 @@ test('source changes are caught before stale installation files can be shipped',
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dienstplan-build-'));
   t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
   fs.cpSync(path.join(root, 'src'), path.join(directory, 'src'), {recursive: true});
+  fs.cpSync(path.join(root, 'vendor'), path.join(directory, 'vendor'), {recursive: true});
   for (const [name, source] of build()) {
     const file = path.join(directory, name);
     fs.mkdirSync(path.dirname(file), {recursive: true});

@@ -7,7 +7,7 @@ const { test } = require('node:test');
 const root = path.join(__dirname, '..');
 const clone = value => JSON.parse(JSON.stringify(value));
 const commit = 'a'.repeat(40);
-const programNames = ['Code', 'Index', 'ical.js', 'tzid'];
+const programNames = ['Code', 'Index'];
 
 function load({ enabled = true, remoteVersion = 7, locked = false } = {}) {
   const properties = new Map([
@@ -204,7 +204,8 @@ test('the complete real program can be staged and merged without changing user f
 test('a missing, empty or syntactically invalid download cannot modify the project', () => {
   for (const badSource of [undefined, '', 'function broken(']) {
     const { context, state, properties } = load();
-    state.remote['tzid.gs'] = badSource;
+    state.remote['Code.gs'] = badSource;
+    properties.set('updateAvailable','true');
     const original = clone(state.current);
     assert.throws(() => context.checkForUpdates());
     assert.deepEqual(state.current, original);
@@ -374,7 +375,7 @@ test('simplified event writer honors create/update settings and defers instances
 
 test('combining old program files preserves settings and rollback restores the old layout',()=>{
   const {context,state,properties}=load();
-  const retired=['Helpers','Roster','Updates','Preferences','WebApp'];
+  const retired=['Helpers','Roster','Updates','Preferences','WebApp','ical.js','tzid'];
   retired.forEach(name=>state.current.push({name,type:'SERVER_JS',source:'// old '+name}));
   const original=clone(state.current);
   context.checkForUpdates();
@@ -392,7 +393,7 @@ test('combining old program files preserves settings and rollback restores the o
 
 test('a partial legacy backup cannot replace the working app',()=>{
   const {context,state}=load();
-  ['Helpers','Roster','Updates','Preferences','WebApp'].forEach(name=>state.current.push({name,type:'SERVER_JS',source:'// old '+name}));
+  ['Helpers','Roster','Updates','Preferences','WebApp','ical.js','tzid'].forEach(name=>state.current.push({name,type:'SERVER_JS',source:'// old '+name}));
   context.checkForUpdates();
   state.backups[0]=state.backups[0].filter(file=>file.name!=='Helpers');
   const working=clone(state.current),writes=state.writes.length;
@@ -413,4 +414,17 @@ test('the shared app announces only versions from the published release branch',
   const user=loadApp(app,alice);
   user.UrlFetchApp={fetch:()=>assert.fail('A regular user checked for releases')};
   assert.throws(()=>user.checkForUpdates(),/Nur der App-Inhaber/);
+});
+
+test('fresh installations update and roll back without a settings file',()=>{
+  const {context,state,properties}=load();
+  state.current=state.current.filter(file=>file.name!=='settings');
+  const original=clone(state.current);
+  context.checkForUpdates();
+  assert.equal(state.writes.length,1);
+  assert.equal(state.current.some(file=>file.name==='settings'),false);
+  assert.equal(properties.get('rosterUserToken'),'test-secret');
+  context.rollbackLastUpdate();
+  assert.deepEqual(state.current,original);
+  assert.equal(state.current.some(file=>file.name==='settings'),false);
 });

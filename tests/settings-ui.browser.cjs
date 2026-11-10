@@ -423,6 +423,7 @@ test('annual report works on mobile and refuses missing holiday data instead of 
 test('migration provides an unchanged snippet, imports a pasted code and leaves the new sync paused',async()=>{
   const old=shared();old.project.delete('appOwnerEmail');old.project.set('rosterUserId','777');old.project.set('rosterUserToken','migration-test-secret');
   const oldServer=load(old,alice);
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'fixtures/legacy-settings.gs'),'utf8'),oldServer);
   vm.runInContext('howFrequent=60;',oldServer);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../migration/Export.gs'),'utf8'),oldServer);oldServer.prepareSharedAppMigration();
   const code=old.project.get('DienstplanMigration');

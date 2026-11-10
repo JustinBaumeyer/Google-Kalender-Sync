@@ -2,8 +2,16 @@
 // project properties, user properties (credentials/preferences), and triggers
 // belong to the shared app. This updater runs in a separate owner-only project.
 var scriptPrp = PropertiesService.getScriptProperties();
-var managedUpdateFiles = ["Code", "Index", "ical.js", "tzid"];
-var retiredUpdateFiles = ["Helpers", "Roster", "Updates", "Preferences", "WebApp"];
+var managedUpdateFiles = ["Code", "Index"];
+var retiredUpdateFiles = [
+  "Helpers",
+  "Roster",
+  "Updates",
+  "Preferences",
+  "WebApp",
+  "ical.js",
+  "tzid"
+];
 var updateRepository = "JustinBaumeyer/Google-Kalender-Sync";
 
 /** Enable once from the editor after completing the API setup in README.md. */
@@ -241,13 +249,7 @@ function mergeUpdateFiles(current, replacements, rollback) {
     if (byName.has(file.name)) throw new Error("Duplicate project file " + file.name);
     byName.set(file.name, { name: file.name, type: file.type, source: file.source });
   });
-  if (
-    !current.some(function (file) {
-      return file.name.toLowerCase() == "settings" && file.type == "SERVER_JS";
-    }) ||
-    !byName.has("appsscript")
-  )
-    throw new Error("Project must contain settings and appsscript files");
+  if (!byName.has("appsscript")) throw new Error("Project must contain an appsscript file");
   var expected = managedUpdateFiles;
   var legacyCount = replacements.filter(function (file) {
     return retiredUpdateFiles.indexOf(file.name) != -1;

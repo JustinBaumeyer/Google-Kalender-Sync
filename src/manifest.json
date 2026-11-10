@@ -2,6 +2,8 @@
   "scripts": {
     "Code.gs": [
       "src/version.js",
+      "vendor/ical.js",
+      "vendor/tzid.js",
       "src/runtime/execution.js",
       "src/runtime/user-context.js",
       "src/sync/scheduling.js",

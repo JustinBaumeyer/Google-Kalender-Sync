@@ -90,6 +90,7 @@ function exportedCopy() {
   const app=shared();app.logs=[];app.project.delete('appOwnerEmail');
   app.project.set('rosterUserId','321');app.project.set('rosterUserToken','private-legacy-token');
   const c=load(app,alice);
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'fixtures/legacy-settings.gs'),'utf8'),c);
   vm.runInContext('howFrequent=30;ignoreEvents=[/^910050/i];',c);
   c.ScriptApp.newTrigger('startSync').timeBased().everyMinutes(30).create();
   c.ScriptApp.newTrigger('customJob').timeBased().everyMinutes(30).create();

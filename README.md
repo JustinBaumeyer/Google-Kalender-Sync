@@ -7,9 +7,10 @@ Die Einstellungen werden im Webinterface erklärt.
 ## Gemeinsame App einrichten
 
 1. Den letzten erfolgreichen Build im Branch [release](https://github.com/JustinBaumeyer/Google-Kalender-Sync/tree/release) öffnen.
-   Ein Apps-Script-Projekt erstellen und `Code.gs`, `Index.html`, `ical.js.gs`,
-   `tzid.gs`, `settings.gs` und `appsscript.json` hinzufügen. Dateien aus `admin/` und `migration/` gehören
-   nicht in dieses Projekt. Die vorhandene `settings.gs` bei einem Upgrade behalten.
+   Ein Apps-Script-Projekt erstellen und nur `Code.gs`, `Index.html` und
+   `appsscript.json` hinzufügen. Dateien aus `admin/`, `vendor/` und `migration/`
+   gehören nicht zusätzlich in dieses Projekt. Neue Installationen benötigen
+   keine `settings.gs`; bei einem Upgrade eine vorhandene Datei behalten.
 2. Den erweiterten **Calendar-Dienst** aktivieren. Bei einem eigenen Cloud-Projekt
    dort auch die Google Calendar API aktivieren und die OAuth-Zustimmung konfigurieren.
 3. Im Skripteditor `setupSharedApp_` ausführen und autorisieren. Damit wird das
@@ -115,9 +116,9 @@ keinen Zugriff auf die Skriptprojekte.
 abgeschlossenen Build auf `main` die neue `admin/Updates.gs` aus `release` in das
 bestehende Updater-Projekt kopieren und `checkForUpdates` ausführen. Seine
 Skripteigenschaften bleiben bestehen. Der neue Updater entfernt die alten
-Programmdateien `Helpers`, `Roster`, `Updates`, `Preferences` und `WebApp` aus der
-App; deren Funktionen stehen jetzt gemeinsam in `Code`. `settings.gs` bleibt
-erhalten. Eine Wiederherstellung aus der Sicherung stellt auch die alte
+Programmdateien `Helpers`, `Roster`, `Updates`, `Preferences`, `WebApp`, `ical.js`
+und `tzid` aus der App; deren Funktionen stehen jetzt gemeinsam in `Code`.
+Eine vorhandene `settings.gs` bleibt erhalten. Eine Wiederherstellung aus der Sicherung stellt auch die alte
 Dateiaufteilung wieder her.
 
 Der Updater lädt einen zusammenhängenden Repository-Snapshot ohne GitHub-API-Token,
@@ -202,9 +203,12 @@ Für ein neues App-Update die Versionsnummer in `src/version.js` erhöhen.
 `src/manifest.json` legt Zuordnung und Reihenfolge der Quelldateien fest. Der Build
 fügt sie ohne zusätzliche Laufzeit-Bibliothek zusammen. Die Funktionen verwenden
 weiterhin den gemeinsamen Apps-Script-Namensraum; neue Hilfsfunktionen enden auf
-`_`, damit sie nicht über `google.script.run` aufrufbar sind. `settings.gs`, die
-Apps-Script-Manifeste, `migration/Export.gs` und die mitgelieferten Bibliotheken
-werden direkt an ihrem bisherigen Ort gepflegt.
+`_`, damit sie nicht über `google.script.run` aufrufbar sind. Die Bibliotheken
+liegen unter `vendor/` und werden unverändert in `Code.gs` eingebunden; ihre
+Lizenzhinweise bleiben erhalten. Standardeinstellungen stehen in
+`src/settings/defaults.js`, persönliche Werte in den User Properties. Eine
+vorhandene `settings.gs` wird nur für den Umzug älterer Installationen behalten.
+Die Apps-Script-Manifeste und `migration/Export.gs` werden direkt gepflegt.
 
 Die Build-Prüfung erkennt unvollständige Dateilisten und ungültiges JavaScript.
 Vor der Veröffentlichung wird der geprüfte Build noch einmal mit dem zugehörigen
