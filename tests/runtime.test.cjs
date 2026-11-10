@@ -88,6 +88,7 @@ test('backoff never sleeps beyond the remaining runtime budget', () => {
 
 test('retry delays are capped and a roster shared by sources is fetched only once per run', () => {
   const c=load(shared(),owner),delays=[];
+  c.loadUserPreferences_();
   c.rosterUserId='123';c.rosterUserToken='test-token';
   c.Utilities.sleep=value=>delays.push(value);
   assert.equal(c.callWithBackoff_(()=>{throw new Error('internal error');},4),null);
@@ -99,8 +100,34 @@ test('retry delays are capped and a roster shared by sources is fetched only onc
 
 test('an exhausted event write aborts before existing events can be cleaned up', () => {
   const c=load(shared(),owner);
+  c.loadUserPreferences_();
   c.createEvent_=()=>({extendedProperties:{private:{id:'new'}}});
   c.callWithBackoff_=()=>null;
   c.Calendar={Events:{insert:()=>null}};
   assert.throws(()=>c.processEvent_({hasProperty:()=>false},'Europe/Berlin'),/Bestehende Termine bleiben erhalten/);
+});
+
+test('the legacy adoption limit applies across all targets and remaining work completes next run',()=>{
+  const app=shared(),c=load(app,owner);
+  c.saveAppSettings({settings:{sourceCalendars:[['https://example.com/a.ics','A'],['https://example.com/b.ics','B']],addEventsToCalendar:false,modifyExistingEvents:false}});
+  app.users.get(owner).set('adoptLegacyEvents','true');
+  const records=Object.fromEntries(['A','B'].map(name=>[name,Array.from({length:75},(_,i)=>({
+    id:name+'-'+i,start:{date:'2025-01-01'},end:{date:'2025-01-02'},
+    extendedProperties:{private:{id:name+'-'+i,fromGAS:'true',MD5:name+'-hash-'+i}}
+  }))]));
+  c.fetchSourceCalendars_=()=>({responses:[['unused']],failedSources:0});
+  c.setupTargetCalendar_=name=>({id:name,timeZone:'Europe/Berlin'});
+  c.parseResponses_=()=>[];let patches=0;
+  c.Calendar.Events={
+    list:id=>({items:JSON.parse(JSON.stringify(records[id]))}),
+    patch:(change,id,eventId)=>{patches++;const item=records[id].find(item=>item.id===eventId);item.extendedProperties=JSON.parse(JSON.stringify(change.extendedProperties));return item;},
+    insert:()=>assert.fail('Migration inserted an event'),
+    remove:()=>assert.fail('Migration deleted history')
+  };
+  c.loadUserPreferences_();
+  assert.equal(c.runSync_(),50);assert.equal(patches,100);
+  assert.equal(app.users.get(owner).get('adoptLegacyEvents'),'true');
+  c.loadUserPreferences_();
+  assert.equal(c.runSync_(),0);assert.equal(patches,150);
+  assert.equal(app.users.get(owner).has('adoptLegacyEvents'),false);
 });

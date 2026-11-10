@@ -101,7 +101,7 @@ function load(app, email, active = email) {
     },Settings:{get:()=>({value:'Europe/Berlin'})}},
     CalendarApp:{EventColor:{}},
   });
-  for (const name of ['ical.js.gs','tzid.gs','settings.gs', 'Code.gs', 'Preferences.gs', 'WebApp.gs', 'Helpers.gs', 'Roster.gs', 'Updates.gs']) {
+  for (const name of ['Code.gs']) {
     vm.runInContext(fs.readFileSync(path.join(root, name), 'utf8'), context, { filename: name });
   }
   return context;

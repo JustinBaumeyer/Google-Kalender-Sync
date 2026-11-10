@@ -5,6 +5,7 @@ const {test,before,after} = require('node:test');
 const {chromium} = require('playwright');
 const vm = require('node:vm');
 const {load,shared,alice} = require('./helpers/apps-script.cjs');
+const {entry:annualEntry,services:annualServices}=require('./helpers/annual-roster.cjs');
 let browser;
 before(async()=>{
   browser=await chromium.launch({headless:true,
@@ -363,9 +364,66 @@ test('owner access panel adds and removes emails without JSON or sending message
   }finally{await page.close();}
 });
 
+test('annual roster report separates tax and DRK windows, records absence locally and exports safe CSV',async()=>{
+  const {page,server,app,calls,errors}=await open({addYearSummary:true,summaryYear:'2024'});
+  try{
+    const preferences=app.users.get(alice).get('preferences');
+    annualServices(server,[annualEntry('2026-02-02T20:00+01:00','2026-02-03T06:00+01:00'),annualEntry('2026-02-04T07:00+01:00','2026-02-04T19:30+01:00','Wache 2'),annualEntry('2026-02-05T08:00+01:00','2026-02-05T16:00+01:00','=gefährlich')]);
+    await page.locator('[data-preference="howFrequent"]').selectOption('30');
+    await page.locator('#annualOpenSettings').click();await page.locator('#annualYear').fill('2026');await page.locator('#annualLoad').click();
+    await page.locator('#annualResults').waitFor({state:'visible'});
+    assert.equal(await page.locator('#annualMonths tr').count(),12);
+    assert.ok((await page.locator('#annualProvenance').textContent()).includes('feiertage-api.de'));
+    assert.equal(await page.locator('#annualMetrics .metric').count(),0);assert.equal(await page.locator('#annualMetrics dl').count(),3);
+    assert.ok((await page.locator('#annualHeadline').textContent()).includes('30,50 Stunden'));
+    assert.ok((await page.locator('#annualMetrics').textContent()).includes('DRK-RTV 20–610,00 h'));
+    const callsBefore=calls.filter(method=>method==='getAnnualRosterSummary').length;
+    await page.getByText('Weitere Optionen',{exact:true}).click();
+    await page.locator('#annualNightStart').selectOption('21');
+    assert.ok((await page.locator('#annualMetrics').textContent()).includes('DRK-RTV 21–69,00 h'));
+    assert.equal(calls.filter(method=>method==='getAnnualRosterSummary').length,callsBefore);
+    await page.locator('#annualFirstSite').selectOption('Wache 1');
+    await page.locator('#annualDutyDetails summary').click();
+    await page.locator('.annual-absence').first().fill('12.5');
+    assert.equal(await page.locator('#annualAbsenceTotals').textContent(),'1 Abwesenheit erfasst · über 8 Stunden: 1 · über 12 Stunden: 1');
+    assert.equal(await page.locator('[data-annual-class]').first().textContent(),'Erste Tätigkeitsstätte');
+    const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#annualDownload').click()]);
+    assert.equal(download.suggestedFilename(),'Dienstplan-2026.csv');
+    const csv=fs.readFileSync(await download.path(),'utf8');
+    assert.ok(csv.includes('DRK_RTV_Nacht_21_06_h'));assert.ok(csv.includes('"12,5"'));assert.ok(csv.includes('"\'=gefährlich"'));
+    assert.ok(csv.includes('steuerfreie_Verpflegungserstattung_EUR'));assert.equal(csv.includes('saved-token'),false);
+    assert.ok(csv.includes('Pause_im_Nachtfenster_min'));assert.ok(csv.includes('Abfahrt_Wohnung'));
+    const lines=csv.split('\r\n');assert.ok(lines.every(line=>line.split(';').length===lines[0].split(';').length));
+    assert.equal(app.users.get(alice).get('preferences'),preferences);assert.equal(app.users.get(alice).size,3);
+    assert.equal(calls.includes('saveAppSettings'),false);assert.equal(calls.includes('startSync'),false);
+    assert.equal(await page.locator('[data-preference="howFrequent"]').inputValue(),'30');
+    await page.evaluate(()=>window.print=()=>{window.reportPrinted=Array.from(document.querySelectorAll('#annualResults details')).every(node=>node.open);});await page.locator('#annualPrint').click();assert.equal(await page.evaluate(()=>window.reportPrinted),true);
+    await page.emulateMedia({media:'print'});assert.equal(await page.locator('#preferences').isVisible(),false);assert.equal(await page.locator('#annualResults').isVisible(),true);
+    await page.emulateMedia({media:'screen'});await page.locator('#annualNightStart').selectOption('20');await page.locator('#annualDutyDetails summary').click();await page.getByText('Weitere Optionen',{exact:true}).click();await page.locator('#annualPanel').screenshot({path:'/tmp/dienstplan-jahresuebersicht-desktop.png'});
+    await page.locator('#annualYear').fill('2025');await page.locator('#annualYear').blur();assert.equal(await page.locator('#annualDownload').isDisabled(),true);
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+test('annual report works on mobile and refuses missing holiday data instead of guessing',async()=>{
+  const {page,server}=await open({}, {width:390,height:844});
+  try{
+    annualServices(server,[annualEntry('2026-02-02T20:00+01:00','2026-02-03T06:00+01:00')]);
+    await page.locator('#annualOpenSettings').click();await page.locator('#annualYear').fill('2026');await page.locator('#annualLoad').click();
+    await page.locator('#annualResults').waitFor({state:'visible'});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.locator('#annualPanel').screenshot({path:'/tmp/dienstplan-jahresuebersicht-mobile.png'});
+    server.UrlFetchApp={fetch:url=>{assert.ok(url.startsWith('https://feiertage-api.de/'));return {getResponseCode:()=>503,getContentText:()=>''};}};
+    await page.locator('#annualYear').fill('2025');await page.locator('#annualLoad').click();
+    await page.waitForFunction(()=>document.getElementById('annualMessage').textContent.includes('Feiertags-API'));
+    assert.equal(await page.locator('#annualDownload').isDisabled(),true);
+  }finally{await page.close();}
+});
+
 test('migration provides an unchanged snippet, imports a pasted code and leaves the new sync paused',async()=>{
   const old=shared();old.project.delete('appOwnerEmail');old.project.set('rosterUserId','777');old.project.set('rosterUserToken','migration-test-secret');
   const oldServer=load(old,alice);
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'fixtures/legacy-settings.gs'),'utf8'),oldServer);
   vm.runInContext('howFrequent=60;',oldServer);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../migration/Export.gs'),'utf8'),oldServer);oldServer.prepareSharedAppMigration();
   const code=old.project.get('DienstplanMigration');

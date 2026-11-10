@@ -6,9 +6,11 @@ Die Einstellungen werden im Webinterface erklärt.
 
 ## Gemeinsame App einrichten
 
-1. Ein Apps-Script-Projekt erstellen. Die **`*.gs`-Dateien aus dem Hauptverzeichnis**, `Index.html`
-   und `appsscript.json` hinzufügen. Dateien aus `admin/` und `migration/` gehören
-   nicht in dieses Projekt. Die vorhandene `settings.gs` bei einem Upgrade behalten.
+1. Den letzten erfolgreichen Build im Branch [release](https://github.com/JustinBaumeyer/Google-Kalender-Sync/tree/release) öffnen.
+   Ein Apps-Script-Projekt erstellen und nur `Code.gs`, `Index.html` und
+   `appsscript.json` hinzufügen. Dateien aus `admin/`, `vendor/` und `migration/`
+   gehören nicht zusätzlich in dieses Projekt. Neue Installationen benötigen
+   keine `settings.gs`; bei einem Upgrade eine vorhandene Datei behalten.
 2. Den erweiterten **Calendar-Dienst** aktivieren. Bei einem eigenen Cloud-Projekt
    dort auch die Google Calendar API aktivieren und die OAuth-Zustimmung konfigurieren.
 3. Im Skripteditor `setupSharedApp_` ausführen und autorisieren. Damit wird das
@@ -98,7 +100,8 @@ Der optionale Updater läuft in einem **separaten privaten Apps-Script-Projekt**
 [demselben Inhaberkonto](https://script.google.com). Die anderen Nutzer brauchen dafür
 keinen Zugriff auf die Skriptprojekte.
 
-1. Nur `admin/Updates.gs` und `admin/appsscript.json` in dieses zweite Projekt kopieren.
+1. Aus dem Branch [release](https://github.com/JustinBaumeyer/Google-Kalender-Sync/tree/release)
+   nur `admin/Updates.gs` und `admin/appsscript.json` in dieses zweite Projekt kopieren.
 2. Das Updater-Projekt mit einem [Standard-Cloud-Projekt](https://developers.google.com/apps-script/guides/cloud-platform-projects#standard_cloud_platform_projects)
    verbinden. Dort die **Google Apps Script API** und den OAuth-Zugriff einrichten.
    API-Zugriff auch in den [Apps-Script-Kontoeinstellungen](https://script.google.com/home/usersettings)
@@ -107,7 +110,16 @@ keinen Zugriff auf die Skriptprojekte.
    der gemeinsamen App und `targetDeploymentId` auf deren Web-App-Bereitstellungs-ID
    setzen. Beide IDs stehen in Projekteinstellungen bzw. Bereitstellungen verwalten.
 4. `enableAutoUpdate` ausführen und autorisieren. Es wird sofort und danach täglich
-   nach einer höheren `version` in `Code.gs` auf `main` gesucht.
+   nach einer höheren `version` in `Code.gs` auf `release` gesucht.
+
+**Beim Wechsel auf Version 12 den Inhaber-Updater einmal ersetzen:** Nach dem ersten
+abgeschlossenen Build auf `main` die neue `admin/Updates.gs` aus `release` in das
+bestehende Updater-Projekt kopieren und `checkForUpdates` ausführen. Seine
+Skripteigenschaften bleiben bestehen. Der neue Updater entfernt die alten
+Programmdateien `Helpers`, `Roster`, `Updates`, `Preferences`, `WebApp`, `ical.js`
+und `tzid` aus der App; deren Funktionen stehen jetzt gemeinsam in `Code`.
+Eine vorhandene `settings.gs` bleibt erhalten. Eine Wiederherstellung aus der Sicherung stellt auch die alte
+Dateiaufteilung wieder her.
 
 Der Updater lädt einen zusammenhängenden Repository-Snapshot ohne GitHub-API-Token,
 prüft die Dateien, legt eine Sicherung an und aktualisiert die bestehende Web-App-URL.
@@ -124,12 +136,31 @@ alte, nicht mehr benötigte Versionen gelegentlich in der Projekthistorie entfer
 **Der separate Updater aktualisiert sich selbst nicht.** Änderungen unter `admin/`
 werden dort weiterhin manuell übernommen.
 
+## Jahresübersicht
+
+Die Jahresübersicht wird im Webinterface separat aus ROSTER erstellt und lässt
+Kalendertermine sowie den Zeitraum des normalen Syncs unverändert. Der frühere
+Schalter `addYearSummary` wird nicht mehr ausgewertet; vorhandene Einstellungen
+müssen dafür nicht bearbeitet werden. CSV und Druckansicht enthalten die Details.
+Eigene Abwesenheitsangaben und die Zuordnung der ersten Tätigkeitsstätte bleiben
+nur im Browser und sollten bei Bedarf vor dem Neuladen exportiert werden.
+
+Beim ersten Abruf werden die Jahresdaten mit Randmonaten in einer Dienstplan-Anfrage
+geladen. Die auf Zeit, Kürzel und Dienstort reduzierten Daten bleiben höchstens
+15 Minuten im nutzerbezogenen Zwischenspeicher. Feiertagsdaten von
+[feiertage-api.de](https://feiertage-api.de/) werden je Jahr und Bundesland für
+sechs Stunden gemeinsam zwischengespeichert. An den Dienst gehen nur Jahr und
+Bundesland. Die Option zum erneuten ROSTER-Abruf umgeht dessen Zwischenspeicher.
+Ein Wechsel der Tarifnachtzeit, der ersten Tätigkeitsstätte oder eigene
+Abwesenheitsangaben benötigen keine weiteren API-Aufrufe.
+
 ## Entwicklung und Prüfungen
 
-Mit Node.js 18 oder neuer:
+Mit Node.js 22 oder neuer:
 
 ```sh
 npm ci
+npm run format
 npm test
 npx playwright install chromium
 npm run test:browser
@@ -141,6 +172,55 @@ Einstellungs- und Importlogik mit simulierten Google-Diensten; echte OAuth-Anmel
 Dienstplan-Zugriff und die erste Bereitstellung mit zwei Konten separat prüfen.
 Ausführungsprotokolle enthalten Phasenlaufzeiten; lange Importe werden in kleinen
 Schritten automatisch fortgesetzt.
+
+Änderungen am Programm gehören nach **`src/`**. `npm test` baut das Programm vor
+den Tests automatisch. Für eine lokale Vorschau reicht auch `npm run build`.
+Die App besteht anschließend aus `Code.gs` und `Index.html`; der private
+Inhaber-Updater wird separat als `admin/Updates.gs` erzeugt. Die erzeugten Dateien
+sind in `main` nicht eingecheckt.
+
+GitHub Actions baut Pull Requests und prüft Formatierung, Servercode und
+Browseroberfläche. Die erzeugten Dateien stehen im jeweiligen Actions-Lauf als
+Artefakt `apps-script-build` zum Herunterladen bereit. Nach einem erfolgreichen Lauf auf `main` veröffentlicht es
+den geprüften Build automatisch im Branch `release`. Ein fehlgeschlagener oder
+inzwischen überholter Lauf ersetzt keinen veröffentlichten Build. Installation
+und Updater verwenden `release`; sie brauchen kein Node.js. Über **Actions →
+Build and test → Run workflow** lässt sich der Build auf `main` erneut starten.
+Für ein neues App-Update die Versionsnummer in `src/version.js` erhöhen.
+
+| Verzeichnis | Inhalt |
+| --- | --- |
+| `src/sync/` | Ablauf, Fortsetzung, Zeitsteuerung und Verarbeitung eines Zielkalenders |
+| `src/calendar/` | Kalenderzuordnung, Laden und Abgleichen von Terminen, Serien und Löschungen |
+| `src/roster/` | Dienstplan-API, Token, Monatsabfragen, Teamdaten und iCal-Ausgabe |
+| `src/reports/` | Feiertagsabruf, Nutzer-Cache, Dienstaufbereitung und Jahresberechnung |
+| `src/settings/` | Standardwerte, Speicherung, Validierung und Altdaten |
+| `src/web/` | Zugriffskontrolle und Web-Endpunkte, HTML-Vorlagen und CSS |
+| `src/web/client/` | Browsercode für Einstellungen, Vorschau, Fortschritt, Umzug und Jahresansicht |
+| `src/runtime/` | Laufzeitbudget, Fortschrittsstatus, Fehlerberichte und Wiederholungen |
+| `src/updates/` | Update-Prüfung der App und separater Inhaber-Updater |
+
+`src/manifest.json` legt Zuordnung und Reihenfolge der Quelldateien fest. Der Build
+fügt sie ohne zusätzliche Laufzeit-Bibliothek zusammen. Die Funktionen verwenden
+weiterhin den gemeinsamen Apps-Script-Namensraum; neue Hilfsfunktionen enden auf
+`_`, damit sie nicht über `google.script.run` aufrufbar sind. Die Bibliotheken
+liegen unter `vendor/` und werden unverändert in `Code.gs` eingebunden; ihre
+Lizenzhinweise bleiben erhalten. Standardeinstellungen stehen in
+`src/settings/defaults.js`, persönliche Werte in den User Properties. Eine
+vorhandene `settings.gs` wird nur für den Umzug älterer Installationen behalten.
+Die Apps-Script-Manifeste und `migration/Export.gs` werden direkt gepflegt.
+
+Die Build-Prüfung erkennt unvollständige Dateilisten und ungültiges JavaScript.
+Vor der Veröffentlichung wird der geprüfte Build noch einmal mit dem zugehörigen
+Quellstand abgeglichen. Der Branch-Wechsel veröffentlicht alle Dateien zusammen;
+ein zwischenzeitlich geänderter `release`-Branch wird nicht überschrieben. Die
+Kommentare in den erzeugten Dateien verweisen auf die jeweilige Quelle.
+
+Der Sync lädt vorhandene Termine vollständig, bevor er einen Zielkalender
+abgleicht. Die Zuordnung alter Termine hat ein gemeinsames Limit für den gesamten
+Lauf. Kalender, die in älteren Einstellungen nur über ihren Namen hinterlegt sind,
+teilen sich während eines Laufs eine Kalenderliste. Spätere Läufe prüfen wieder
+den aktuellen Kalenderzugriff.
 
 Die ursprüngliche Synchronisierung basiert auf
 [GAS-ICS-Sync](https://github.com/derekantrican/GAS-ICS-Sync). Die iCal-Verarbeitung

@@ -1,9 +1,10 @@
-name: Tests
+name: Build and test
 
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,6 +19,39 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - name: Package tested build
+        run: npm run build -- --output build-output
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apps-script-build
+          path: build-output/
+          retention-days: 7
+          overwrite: true
+          if-no-files-found: error
+
+  publish:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: apps-script-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: apps-script-build
+          path: .
+      - name: Publish tested Apps Script files
+        run: node scripts/publish-build.cjs

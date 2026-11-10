@@ -1,0 +1,8 @@
+# Installation files are built from src/.
+/*.gs
+/Index.html
+/admin/*.gs
+/migration/*.gs
+/tests/
+/docs/
+/node_modules/

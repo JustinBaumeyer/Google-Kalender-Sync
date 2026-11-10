@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <base target="_top" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- BUILD:styles -->
+  </head>
+  <body>
+    <header>
+      <div class="eyebrow">DIENSTPLAN SYNC</div>
+      <h1>Dienstplan-Sync</h1>
+      <p class="muted">Dienstpläne und Kalender-Abos mit Google Kalender synchronisieren.</p>
+      <span id="account" class="muted"></span>
+      <span id="appVersion" class="muted" style="margin-left: 0.7rem"></span>
+    </header>
+    <div class="status" aria-live="polite"
+      ><div id="status">Einstellungen werden geladen …</div><div id="lastSync" class="muted"></div
+      ><div id="lastError"></div
+    ></div>
+    <details id="errorDetails" class="panel" hidden>
+      <summary>Fehlerdetails</summary>
+      <p class="muted"
+        >Dieser Bericht enthält die Version, den fehlgeschlagenen Schritt und Dateipositionen.
+        Zugangsdaten und Kalenderinhalte werden nicht übernommen. Du kannst ihn zur Fehlersuche
+        weitergeben.</p
+      >
+      <textarea id="errorReport" readonly aria-label="Fehlerbericht"></textarea>
+      <button type="button" id="copyErrorReport" class="secondary">Fehlerbericht kopieren</button>
+      <p id="errorReportMessage" class="muted" role="status"></p>
+    </details>
+    <div id="syncPanel" class="progress-panel" hidden>
+      <strong id="syncPhase" role="status" aria-live="polite"></strong>
+      <progress
+        id="syncProgress"
+        aria-label="Fortschritt des aktuellen Synchronisierungsschritts"
+      ></progress>
+      <small id="syncCount"></small>
+    </div>
+    <p id="globalMessage" role="status" aria-live="polite"></p>
+    <p id="migrationEntry"
+      ><button type="button" id="migrationShortcut" class="secondary"
+        >Schon eine eigene Skriptkopie? Einstellungen übernehmen</button
+      ></p
+    >
+    <section id="overview" hidden>
+      <div class="section-head"
+        ><h2>Übersicht</h2
+        ><button type="button" id="editSettings" class="secondary"
+          >Einstellungen bearbeiten</button
+        ></div
+      >
+      <p id="nextRun" class="muted"></p><p id="connectionBadge"></p>
+      <div id="metrics" class="metrics" hidden></div>
+      <div class="actions"
+        ><button type="button" id="dashboardSync">Jetzt synchronisieren</button
+        ><button type="button" id="dashboardPreview" class="secondary">Vorschau prüfen</button
+        ><button type="button" id="dashboardPause" class="secondary">Pausieren</button></div
+      >
+      <div class="actions"
+        ><button type="button" id="annualOpen" class="secondary">Jahresübersicht</button
+        ><button type="button" id="openMigration" class="secondary"
+          >Aus bisheriger Kopie umziehen</button
+        ><button type="button" id="manageAccess" class="secondary" hidden
+          >Zugriff verwalten</button
+        ></div
+      >
+    </section>
+    <!-- BUILD:settings -->
+    <section id="previewPanel" hidden
+      ><h2>Vorschau kommender Termine</h2><ul id="previewEvents" class="event-list"></ul
+      ><div id="previewErrors" role="alert"></div><p id="previewNote" class="muted"></p
+    ></section>
+    <!-- BUILD:annual -->
+    <section id="adminPanel" hidden
+      ><h2>Zugriff verwalten</h2><p id="ownerInfo" class="muted"></p
+      ><fieldset id="adminFields"
+        ><label
+          ><span>Google-E-Mail-Adresse</span
+          ><input id="inviteEmail" type="email" autocomplete="email" /></label
+        ><button type="button" id="addInvite" style="margin-top: 0.7rem">Zugriff erlauben</button
+        ><ul id="inviteList" class="event-list"></ul></fieldset
+      ><p class="muted"
+        >Es wird keine E-Mail verschickt. Teile den App-Link selbst mit der Person. Falls das
+        Google-Projekt im Testmodus ist, muss das Konto dort zusätzlich als Testnutzer
+        freigeschaltet sein.</p
+      ><p id="adminMessage" role="status"></p
+    ></section>
+    <section id="migrationPanel" hidden>
+      <h2>Aus deiner bisherigen Kopie umziehen</h2>
+      <ol
+        ><li
+          >Öffne deine bisherige Kopie im Skripteditor. Lege eine neue Skriptdatei an und füge die
+          Migrationshilfe unverändert ein. Deine settings.gs bleibt unverändert.</li
+        ><li
+          >Wähle <strong>prepareSharedAppMigration</strong> neben „Ausführen“ und starte die
+          Funktion. Sie pausiert nur die alten Sync-Auslöser und speichert einen Umzugscode.</li
+        ><li
+          >Kopiere unter <strong>Projekteinstellungen → Skripteigenschaften</strong> den Wert
+          <strong>DienstplanMigration</strong> und füge ihn unten ein.</li
+        ></ol
+      >
+      <fieldset id="migrationFields"
+        ><button type="button" id="copyMigration" class="secondary">Migrationshilfe kopieren</button
+        ><textarea
+          id="migrationSnippet"
+          readonly
+          hidden
+          aria-label="Fertige Migrationshilfe zum Kopieren"
+        ></textarea>
+        <p class="muted"
+          >Der Code enthält deinen Token und gilt 24 Stunden. Gib ihn nur hier beim Import ein.
+          Danach die Eigenschaft und die Hilfsdatei in der alten Kopie löschen. Die alte Kopie
+          selbst kannst du als Backup behalten.</p
+        >
+        <label
+          ><span>Umzugscode einfügen</span
+          ><input
+            id="migrationCode"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="migrationCodeHint"
+          /><small id="migrationCodeHint"
+            >Den vollständigen Wert der Skripteigenschaft kopieren. Er beginnt mit DPSYNC1.</small
+          ></label
+        >
+        <label id="replaceMigrationLabel" class="toggle"
+          ><input id="replaceMigration" type="checkbox" /><span
+            >Meine bereits gespeicherten Einstellungen durch den Umzug ersetzen</span
+          ></label
+        >
+        <button type="button" id="importMigration">Einstellungen übernehmen</button></fieldset
+      ><p id="migrationMessage" role="status"></p>
+    </section>
+    <p id="initialError" role="alert"></p>
+    <!-- BUILD:scripts -->
+  </body>
+</html>

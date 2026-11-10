@@ -90,6 +90,7 @@ function exportedCopy() {
   const app=shared();app.logs=[];app.project.delete('appOwnerEmail');
   app.project.set('rosterUserId','321');app.project.set('rosterUserToken','private-legacy-token');
   const c=load(app,alice);
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'fixtures/legacy-settings.gs'),'utf8'),c);
   vm.runInContext('howFrequent=30;ignoreEvents=[/^910050/i];',c);
   c.ScriptApp.newTrigger('startSync').timeBased().everyMinutes(30).create();
   c.ScriptApp.newTrigger('customJob').timeBased().everyMinutes(30).create();
@@ -205,4 +206,33 @@ test('legacy recurrence lookup skips incomplete metadata and continues to the ma
   }};
   const events=c.findOwnedEventInstances_({privateExtendedProperty:['fromGAS=true','id=series']});
   assert.equal(pages,2);assert.equal(events[0].id,'legacy');
+});
+
+test('one sync shares calendar discovery across legacy targets and refreshes it on the next run',()=>{
+  const app=shared(),c=load(app,alice);
+  app.calendars.get(alice).push({id:'other-'+alice,summary:'Ehrenamt',timeZone:'Europe/Berlin',accessRole:'writer'});
+  c.saveAppSettings({settings:{sourceCalendars:[['https://example.com/a.ics','Dienstplan'],['https://example.com/b.ics','Ehrenamt']],addEventsToCalendar:false,modifyExistingEvents:false,removeEventsFromCalendar:false}});
+  c.fetchSourceCalendars_=()=>({responses:[['unused']],failedSources:0});
+  let lists=0,gets=0;
+  const originalList=c.Calendar.CalendarList.list,originalGet=c.Calendar.CalendarList.get;
+  c.Calendar.CalendarList.list=options=>{lists++;return originalList(options);};
+  c.Calendar.CalendarList.get=id=>{gets++;return originalGet(id);};
+  c.loadUserPreferences_();c.runSync_();
+  assert.equal(lists,1);assert.equal(gets,0);
+  assert.ok(c.readUserPreferences_().sourceCalendars.every(row=>row[3]));
+  c.loadUserPreferences_();c.runSync_();
+  assert.equal(lists,1);assert.equal(gets,2);
+});
+
+test('newly created calendars join only the current lookup and are never created twice',()=>{
+  const c=load(shared(),alice),lookup={};let lists=0,creates=0;
+  c.Calendar.CalendarList.list=()=>{lists++;return {items:[]};};
+  c.Calendar.newCalendar=()=>({});
+  c.Calendar.Calendars={insert:event=>{creates++;return {...event,id:'new-calendar',accessRole:'owner'};}};
+  assert.equal(c.setupTargetCalendar_('Neu',null,lookup).id,'new-calendar');
+  assert.equal(c.setupTargetCalendar_('Neu',null,lookup).id,'new-calendar');
+  assert.equal(lists,1);assert.equal(creates,1);
+  c.Calendar.CalendarList.list=()=>{lists++;return {items:[{id:'renamed',summary:'Neu',accessRole:'owner'}]};};
+  assert.equal(c.setupTargetCalendar_('Neu').id,'renamed');
+  assert.equal(lists,2);
 });

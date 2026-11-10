@@ -2,10 +2,16 @@
   "name": "dienstplan-sync-checks",
   "private": true,
   "scripts": {
+    "build": "node scripts/build.cjs",
+    "build:check": "node scripts/build.cjs --check",
+    "format": "prettier --write src scripts .prettierrc.json",
+    "format:check": "prettier --check src scripts .prettierrc.json",
+    "pretest": "npm run build",
     "test": "node --test tests/*.test.cjs",
     "test:browser": "node --test tests/settings-ui.browser.cjs"
   },
   "devDependencies": {
-    "playwright": "1.58.2"
+    "playwright": "1.58.2",
+    "prettier": "3.6.2"
   }
 }

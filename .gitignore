@@ -1,4 +1,8 @@
 # Logs
+/Code.gs
+/Index.html
+/admin/Updates.gs
+/build-output/
 logs
 *.log
 npm-debug.log*
