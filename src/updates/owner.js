@@ -2,17 +2,8 @@
 // project properties, user properties (credentials/preferences), and triggers
 // belong to the shared app. This updater runs in a separate owner-only project.
 var scriptPrp = PropertiesService.getScriptProperties();
-var managedUpdateFiles = [
-  "Code",
-  "Helpers",
-  "Roster",
-  "Updates",
-  "Preferences",
-  "WebApp",
-  "Index",
-  "ical.js",
-  "tzid"
-];
+var managedUpdateFiles = ["Code", "Index", "ical.js", "tzid"];
+var retiredUpdateFiles = ["Helpers", "Roster", "Updates", "Preferences", "WebApp"];
 var updateRepository = "JustinBaumeyer/Google-Kalender-Sync";
 
 /** Enable once from the editor after completing the API setup in README.md. */
@@ -59,7 +50,7 @@ function checkForUpdates() {
     scriptPrp.setProperty("updateAvailable", updateAvailable);
     if (updateAvailable != "true" || scriptPrp.getProperty("autoUpdateEnabled") != "true") return;
 
-    // All files come from the same downloaded archive, even if main moves later.
+    // All files come from the same downloaded archive, even if release moves later.
     var replacementFiles = managedUpdateFiles.map(function (name) {
       return {
         name: name,
@@ -114,10 +105,10 @@ function rollbackLastUpdate() {
     var backup = scriptProjectRequest("/content?versionNumber=" + backupVersion, "GET");
     var current = scriptProjectRequest("/content", "GET");
     var replacements = backup.files.filter(function (file) {
-      return managedUpdateFiles.indexOf(file.name) != -1;
+      return managedUpdateFiles.concat(retiredUpdateFiles).indexOf(file.name) != -1;
     });
     scriptProjectRequest("/content", "PUT", {
-      files: mergeUpdateFiles(current.files, replacements)
+      files: mergeUpdateFiles(current.files, replacements, true)
     });
     scriptPrp.setProperty("autoUpdatePublishPending", "rollback");
     publishUpdatedApp();
@@ -163,7 +154,7 @@ function publishUpdatedApp() {
 function fetchUpdateRelease() {
   // GitHub's unauthenticated API is rate-limited by IP. Apps Script shares
   // outbound IPs with other scripts, so use the public archive download instead.
-  var url = "https://codeload.github.com/" + updateRepository + "/zip/refs/heads/main";
+  var url = "https://codeload.github.com/" + updateRepository + "/zip/refs/heads/release";
   var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
   if (response.getResponseCode() != 200)
     throw new Error("Update archive failed (HTTP " + response.getResponseCode() + ") for " + url);
@@ -242,7 +233,7 @@ function scriptProjectRequest(path, method, body) {
   );
 }
 
-function mergeUpdateFiles(current, replacements) {
+function mergeUpdateFiles(current, replacements, rollback) {
   if (!Array.isArray(current) || !Array.isArray(replacements))
     throw new Error("Invalid project file list");
   var byName = new Map();
@@ -257,10 +248,22 @@ function mergeUpdateFiles(current, replacements) {
     !byName.has("appsscript")
   )
     throw new Error("Project must contain settings and appsscript files");
+  var expected = managedUpdateFiles;
+  var legacyCount = replacements.filter(function (file) {
+    return retiredUpdateFiles.indexOf(file.name) != -1;
+  }).length;
+  if (rollback && legacyCount) {
+    if (legacyCount != retiredUpdateFiles.length) throw new Error("Incomplete legacy backup");
+    expected = managedUpdateFiles.concat(retiredUpdateFiles);
+  }
+  // These files were part of older installations. Their functions now live in Code.
+  retiredUpdateFiles.forEach(function (name) {
+    byName.delete(name);
+  });
   var seen = new Set();
   replacements.forEach(function (file) {
     if (
-      managedUpdateFiles.indexOf(file.name) == -1 ||
+      expected.indexOf(file.name) == -1 ||
       seen.has(file.name) ||
       file.type != (file.name == "Index" ? "HTML" : "SERVER_JS") ||
       typeof file.source != "string" ||
@@ -276,7 +279,7 @@ function mergeUpdateFiles(current, replacements) {
     seen.add(file.name);
     byName.set(file.name, { name: file.name, type: file.type, source: file.source });
   });
-  if (seen.size != managedUpdateFiles.length)
+  if (seen.size != expected.length)
     throw new Error("Update must include every managed program file");
   return Array.from(byName.values());
 }

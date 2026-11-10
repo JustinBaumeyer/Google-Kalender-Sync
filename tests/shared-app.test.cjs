@@ -242,7 +242,7 @@ test('internal and migration functions are private to google.script.run', () => 
   const publicNames = new Set(['install', 'uninstall', 'startSync', 'checkForUpdates', 'getSyncProgress',
     'getCalendarChoices','testRosterConnection','getAnnualRosterSummary','previewSynchronization','getInvitations','saveInvitations','importLegacyCopy','getMigrationSnippet',
     'doGet', 'getAppState', 'saveAppSettings', 'stopSync', 'disconnectApp']);
-  for (const file of ['Code.gs', 'Helpers.gs', 'Roster.gs', 'Preferences.gs', 'Updates.gs', 'WebApp.gs']) {
+  for (const file of ['Code.gs']) {
     for (const match of fs.readFileSync(path.join(root, file), 'utf8').matchAll(/^function (\w+)\(/gm)) {
       assert.ok(match[1].endsWith('_') || publicNames.has(match[1]), file + ': ' + match[1]);
     }

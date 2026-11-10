@@ -8,9 +8,7 @@
       "src/sync/state.js",
       "src/sync/run.js",
       "src/sync/target.js",
-      "src/runtime/notifications.js"
-    ],
-    "Helpers.gs": [
+      "src/runtime/notifications.js",
       "src/sync/planning.js",
       "src/sync/sources.js",
       "src/calendar/targets.js",
@@ -24,9 +22,7 @@
       "src/calendar/recurrence.js",
       "src/runtime/retry.js",
       "src/calendar/load-events.js",
-      "src/calendar/ownership-and-restoration.js"
-    ],
-    "Roster.gs": [
+      "src/calendar/ownership-and-restoration.js",
       "src/roster/ical.js",
       "src/roster/client.js",
       "src/roster/team.js",
@@ -36,16 +32,12 @@
       "src/reports/sources.js",
       "src/reports/entries.js",
       "src/reports/cache.js",
-      "src/reports/calculation.js"
-    ],
-    "Preferences.gs": [
+      "src/reports/calculation.js",
       "src/settings/defaults.js",
       "src/settings/codec.js",
       "src/settings/validation.js",
       "src/settings/store.js",
-      "src/settings/legacy.js"
-    ],
-    "WebApp.gs": [
+      "src/settings/legacy.js",
       "src/web/access.js",
       "src/web/state.js",
       "src/web/settings.js",
@@ -54,9 +46,9 @@
       "src/web/annual.js",
       "src/web/preview.js",
       "src/web/invitations.js",
-      "src/web/migration.js"
+      "src/web/migration.js",
+      "src/updates/check.js"
     ],
-    "Updates.gs": ["src/updates/check.js"],
     "admin/Updates.gs": ["src/updates/owner.js"]
   },
   "page": {

@@ -6,8 +6,9 @@ Die Einstellungen werden im Webinterface erklärt.
 
 ## Gemeinsame App einrichten
 
-1. Ein Apps-Script-Projekt erstellen. Die **`*.gs`-Dateien aus dem Hauptverzeichnis**, `Index.html`
-   und `appsscript.json` hinzufügen. Dateien aus `admin/` und `migration/` gehören
+1. Den letzten erfolgreichen Build im Branch [release](https://github.com/JustinBaumeyer/Google-Kalender-Sync/tree/release) öffnen.
+   Ein Apps-Script-Projekt erstellen und `Code.gs`, `Index.html`, `ical.js.gs`,
+   `tzid.gs`, `settings.gs` und `appsscript.json` hinzufügen. Dateien aus `admin/` und `migration/` gehören
    nicht in dieses Projekt. Die vorhandene `settings.gs` bei einem Upgrade behalten.
 2. Den erweiterten **Calendar-Dienst** aktivieren. Bei einem eigenen Cloud-Projekt
    dort auch die Google Calendar API aktivieren und die OAuth-Zustimmung konfigurieren.
@@ -98,7 +99,8 @@ Der optionale Updater läuft in einem **separaten privaten Apps-Script-Projekt**
 [demselben Inhaberkonto](https://script.google.com). Die anderen Nutzer brauchen dafür
 keinen Zugriff auf die Skriptprojekte.
 
-1. Nur `admin/Updates.gs` und `admin/appsscript.json` in dieses zweite Projekt kopieren.
+1. Aus dem Branch [release](https://github.com/JustinBaumeyer/Google-Kalender-Sync/tree/release)
+   nur `admin/Updates.gs` und `admin/appsscript.json` in dieses zweite Projekt kopieren.
 2. Das Updater-Projekt mit einem [Standard-Cloud-Projekt](https://developers.google.com/apps-script/guides/cloud-platform-projects#standard_cloud_platform_projects)
    verbinden. Dort die **Google Apps Script API** und den OAuth-Zugriff einrichten.
    API-Zugriff auch in den [Apps-Script-Kontoeinstellungen](https://script.google.com/home/usersettings)
@@ -107,7 +109,16 @@ keinen Zugriff auf die Skriptprojekte.
    der gemeinsamen App und `targetDeploymentId` auf deren Web-App-Bereitstellungs-ID
    setzen. Beide IDs stehen in Projekteinstellungen bzw. Bereitstellungen verwalten.
 4. `enableAutoUpdate` ausführen und autorisieren. Es wird sofort und danach täglich
-   nach einer höheren `version` in `Code.gs` auf `main` gesucht.
+   nach einer höheren `version` in `Code.gs` auf `release` gesucht.
+
+**Beim Wechsel auf Version 12 den Inhaber-Updater einmal ersetzen:** Nach dem ersten
+abgeschlossenen Build auf `main` die neue `admin/Updates.gs` aus `release` in das
+bestehende Updater-Projekt kopieren und `checkForUpdates` ausführen. Seine
+Skripteigenschaften bleiben bestehen. Der neue Updater entfernt die alten
+Programmdateien `Helpers`, `Roster`, `Updates`, `Preferences` und `WebApp` aus der
+App; deren Funktionen stehen jetzt gemeinsam in `Code`. `settings.gs` bleibt
+erhalten. Eine Wiederherstellung aus der Sicherung stellt auch die alte
+Dateiaufteilung wieder her.
 
 Der Updater lädt einen zusammenhängenden Repository-Snapshot ohne GitHub-API-Token,
 prüft die Dateien, legt eine Sicherung an und aktualisiert die bestehende Web-App-URL.
@@ -149,7 +160,6 @@ Mit Node.js 22 oder neuer:
 ```sh
 npm ci
 npm run format
-npm run build
 npm test
 npx playwright install chromium
 npm run test:browser
@@ -162,10 +172,20 @@ Dienstplan-Zugriff und die erste Bereitstellung mit zwei Konten separat prüfen.
 Ausführungsprotokolle enthalten Phasenlaufzeiten; lange Importe werden in kleinen
 Schritten automatisch fortgesetzt.
 
-Änderungen am Programm gehören nach **`src/`**. `npm run build` erzeugt daraus
-die installierbaren `.gs`-Dateien und `Index.html`. Die erzeugten Dateien werden
-mit eingecheckt, damit Installation und Updater ohne Node.js funktionieren.
-Die vorhandene Updater-Version kann diese Dateien weiter einspielen.
+Änderungen am Programm gehören nach **`src/`**. `npm test` baut das Programm vor
+den Tests automatisch. Für eine lokale Vorschau reicht auch `npm run build`.
+Die App besteht anschließend aus `Code.gs` und `Index.html`; der private
+Inhaber-Updater wird separat als `admin/Updates.gs` erzeugt. Die erzeugten Dateien
+sind in `main` nicht eingecheckt.
+
+GitHub Actions baut Pull Requests und prüft Formatierung, Servercode und
+Browseroberfläche. Die erzeugten Dateien stehen im jeweiligen Actions-Lauf als
+Artefakt `apps-script-build` zum Herunterladen bereit. Nach einem erfolgreichen Lauf auf `main` veröffentlicht es
+den geprüften Build automatisch im Branch `release`. Ein fehlgeschlagener oder
+inzwischen überholter Lauf ersetzt keinen veröffentlichten Build. Installation
+und Updater verwenden `release`; sie brauchen kein Node.js. Über **Actions →
+Build and test → Run workflow** lässt sich der Build auf `main` erneut starten.
+Für ein neues App-Update die Versionsnummer in `src/version.js` erhöhen.
 
 | Verzeichnis | Inhalt |
 | --- | --- |
@@ -186,11 +206,11 @@ weiterhin den gemeinsamen Apps-Script-Namensraum; neue Hilfsfunktionen enden auf
 Apps-Script-Manifeste, `migration/Export.gs` und die mitgelieferten Bibliotheken
 werden direkt an ihrem bisherigen Ort gepflegt.
 
-`npm test` prüft zuerst, ob die erzeugten Dateien zum Quellcode passen. CI prüft
-zusätzlich die Formatierung und die Browseroberfläche. Auch eine neue Quelldatei,
-die in der Build-Liste fehlt, lässt die Prüfung fehlschlagen. Quellcode und
-erzeugte Dateien deshalb immer zusammen committen; die Kommentare in den
-erzeugten Dateien verweisen auf die jeweilige Quelle.
+Die Build-Prüfung erkennt unvollständige Dateilisten und ungültiges JavaScript.
+Vor der Veröffentlichung wird der geprüfte Build noch einmal mit dem zugehörigen
+Quellstand abgeglichen. Der Branch-Wechsel veröffentlicht alle Dateien zusammen;
+ein zwischenzeitlich geänderter `release`-Branch wird nicht überschrieben. Die
+Kommentare in den erzeugten Dateien verweisen auf die jeweilige Quelle.
 
 Der Sync lädt vorhandene Termine vollständig, bevor er einen Zielkalender
 abgleicht. Die Zuordnung alter Termine hat ein gemeinsames Limit für den gesamten

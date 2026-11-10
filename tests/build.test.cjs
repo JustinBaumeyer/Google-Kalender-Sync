@@ -7,7 +7,7 @@ const {test} = require('node:test');
 const {build, check} = require('../scripts/build.cjs');
 const root = path.join(__dirname, '..');
 
-test('committed installation files match the source and the existing updater file list', () => {
+test('built installation files match the source and the updater file list', () => {
   assert.deepEqual(check(), []);
   const outputs = build();
   const context = {PropertiesService: {getScriptProperties: () => ({})}};
@@ -19,7 +19,7 @@ test('committed installation files match the source and the existing updater fil
   assert.deepEqual(appFiles, managed.filter(name => !['ical.js.gs', 'tzid.gs'].includes(name)).sort());
   assert.ok(!outputs.has('settings.gs'));
   assert.ok(!outputs.has('appsscript.json'));
-  assert.match(outputs.get('Code.gs'), /^var version = 12;/);
+  assert.match(outputs.get('Code.gs'), /^var version = \d+;/);
 });
 
 test('source changes are caught before stale installation files can be shipped', t => {
@@ -34,11 +34,12 @@ test('source changes are caught before stale installation files can be shipped',
   assert.deepEqual(check(directory), []);
   const file = path.join(directory, 'src/settings/defaults.js');
   fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('howFrequent: 15', 'howFrequent: 30'));
-  assert.deepEqual(check(directory), ['Preferences.gs']);
-  const context = {};
-  vm.runInNewContext(build(directory).get('Preferences.gs'), context);
+  assert.deepEqual(check(directory), ['Code.gs']);
+  const properties = {getProperty: () => null};
+  const context = {PropertiesService: {getScriptProperties: () => properties, getUserProperties: () => properties}};
+  vm.runInNewContext(build(directory).get('Code.gs'), context);
   assert.equal(context.preferenceDefaults.howFrequent, 30);
-  assert.equal(fs.readFileSync(path.join(directory, 'Preferences.gs'), 'utf8'), build().get('Preferences.gs'));
+  assert.equal(fs.readFileSync(path.join(directory, 'Code.gs'), 'utf8'), build().get('Code.gs'));
 
   const orphan = path.join(directory, 'src/forgotten.js');
   fs.writeFileSync(orphan, 'function forgotten_() {}');

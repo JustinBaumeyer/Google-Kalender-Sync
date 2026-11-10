@@ -2,7 +2,7 @@
 function checkForUpdates() {
   requireAppOwner_();
   var response = UrlFetchApp.fetch(
-    "https://raw.githubusercontent.com/JustinBaumeyer/Google-Kalender-Sync/refs/heads/main/Code.gs",
+    "https://raw.githubusercontent.com/JustinBaumeyer/Google-Kalender-Sync/refs/heads/release/Code.gs",
     {
       muteHttpExceptions: true
     }

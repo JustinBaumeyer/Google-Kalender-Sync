@@ -7,7 +7,7 @@ const { test } = require('node:test');
 const root = path.join(__dirname, '..');
 const clone = value => JSON.parse(JSON.stringify(value));
 const commit = 'a'.repeat(40);
-const programNames = ['Code', 'Helpers', 'Roster', 'Updates', 'Preferences', 'WebApp', 'Index', 'ical.js', 'tzid'];
+const programNames = ['Code', 'Index', 'ical.js', 'tzid'];
 
 function load({ enabled = true, remoteVersion = 7, locked = false } = {}) {
   const properties = new Map([
@@ -40,7 +40,7 @@ function load({ enabled = true, remoteVersion = 7, locked = false } = {}) {
       const entries = state.archiveEntries || Object.entries(state.remote)
         .filter(([, source]) => source !== undefined)
         .map(([name, source]) => ({
-          getName: () => 'Google-Kalender-Sync-main/' + name,
+          getName: () => 'Google-Kalender-Sync-release/' + name,
           getDataAsString: () => source,
         }));
       if (state.afterUnzip) state.afterUnzip();
@@ -74,7 +74,7 @@ function load({ enabled = true, remoteVersion = 7, locked = false } = {}) {
         assert.fail('Updater must not depend on the unauthenticated GitHub API');
       } else if (parsed.hostname === 'codeload.github.com') {
         assert.equal(options.headers?.Authorization, undefined);
-        assert.equal(parsed.pathname, '/JustinBaumeyer/Google-Kalender-Sync/zip/refs/heads/main');
+        assert.equal(parsed.pathname, '/JustinBaumeyer/Google-Kalender-Sync/zip/refs/heads/release');
         body = 'archive';
       } else {
         assert.equal(parsed.hostname, 'script.googleapis.com');
@@ -102,7 +102,7 @@ function load({ enabled = true, remoteVersion = 7, locked = false } = {}) {
         typeof body === 'string' ? body : JSON.stringify(body) };
     } },
   });
-  for (const file of ['Code.gs', 'admin/Updates.gs', 'Helpers.gs']) {
+  for (const file of ['Code.gs', 'admin/Updates.gs']) {
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   }
   return { context, state, properties };
@@ -118,12 +118,12 @@ test('notification-only owner checks make no code writes', () => {
   assert.equal(state.released, 1);
 });
 
-test('one archive replaces the GitHub API and stays consistent if main changes mid-update', () => {
+test('one archive replaces the GitHub API and stays consistent if release changes mid-update', () => {
   const { context, state, properties } = load();
-  const archivedHelper = state.remote['Helpers.gs'];
-  state.afterUnzip = () => { state.remote['Helpers.gs'] = '// newer commit now on main'; };
+  const archivedHelper = state.remote['Index.html'];
+  state.afterUnzip = () => { state.remote['Index.html'] = '<p>newer build now on release</p>'; };
   context.checkForUpdates();
-  assert.equal(state.current.find(file => file.name === 'Helpers').source, archivedHelper);
+  assert.equal(state.current.find(file => file.name === 'Index').source, archivedHelper);
   assert.equal(properties.get('autoUpdateCommit'), commit);
   assert.equal(state.requests.filter(r => r.url.startsWith('https://codeload.github.com/')).length, 1);
   assert.equal(state.requests.some(r => r.url.startsWith('https://api.github.com/')), false);
@@ -132,7 +132,7 @@ test('one archive replaces the GitHub API and stays consistent if main changes m
 
 test('archive download failures and invalid commit metadata never change project code', () => {
   for (const setup of [
-    state => { state.failures['/JustinBaumeyer/Google-Kalender-Sync/zip/refs/heads/main'] = 403; },
+    state => { state.failures['/JustinBaumeyer/Google-Kalender-Sync/zip/refs/heads/release'] = 403; },
     state => { state.archiveCommit = 'invalid'; },
     state => { state.archiveEntries = []; },
     state => { state.archiveEntries = [
@@ -198,13 +198,13 @@ test('the complete real program can be staged and merged without changing user f
   state.remote['Code.gs'] = state.remote['Code.gs'].replace(/^var version = 6;/, 'var version = 7;');
   context.checkForUpdates();
   assert.equal(state.writes.length, 1);
-  assert.ok(state.current.find(f => f.name === 'Updates').source.includes('requireAppOwner_'));
+  assert.ok(state.current.find(f => f.name === 'Code').source.includes('requireAppOwner_'));
 });
 
 test('a missing, empty or syntactically invalid download cannot modify the project', () => {
   for (const badSource of [undefined, '', 'function broken(']) {
     const { context, state, properties } = load();
-    state.remote['Helpers.gs'] = badSource;
+    state.remote['tzid.gs'] = badSource;
     const original = clone(state.current);
     assert.throws(() => context.checkForUpdates());
     assert.deepEqual(state.current, original);
@@ -219,7 +219,7 @@ test('a missing, empty or syntactically invalid download cannot modify the proje
 test('failed checks preserve a previous update notice', () => {
   const { context, state, properties } = load();
   properties.set('updateAvailable', 'true');
-  state.failures['/JustinBaumeyer/Google-Kalender-Sync/zip/refs/heads/main'] = 503;
+  state.failures['/JustinBaumeyer/Google-Kalender-Sync/zip/refs/heads/release'] = 503;
   assert.throws(() => context.checkForUpdates(), /HTTP 503/);
   assert.equal(properties.get('updateAvailable'), 'true');
   assert.equal(state.writes.length, 0);
@@ -370,4 +370,47 @@ test('simplified event writer honors create/update settings and defers instances
       assert.deepEqual(operations, []);
     }
   }
+});
+
+test('combining old program files preserves settings and rollback restores the old layout',()=>{
+  const {context,state,properties}=load();
+  const retired=['Helpers','Roster','Updates','Preferences','WebApp'];
+  retired.forEach(name=>state.current.push({name,type:'SERVER_JS',source:'// old '+name}));
+  const original=clone(state.current);
+  context.checkForUpdates();
+  assert.ok(retired.every(name=>!state.current.some(file=>file.name===name)));
+  assert.deepEqual(state.backups[0],original);
+  state.current.find(file=>file.name==='settings').source='var howFrequent = 99;';
+  properties.set('rosterUserToken','newer-user-token');
+  context.rollbackLastUpdate();
+  for(const name of retired)assert.deepEqual(state.current.find(file=>file.name===name),original.find(file=>file.name===name));
+  assert.equal(state.current.find(file=>file.name==='Code').source,'var version = 6;');
+  assert.equal(state.current.find(file=>file.name==='settings').source,'var howFrequent = 99;');
+  assert.equal(properties.get('rosterUserToken'),'newer-user-token');
+  assert.equal(properties.get('autoUpdateEnabled'),'false');
+});
+
+test('a partial legacy backup cannot replace the working app',()=>{
+  const {context,state}=load();
+  ['Helpers','Roster','Updates','Preferences','WebApp'].forEach(name=>state.current.push({name,type:'SERVER_JS',source:'// old '+name}));
+  context.checkForUpdates();
+  state.backups[0]=state.backups[0].filter(file=>file.name!=='Helpers');
+  const working=clone(state.current),writes=state.writes.length;
+  assert.throws(()=>context.rollbackLastUpdate(),/Incomplete legacy backup/);
+  assert.equal(state.writes.length,writes);assert.deepEqual(state.current,working);
+});
+
+test('the shared app announces only versions from the published release branch',()=>{
+  const {load:loadApp,shared,owner,alice}=require('./helpers/apps-script.cjs');
+  const app=shared(),c=loadApp(app,owner);let requests=0;
+  c.UrlFetchApp={fetch:url=>{
+    requests++;assert.equal(url,'https://raw.githubusercontent.com/JustinBaumeyer/Google-Kalender-Sync/refs/heads/release/Code.gs');
+    return {getResponseCode:()=>200,getContentText:()=>`var version = ${c.version+1};`};
+  }};
+  c.checkForUpdates();assert.equal(requests,1);
+  assert.equal(app.project.get('availableVersion'),String(c.version+1));
+  assert.equal(app.project.get('updateAvailable'),'true');
+  const user=loadApp(app,alice);
+  user.UrlFetchApp={fetch:()=>assert.fail('A regular user checked for releases')};
+  assert.throws(()=>user.checkForUpdates(),/Nur der App-Inhaber/);
 });

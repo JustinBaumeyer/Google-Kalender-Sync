@@ -79,7 +79,14 @@ if (require.main === module) {
     } else console.log("Generated Apps Script files are current.");
   } else {
     const outputs = build();
-    for (const [name, source] of outputs) fs.writeFileSync(path.join(root, name), source);
+    const option = process.argv.indexOf("--output");
+    if (option !== -1 && !process.argv[option + 1]) throw new Error("Missing --output directory");
+    const output = option === -1 ? root : path.resolve(root, process.argv[option + 1]);
+    for (const [name, source] of outputs) {
+      const file = path.join(output, name);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, source);
+    }
     console.log("Built " + outputs.size + " Apps Script files.");
   }
 }
