@@ -49,6 +49,9 @@ function collectAnnualRosterEntries_(months, year, timeZone, ignoreCodes) {
         if (visited > 50000)
           throw new Error("Die Quelle enthält zu viele Diensteinträge für eine Jahresübersicht.");
         if (ignoreCodes.indexOf(entry.shortName) != -1) return;
+        var code = String(entry.shortName || "Ohne Kürzel");
+        // K marks sickness, not worked time, regardless of the shift metadata.
+        if (code.trim().toUpperCase() == "K") return;
         if (typeof entry.from != "string" || typeof entry.to != "string") {
           invalid++;
           return;
@@ -61,8 +64,7 @@ function collectAnnualRosterEntries_(months, year, timeZone, ignoreCodes) {
         }
         if (end <= from || start >= until) return;
         // ROSTER calls this nameWorkplace, but the value identifies a vehicle.
-        var vehicle = String(entry.nameWorkplace || "").trim() || "Fahrzeug fehlt",
-          code = String(entry.shortName || "Ohne Kürzel");
+        var vehicle = String(entry.nameWorkplace || "").trim() || "Fahrzeug fehlt";
         var key = JSON.stringify([start, end, vehicle, code]);
         if (seen.has(key)) {
           duplicates++;

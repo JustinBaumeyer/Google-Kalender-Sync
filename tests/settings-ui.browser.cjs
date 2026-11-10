@@ -553,3 +553,21 @@ test('a 110-duty report pages and filters locally while CSV and printing include
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
 });
+
+test('K-coded sick days never appear as 24-hour duties in annual totals or CSV',async()=>{
+  const {page,server,errors}=await open();
+  try{
+    annualServices(server,[
+      annualEntry('2026-02-01T00:00+01:00','2026-02-02T00:00+01:00','Würselen 2 RTW 1','K','Tagdienst'),
+      annualEntry('2026-02-02T00:00+01:00','2026-02-02T08:00+01:00')
+    ]);
+    await page.locator('#annualOpenSettings').click();await page.locator('#annualYear').fill('2026');await page.locator('#annualLoad').click();
+    await page.locator('#annualResults').waitFor({state:'visible'});
+    assert.ok((await page.locator('#annualHeadline').textContent()).includes('8,00 Stunden'));
+    assert.equal(await page.locator('#annualRows tr').count(),1);
+    assert.equal((await page.locator('#annualRows').textContent()).includes('· K'),false);
+    const csv=await page.evaluate(()=>annualCsv()),lines=csv.split('\r\n');
+    assert.equal(lines.length,2);assert.equal(lines[1].includes('"K"'),false);
+    assert.ok(lines[1].includes('"D"'));assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});

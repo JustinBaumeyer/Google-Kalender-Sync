@@ -16,7 +16,7 @@ function loadAnnualRosterData_(year, timeZone, forceReload) {
       return ("0" + (byte & 255).toString(16)).slice(-2);
     })
     .join("");
-  var key = "annual-roster:v2:" + digest,
+  var key = "annual-roster:v3:" + digest,
     raw = cache && !forceReload && cache.get(key),
     data;
   if (raw) {
