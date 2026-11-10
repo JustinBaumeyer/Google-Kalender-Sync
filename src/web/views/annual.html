@@ -45,7 +45,7 @@
           >ROSTER neu abrufen (15-Minuten-Zwischenspeicher umgehen)</span
         ></label
       >
-      <div class="actions"
+      <div class="actions field-actions"
         ><label
           ><span>Zusätzlicher Feiertag am Arbeitsort</span
           ><input id="annualHoliday" type="date" /></label
@@ -94,7 +94,7 @@
       <details id="annualMonthDetails"
         ><summary>Monatswerte</summary
         ><div class="table-scroll"
-          ><table
+          ><table class="annual-month-table"
             ><thead
               ><tr
                 ><th>Monat</th><th>Kalendertage mit Dienst</th><th>Blöcke</th><th>über 8 h</th
@@ -111,7 +111,7 @@
           einschließlich der relevanten Wege ein. Die Zähler zählen erfasste Abwesenheiten, keine
           steuerlichen Pauschaltage.</p
         >
-        <div class="actions annual-controls">
+        <div class="duty-toolbar annual-controls">
           <label
             ><span>Dienste anzeigen</span
             ><select id="annualDutyFilter">
@@ -121,16 +121,18 @@
               ><option value="edited">Mit eigenen Ergänzungen</option>
             </select></label
           >
-          <button type="button" id="annualDutyPrevious" class="secondary">Zurück</button>
-          <span id="annualDutyPageStatus" role="status" class="muted"></span>
-          <button type="button" id="annualDutyNext" class="secondary">Weiter</button>
+          <div class="duty-navigation">
+            <button type="button" id="annualDutyPrevious" class="secondary">Zurück</button>
+            <span id="annualDutyPageStatus" role="status" class="muted"></span>
+            <button type="button" id="annualDutyNext" class="secondary">Weiter</button>
+          </div>
         </div>
         <small class="annual-controls"
           >20 Dienste pro Seite. CSV und Druck enthalten alle Dienste des Jahres.</small
         >
         <p id="annualAbsenceTotals" class="muted"></p
         ><div class="table-scroll"
-          ><table
+          ><table class="annual-duty-table"
             ><thead
               ><tr
                 ><th>Beginn / Ende</th><th>Fahrzeuge / Kürzel</th><th>Rettungswache / Zuordnung</th

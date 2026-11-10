@@ -10,8 +10,10 @@
       <div class="eyebrow">DIENSTPLAN SYNC</div>
       <h1>Dienstplan-Sync</h1>
       <p class="muted">Dienstpläne und Kalender-Abos mit Google Kalender synchronisieren.</p>
-      <span id="account" class="muted"></span>
-      <span id="appVersion" class="muted" style="margin-left: 0.7rem"></span>
+      <div class="account-meta">
+        <span id="account" class="muted"></span>
+        <span id="appVersion" class="muted"></span>
+      </div>
     </header>
     <div class="status" aria-live="polite"
       ><div id="status">Einstellungen werden geladen …</div><div id="lastSync" class="muted"></div
@@ -74,10 +76,11 @@
     <section id="adminPanel" hidden
       ><h2>Zugriff verwalten</h2><p id="ownerInfo" class="muted"></p
       ><fieldset id="adminFields"
-        ><label
-          ><span>Google-E-Mail-Adresse</span
-          ><input id="inviteEmail" type="email" autocomplete="email" /></label
-        ><button type="button" id="addInvite" style="margin-top: 0.7rem">Zugriff erlauben</button
+        ><div class="actions field-actions"
+          ><label
+            ><span>Google-E-Mail-Adresse</span
+            ><input id="inviteEmail" type="email" autocomplete="email" /></label
+          ><button type="button" id="addInvite">Zugriff erlauben</button></div
         ><ul id="inviteList" class="event-list"></ul></fieldset
       ><p class="muted"
         >Es wird keine E-Mail verschickt. Teile den App-Link selbst mit der Person. Falls das
