@@ -31,7 +31,7 @@ test('two invited users keep preferences, tokens and account status separate', (
 test('uninvited accounts cannot read, save, install, sync or disconnect', () => {
   const c = load(shared(), 'stranger@example.com');
   for (const method of ['getAppState', 'getSyncProgress', 'saveAppSettings', 'install', 'startSync', 'stopSync', 'disconnectApp', 'uninstall',
-    'getCalendarChoices','testRosterConnection','previewSynchronization','getInvitations','saveInvitations','getMigrationSnippet','importLegacyCopy']) {
+    'getCalendarChoices','testRosterConnection','saveAnnualStationSettings','previewSynchronization','getInvitations','saveInvitations','getMigrationSnippet','importLegacyCopy']) {
     assert.throws(() => c[method]({}), /nicht eingeladen/, method);
   }
 });
@@ -240,7 +240,7 @@ test('scheduled error emails use the current account and throttle separately', (
 
 test('internal and migration functions are private to google.script.run', () => {
   const publicNames = new Set(['install', 'uninstall', 'startSync', 'checkForUpdates', 'getSyncProgress',
-    'getCalendarChoices','testRosterConnection','getAnnualRosterSummary','previewSynchronization','getInvitations','saveInvitations','importLegacyCopy','getMigrationSnippet',
+    'getCalendarChoices','testRosterConnection','saveAnnualStationSettings','getAnnualRosterSummary','previewSynchronization','getInvitations','saveInvitations','importLegacyCopy','getMigrationSnippet',
     'doGet', 'getAppState', 'saveAppSettings', 'stopSync', 'disconnectApp']);
   for (const file of ['Code.gs']) {
     for (const match of fs.readFileSync(path.join(root, file), 'utf8').matchAll(/^function (\w+)\(/gm)) {

@@ -15,9 +15,24 @@ async function loadAnnualReport() {
       includeFuture: $("annualFuture").checked,
       forceReload: $("annualRefresh").checked
     });
+    if (!annualReport || annualReport.year !== report.year) {
+      annualDutyPage = 0;
+      annualDutyFilter = "all";
+      $("annualDutyFilter").value = "all";
+      annualVehicleStations.clear();
+      (report.stationSettings.vehicles || []).forEach(([vehicle, station]) =>
+        annualVehicleStations.set(vehicle, station)
+      );
+      $("annualFirstStation").value = report.stationSettings.firstStation;
+      $("annualStationMessage").textContent =
+        report.stationSettings.warning ||
+        (report.stationSettings.saved
+          ? "Gespeicherte Zuordnung für " + report.year + " geladen."
+          : "Die Wachenzuordnung kannst du für dieses Jahr speichern.");
+    }
     renderAnnualReport(report);
     $("annualMessage").textContent =
-      "Jahresübersicht erstellt. Eigene Ergänzungen bleiben nur bis zum Neuladen dieser Seite erhalten. Bei Bedarf CSV herunterladen.";
+      "Jahresübersicht erstellt. Wachenzuordnungen lassen sich speichern. Eigene Abwesenheitsangaben und Abweichungen beim einzelnen Dienst vor dem Neuladen als CSV exportieren.";
   } catch (error) {
     $("annualMessage").textContent = error.message || String(error);
   } finally {

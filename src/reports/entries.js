@@ -9,13 +9,13 @@ function rosterReportUnion_(entries) {
       var last = result[result.length - 1];
       if (last && entry.start <= last.end) {
         last.end = Math.max(last.end, entry.end);
-        last.sites = Array.from(new Set(last.sites.concat(entry.sites)));
+        last.vehicles = Array.from(new Set(last.vehicles.concat(entry.vehicles)));
         last.codes = Array.from(new Set(last.codes.concat(entry.codes)));
       } else
         result.push({
           start: entry.start,
           end: entry.end,
-          sites: entry.sites.slice(),
+          vehicles: entry.vehicles.slice(),
           codes: entry.codes.slice()
         });
     });
@@ -60,9 +60,10 @@ function collectAnnualRosterEntries_(months, year, timeZone, ignoreCodes) {
           return;
         }
         if (end <= from || start >= until) return;
-        var site = String(entry.nameWorkplace || "Einsatzort fehlt"),
+        // ROSTER calls this nameWorkplace, but the value identifies a vehicle.
+        var vehicle = String(entry.nameWorkplace || "").trim() || "Fahrzeug fehlt",
           code = String(entry.shortName || "Ohne Kürzel");
-        var key = JSON.stringify([start, end, site, code]);
+        var key = JSON.stringify([start, end, vehicle, code]);
         if (seen.has(key)) {
           duplicates++;
           return;
@@ -75,7 +76,7 @@ function collectAnnualRosterEntries_(months, year, timeZone, ignoreCodes) {
         (type == "rufbereitschaft" ? standby : entries).push({
           start: start,
           end: end,
-          sites: [site],
+          vehicles: [vehicle],
           codes: [code]
         });
       });

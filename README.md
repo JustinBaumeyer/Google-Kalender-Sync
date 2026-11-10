@@ -141,18 +141,29 @@ werden dort weiterhin manuell übernommen.
 Die Jahresübersicht wird im Webinterface separat aus ROSTER erstellt und lässt
 Kalendertermine sowie den Zeitraum des normalen Syncs unverändert. Der frühere
 Schalter `addYearSummary` wird nicht mehr ausgewertet; vorhandene Einstellungen
-müssen dafür nicht bearbeitet werden. CSV und Druckansicht enthalten die Details.
-Eigene Abwesenheitsangaben und die Zuordnung der ersten Tätigkeitsstätte bleiben
-nur im Browser und sollten bei Bedarf vor dem Neuladen exportiert werden.
+müssen dafür nicht bearbeitet werden. Die Detailtabelle zeigt 20 Dienste pro Seite
+und lässt sich nach anderen Wachen, unklaren Zuordnungen oder eigenen Ergänzungen
+filtern. Jahressummen, CSV und Druckansicht enthalten weiterhin alle Dienste.
+Fahrzeuge werden anhand ihrer Kennung einer Rettungswache zugeordnet, zum Beispiel
+Würselen 2 RTW 1 und Würselen 2 RTW 2 zu Würselen 2. Namen wie ITW und abweichende
+Schreibweisen lassen sich in der Zuordnungstabelle ergänzen. Die erste
+Tätigkeitsstätte ist die Rettungswache, nicht das einzelne Fahrzeug.
+Wachenzuordnungen und die erste Tätigkeitsstätte können pro Jahr und Google-Konto
+gespeichert werden. Eigene Abwesenheitsangaben und abweichende Wachen beim einzelnen
+Dienst bleiben im Browser und sollten vor dem Neuladen exportiert werden.
+Das gemeinsame Nachtfenster von Steuerrecht und aktuellem DRK-RTV steht einmal
+in Übersicht, Monatswerten und CSV. Ein abweichendes älteres Tarifzeitfenster
+wird bei Bedarf zusätzlich angezeigt.
 
 Beim ersten Abruf werden die Jahresdaten mit Randmonaten in einer Dienstplan-Anfrage
-geladen. Die auf Zeit, Kürzel und Dienstort reduzierten Daten bleiben höchstens
+geladen. Die auf Zeit, Kürzel und Fahrzeug reduzierten Daten bleiben höchstens
 15 Minuten im nutzerbezogenen Zwischenspeicher. Feiertagsdaten von
 [feiertage-api.de](https://feiertage-api.de/) werden je Jahr und Bundesland für
 sechs Stunden gemeinsam zwischengespeichert. An den Dienst gehen nur Jahr und
 Bundesland. Die Option zum erneuten ROSTER-Abruf umgeht dessen Zwischenspeicher.
-Ein Wechsel der Tarifnachtzeit, der ersten Tätigkeitsstätte oder eigene
-Abwesenheitsangaben benötigen keine weiteren API-Aufrufe.
+Das Ändern der Nachtzeit, der Wachenzuordnung und eigener Ergänzungen benötigt
+keinen erneuten Dienstplanabruf. Nur das ausdrückliche Speichern der Wachenzuordnung
+schreibt diese Angaben in die nutzerbezogenen Einstellungen.
 
 ## Entwicklung und Prüfungen
 

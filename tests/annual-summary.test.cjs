@@ -69,9 +69,9 @@ test('future blocks are excluded by default and explicitly marked when requested
   const r=summary([e],{year:2028,includeFuture:true});assert.equal(r.totals.blocks,1);assert.equal(r.includeFuture,true);
 });
 
-test('parts of an ongoing continuous duty do not leak into completed workplace totals',()=>{
+test('an ongoing continuous duty is omitted from the completed report',()=>{
   const r=summary([entry('2027-01-10T10:00Z','2027-01-10T11:00Z'),entry('2027-01-10T11:00Z','2027-01-10T13:00Z','Wache 2')],{year:2027});
-  assert.equal(r.totals.blocks,0);assert.equal(r.workplaces.length,0);assert.equal(r.warnings.planned,1);
+  assert.equal(r.totals.blocks,0);assert.equal(r.rows.length,0);assert.equal(r.warnings.planned,1);
 });
 test('annual endpoint reads only the current roster, preserves preferences and makes no calendar writes',()=>{
   const {app,c}=setup();app.logs=[];
@@ -122,13 +122,39 @@ test('private roster caching avoids repeat calls and public holiday caching is s
   const options={year:2026,region:'NW',extraDates:[],includeFuture:false};
   assert.equal(c.getAnnualRosterSummary(options).cacheHit,false);assert.equal(calls.length,3);
   assert.equal(c.getAnnualRosterSummary(options).cacheHit,true);assert.equal(calls.length,3);
-  c.getAnnualRosterSummary({...options,includeFuture:true});assert.equal(calls.length,3);
+  c.saveAnnualStationSettings({year:2026,firstStation:'Eigene Wache',vehicles:[['ITW','Eigene Wache']]});
+  assert.equal(c.getAnnualRosterSummary({...options,includeFuture:true}).stationSettings.firstStation,'Eigene Wache');assert.equal(calls.length,3);
   c.getAnnualRosterSummary({...options,region:'BY'});assert.equal(calls.length,4);
   c.getAnnualRosterSummary({...options,forceReload:true});assert.equal(calls.length,6);
   const stored=Array.from(privateCaches.get(alice).values()).join('');
-  assert.equal(stored.includes('private-token'),false);assert.equal(stored.includes('Private remark'),false);
+  assert.equal(stored.includes('private-token'),false);assert.equal(stored.includes('Private remark'),false);assert.equal(stored.includes('Eigene Wache'),false);
   const other=load(app,bob);attach(other,bob);other.saveAppSettings({settings:{},rosterUserId:'456',rosterUserToken:'bob-token'});
   const otherCalls=services(other,[]);assert.equal(other.getAnnualRosterSummary(options).totals.blocks,0);assert.equal(otherCalls.length,2);
   assert.equal(c.getAnnualRosterSummary(options).totals.blocks,1);
   c.disconnectApp();assert.equal(privateCaches.get(alice).size,0);assert.ok(privateCaches.get(bob).size);assert.ok(publicCache.size);
+});
+
+test('ROSTER workplace values are vehicle labels, not an inferred first workplace',()=>{
+  const r=summary([entry('2026-02-02T07:00+01:00','2026-02-02T15:00+01:00','ITW')]);
+  assert.deepEqual(Array.from(r.rows[0].vehicles),['ITW']);
+  assert.equal('sites' in r.rows[0],false);assert.equal('workplaces' in r,false);
+});
+
+test('station assignments are saved per year and per account without changing sync settings',()=>{
+  const {app,c}=setup();c.saveAppSettings({settings:{howFrequent:30},rosterUserId:'123',rosterUserToken:'token'});
+  const original=app.users.get(alice).get('preferences');
+  c.saveAnnualStationSettings({year:2026,firstStation:'Würselen 2',vehicles:[['ITW','Würselen 2']]});
+  assert.equal(c.readAnnualStationSettings_(2026).firstStation,'Würselen 2');
+  assert.equal(c.readAnnualStationSettings_(2025).firstStation,'');
+  assert.equal(load(app,bob).readAnnualStationSettings_(2026).firstStation,'');
+  assert.equal(app.users.get(alice).get('preferences'),original);
+  assert.equal(app.users.get(alice).get('rosterUserToken'),'token');
+  const saved=app.users.get(alice).get('annualStations:2026');
+  for(const bad of [{year:2019,firstStation:'Würselen 2',vehicles:[]},
+    {year:2026,firstStation:'x'.repeat(121),vehicles:[]},
+    {year:2026,firstStation:'Würselen 2',vehicles:[['ITW','Würselen 2'],['ITW','Würselen 1']]},
+    {year:2026,firstStation:'Würselen 2',vehicles:Array.from({length:100},(_,i)=>['RTW '+i,'x'.repeat(120)])}])assert.throws(()=>c.saveAnnualStationSettings(bad));
+  assert.equal(app.users.get(alice).get('annualStations:2026'),saved);
+  app.locked.add(alice);assert.throws(()=>c.saveAnnualStationSettings({year:2026,firstStation:'',vehicles:[]}),/läuft/);app.locked.delete(alice);
+  c.disconnectApp();assert.equal(app.users.get(alice).has('annualStations:2026'),false);
 });

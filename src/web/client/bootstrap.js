@@ -23,7 +23,11 @@ $("annualDownload").onclick = downloadAnnualCsv;
 $("annualPrint").onclick = printAnnualReport;
 window.addEventListener("beforeprint", expandAnnualForPrint);
 window.addEventListener("afterprint", restoreAnnualAfterPrint);
-$("annualFirstSite").onchange = renderAnnualAnnotations;
+$("annualFirstStation").oninput = markAnnualStationChanges;
+$("annualSaveStations").onclick = saveAnnualStations;
+$("annualDutyFilter").onchange = changeAnnualDutyFilter;
+$("annualDutyPrevious").onclick = () => changeAnnualDutyPage(-1);
+$("annualDutyNext").onclick = () => changeAnnualDutyPage(1);
 $("annualAddHoliday").onclick = addAnnualHoliday;
 $("annualNightStart").onchange = () => {
   if (annualReport) renderAnnualReport(annualReport);

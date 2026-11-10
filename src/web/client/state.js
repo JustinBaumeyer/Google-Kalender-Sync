@@ -11,7 +11,10 @@ let current,
 const readers = new Map(),
   sourceReaders = new Map(),
   ruleReaders = new Map();
-let annualReport = null;
+let annualReport = null,
+  annualDutyPage = 0,
+  annualDutyFilter = "all",
+  annualPrinting = false;
 const annualRegions = [
   ["NW", "Nordrhein-Westfalen"],
   ["BW", "Baden-Württemberg"],
@@ -32,6 +35,8 @@ const annualRegions = [
   ["DE", "Nur bundeseinheitliche Feiertage"]
 ];
 const annualAbsence = new Map(),
+  annualVehicleStations = new Map(),
+  annualDutyStations = new Map(),
   annualExtraDates = new Set();
 const colors = [
   ["", "Standardfarbe"],
