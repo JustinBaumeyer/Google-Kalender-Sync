@@ -158,3 +158,59 @@ test('station assignments are saved per year and per account without changing sy
   app.locked.add(alice);assert.throws(()=>c.saveAnnualStationSettings({year:2026,firstStation:'',vehicles:[]}),/läuft/);app.locked.delete(alice);
   c.disconnectApp();assert.equal(app.users.get(alice).has('annualStations:2026'),false);
 });
+
+test('the K code is excluded without relying on any sickness label',()=>{
+  for(const code of ['K',' k '])for(const type of ['Tagdienst','',undefined]){
+    const {c}=setup();c.loadUserPreferences_();
+    const record=entry('2026-02-01T00:00+01:00','2026-02-02T00:00+01:00','Würselen 2 RTW 1',code,type);
+    if(type===undefined)delete record.nameShiftType;
+    const data=months([record]);
+    data[0].rosterUrlaubEinsatzwunsch={data:{legendDuties:{entries:[{shortName:code,shiftTypeName:'Tagdienst'}]}}};
+    const collected=c.collectAnnualRosterEntries_(data,2026,'Europe/Berlin',[]);
+    assert.equal(collected.entries.length,0,JSON.stringify([code,type]));
+    assert.equal(collected.standby.length,0);assert.equal(collected.invalid,0);
+  }
+});
+
+test('a K day touching a real shift cannot extend its hours, thresholds or night entitlement',()=>{
+  const r=summary([
+    entry('2026-02-01T00:00+01:00','2026-02-02T00:00+01:00','Würselen 2 RTW 1','K','Tagdienst'),
+    entry('2026-02-02T00:00+01:00','2026-02-02T08:00+01:00')
+  ]);
+  assert.equal(r.rows.length,1);assert.deepEqual(Array.from(r.rows[0].codes),['D']);
+  assert.equal(r.totals.minutes,480);assert.equal(r.rows[0].fullMinutes,480);
+  assert.equal(r.totals.days,1);assert.equal(r.totals.over8,0);assert.equal(r.totals.over12,0);
+  assert.equal(r.totals.nightMinutes,360);assert.equal(r.totals.night40Minutes,0);
+  assert.equal(r.totals.sunday50Minutes,0);assert.equal(r.monthly[1].minutes,480);
+});
+
+test('genuine 24-hour duties and Krankentransport remain work while standby stays separate',()=>{
+  const r=summary([
+    entry('2026-02-02T00:00+01:00','2026-02-03T00:00+01:00','Würselen 2 RTW 1','B24','Tagdienst'),
+    entry('2026-02-04T08:00+01:00','2026-02-04T16:00+01:00','KTW','KTW','Krankentransport'),
+    entry('2026-02-07T08:00+01:00','2026-02-07T16:00+01:00','RTW','K9','Tagdienst'),
+    entry('2026-02-05T00:00+01:00','2026-02-06T00:00+01:00','RB','RB','Rufbereitschaft')
+  ]);
+  assert.equal(r.totals.minutes,2400);assert.equal(r.totals.blocks,3);
+  assert.equal(r.totals.over8,1);assert.equal(r.totals.over12,1);
+  assert.equal(r.totals.standbyMinutes,1440);
+});
+
+test('sick-day fixes bypass old cached work entries and cache the corrected report without repeat fetches',()=>{
+  const {c}=setup(),cache=new Map();let legacyReads=0;
+  const legacy={entries:[{start:Date.parse('2026-02-01T00:00+01:00'),end:Date.parse('2026-02-02T00:00+01:00'),vehicles:['RTW'],codes:['K']}],standby:[],invalid:0,duplicates:0,receivedMonths:14};
+  function store(){return {
+    get:key=>{if(key.startsWith('annual-roster:v2:')){legacyReads++;return JSON.stringify(legacy);}return cache.get(key);},
+    put:(key,value)=>cache.set(key,value)
+  };}
+  c.CacheService={getUserCache:store,getScriptCache:store};
+  c.saveAppSettings({settings:{},rosterUserId:'123',rosterUserToken:'token'});
+  const requests=services(c,[entry('2026-02-01T00:00+01:00','2026-02-02T00:00+01:00','RTW','K','Tagdienst')]);
+  const options={year:2026,region:'NW',includeFuture:false};
+  assert.equal(c.getAnnualRosterSummary(options).totals.minutes,0);
+  assert.equal(requests.length,3);assert.equal(legacyReads,0);
+  const repeated=c.getAnnualRosterSummary(options);
+  assert.equal(repeated.cacheHit,true);assert.equal(repeated.rows.length,0);assert.equal(requests.length,3);
+  assert.ok(Array.from(cache.keys()).some(key=>key.startsWith('annual-roster:v3:')));
+  assert.equal(c.readUserPreferences_().rosterIgnoreList.includes('K'),false);
+});
