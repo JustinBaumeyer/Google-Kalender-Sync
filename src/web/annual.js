@@ -49,7 +49,7 @@ function getAnnualRosterSummary(input) {
     var reportTimeZone = "Europe/Berlin"; // German tax/tariff windows use local German time.
     var holidayData = fetchRosterReportHolidays_(input.year, input.region);
     var source = loadAnnualRosterData_(input.year, reportTimeZone, !!input.forceReload);
-    return calculateAnnualRosterSummary_(source, {
+    var report = calculateAnnualRosterSummary_(source, {
       year: input.year,
       timeZone: reportTimeZone,
       region: input.region,
@@ -59,5 +59,21 @@ function getAnnualRosterSummary(input) {
       holidayProvider: holidayData.provider,
       holidayNotes: holidayData.notes
     });
+    report.stationSettings = readAnnualStationSettings_(input.year);
+    return report;
   });
+}
+
+function saveAnnualStationSettings(input) {
+  requireWebUser_();
+  var settings = validateAnnualStationSettings_(input);
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(0))
+    throw new Error("Eine Prüfung oder Synchronisierung läuft. Bitte danach speichern.");
+  try {
+    userPrp.setProperty("annualStations:" + settings.year, JSON.stringify(settings));
+    return Object.assign(settings, { saved: true });
+  } finally {
+    lock.releaseLock();
+  }
 }

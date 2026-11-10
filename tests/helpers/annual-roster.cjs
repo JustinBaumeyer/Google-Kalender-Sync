@@ -3,8 +3,8 @@ function holidays(year=2026) {
     ['01-01','04-03','04-06','05-01','05-14','05-25','06-04','10-03','11-01','12-25','12-26'];
   return Object.fromEntries(dates.map((date,index)=>['Holiday '+index,{datum:year+'-'+date,hinweis:''}]));
 }
-function entry(from,to,site='Wache 1',code='D',type='Tagdienst') {
-  return {from,to,nameWorkplace:site,shortName:code,nameShiftType:type};
+function entry(from,to,vehicle='Würselen 2 RTW 1',code='D',type='Tagdienst') {
+  return {from,to,nameWorkplace:vehicle,shortName:code,nameShiftType:type};
 }
 function months(entries) {
   return Array.from({length:14},(_,index)=>({rosterDetails:index===0?[{data:{rosterDetails:{entries}}}]:[]}));

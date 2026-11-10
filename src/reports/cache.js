@@ -1,4 +1,4 @@
-/** Cache only the small time/location dataset, not raw roster responses or remarks. */
+/** Cache only the small time/vehicle dataset, not raw roster responses or remarks. */
 function loadAnnualRosterData_(year, timeZone, forceReload) {
   var cache =
     typeof CacheService != "undefined" && typeof CacheService.getUserCache == "function"
@@ -16,7 +16,7 @@ function loadAnnualRosterData_(year, timeZone, forceReload) {
       return ("0" + (byte & 255).toString(16)).slice(-2);
     })
     .join("");
-  var key = "annual-roster:v1:" + digest,
+  var key = "annual-roster:v2:" + digest,
     raw = cache && !forceReload && cache.get(key),
     data;
   if (raw) {

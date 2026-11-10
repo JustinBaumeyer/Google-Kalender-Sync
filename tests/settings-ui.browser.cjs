@@ -15,8 +15,8 @@ before(async()=>{
 });
 after(async()=>{if(browser)await browser.close();});
 
-async function open(settings={}, viewport={width:1120,height:950}, syncDelay=0) {
-  const app=shared(),server=load(app,alice),calls=[],errors=[];
+async function open(settings={}, viewport={width:1120,height:950}, syncDelay=0,existingApp) {
+  const app=existingApp||shared(),server=load(app,alice),calls=[],errors=[];
   (settings.sourceCalendars||[]).forEach((row,index)=>{
     if(!app.calendars.get(alice).some(cal=>cal.summary===row[1]))app.calendars.get(alice).push({id:'fixture-'+index,summary:row[1],timeZone:'Europe/Berlin',accessRole:'owner'});
   });
@@ -364,11 +364,11 @@ test('owner access panel adds and removes emails without JSON or sending message
   }finally{await page.close();}
 });
 
-test('annual roster report separates tax and DRK windows, records absence locally and exports safe CSV',async()=>{
+test('annual report merges identical night windows, groups stations and exports safe CSV',async()=>{
   const {page,server,app,calls,errors}=await open({addYearSummary:true,summaryYear:'2024'});
   try{
     const preferences=app.users.get(alice).get('preferences');
-    annualServices(server,[annualEntry('2026-02-02T20:00+01:00','2026-02-03T06:00+01:00'),annualEntry('2026-02-04T07:00+01:00','2026-02-04T19:30+01:00','Wache 2'),annualEntry('2026-02-05T08:00+01:00','2026-02-05T16:00+01:00','=gefährlich')]);
+    annualServices(server,[annualEntry('2026-02-02T20:00+01:00','2026-02-03T06:00+01:00'),annualEntry('2026-02-04T07:00+01:00','2026-02-04T19:30+01:00','Würselen 1 RTW 1'),annualEntry('2026-02-05T08:00+01:00','2026-02-05T16:00+01:00','=gefährlich')]);
     await page.locator('[data-preference="howFrequent"]').selectOption('30');
     await page.locator('#annualOpenSettings').click();await page.locator('#annualYear').fill('2026');await page.locator('#annualLoad').click();
     await page.locator('#annualResults').waitFor({state:'visible'});
@@ -376,13 +376,24 @@ test('annual roster report separates tax and DRK windows, records absence locall
     assert.ok((await page.locator('#annualProvenance').textContent()).includes('feiertage-api.de'));
     assert.equal(await page.locator('#annualMetrics .metric').count(),0);assert.equal(await page.locator('#annualMetrics dl').count(),3);
     assert.ok((await page.locator('#annualHeadline').textContent()).includes('30,50 Stunden'));
-    assert.ok((await page.locator('#annualMetrics').textContent()).includes('DRK-RTV 20–610,00 h'));
+    assert.deepEqual(await page.locator('#annualMetrics > div').nth(1).locator('dt').allTextContents(),['20–6 Uhr','davon 0–4 Uhr¹']);
+    assert.equal(await page.locator('#annualMonthDetails th:not([hidden])').count(),8);
+    assert.equal(await page.locator('#annualMonths tr').first().locator('td').count(),8);
+    const defaultCsv=await page.evaluate(()=>annualCsv());
+    assert.ok(defaultCsv.includes('"Nacht_20_06_h"'));assert.equal(defaultCsv.includes('DRK_RTV_Nacht_20_06_h'),false);
     const callsBefore=calls.filter(method=>method==='getAnnualRosterSummary').length;
     await page.getByText('Weitere Optionen',{exact:true}).click();
     await page.locator('#annualNightStart').selectOption('21');
     assert.ok((await page.locator('#annualMetrics').textContent()).includes('DRK-RTV 21–69,00 h'));
     assert.equal(calls.filter(method=>method==='getAnnualRosterSummary').length,callsBefore);
-    await page.locator('#annualFirstSite').selectOption('Wache 1');
+    assert.equal(await page.locator('#annualMonthDetails th:not([hidden])').count(),9);
+    assert.equal(await page.locator('#annualMonths tr').first().locator('td').count(),9);
+    await page.locator('#annualFirstStation').fill('  würselen  2  ');
+    assert.equal(await page.locator('[data-annual-class]').nth(1).textContent(),'Andere Rettungswache / prüfen');
+    assert.equal(await page.locator('[data-annual-class]').nth(2).textContent(),'Wache zuordnen / prüfen');
+    await page.locator('#annualStationDetails summary').click();
+    await page.getByLabel('=gefährlich',{exact:true}).fill('Würselen 2');
+    assert.equal(await page.locator('[data-annual-class]').nth(2).textContent(),'Erste Tätigkeitsstätte');
     await page.locator('#annualDutyDetails summary').click();
     await page.locator('.annual-absence').first().fill('12.5');
     assert.equal(await page.locator('#annualAbsenceTotals').textContent(),'1 Abwesenheit erfasst · über 8 Stunden: 1 · über 12 Stunden: 1');
@@ -390,7 +401,7 @@ test('annual roster report separates tax and DRK windows, records absence locall
     const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#annualDownload').click()]);
     assert.equal(download.suggestedFilename(),'Dienstplan-2026.csv');
     const csv=fs.readFileSync(await download.path(),'utf8');
-    assert.ok(csv.includes('DRK_RTV_Nacht_21_06_h'));assert.ok(csv.includes('"12,5"'));assert.ok(csv.includes('"\'=gefährlich"'));
+    assert.ok(csv.includes('Fahrzeuge'));assert.ok(csv.includes('Rettungswachen_zugeordnet'));assert.ok(csv.includes('DRK_RTV_Nacht_21_06_h'));assert.ok(csv.includes('"12,5"'));assert.ok(csv.includes('"\'=gefährlich"'));
     assert.ok(csv.includes('steuerfreie_Verpflegungserstattung_EUR'));assert.equal(csv.includes('saved-token'),false);
     assert.ok(csv.includes('Pause_im_Nachtfenster_min'));assert.ok(csv.includes('Abfahrt_Wohnung'));
     const lines=csv.split('\r\n');assert.ok(lines.every(line=>line.split(';').length===lines[0].split(';').length));
@@ -399,7 +410,7 @@ test('annual roster report separates tax and DRK windows, records absence locall
     assert.equal(await page.locator('[data-preference="howFrequent"]').inputValue(),'30');
     await page.evaluate(()=>window.print=()=>{window.reportPrinted=Array.from(document.querySelectorAll('#annualResults details')).every(node=>node.open);});await page.locator('#annualPrint').click();assert.equal(await page.evaluate(()=>window.reportPrinted),true);
     await page.emulateMedia({media:'print'});assert.equal(await page.locator('#preferences').isVisible(),false);assert.equal(await page.locator('#annualResults').isVisible(),true);
-    await page.emulateMedia({media:'screen'});await page.locator('#annualNightStart').selectOption('20');await page.locator('#annualDutyDetails summary').click();await page.getByText('Weitere Optionen',{exact:true}).click();await page.locator('#annualPanel').screenshot({path:'/tmp/dienstplan-jahresuebersicht-desktop.png'});
+    await page.emulateMedia({media:'screen'});await page.locator('#annualNightStart').selectOption('20');assert.equal(await page.locator('#annualMonthDetails th:not([hidden])').count(),8);await page.locator('#annualStationDetails summary').click();await page.locator('#annualDutyDetails summary').click();await page.getByText('Weitere Optionen',{exact:true}).click();await page.locator('#annualPanel').screenshot({path:'/tmp/dienstplan-jahresuebersicht-desktop.png'});
     await page.locator('#annualYear').fill('2025');await page.locator('#annualYear').blur();assert.equal(await page.locator('#annualDownload').isDisabled(),true);
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
@@ -446,5 +457,99 @@ test('migration provides an unchanged snippet, imports a pasted code and leaves 
     await page.locator('#sync').click();
     await page.getByText('Synchronisierung abgeschlossen',{exact:true}).waitFor();
     assert.equal(server.getAppState().rosterUserId,'777');
+  }finally{await page.close();}
+});
+
+test('vehicle prefixes and saved ITW aliases identify stations without treating vehicles as workplaces',async()=>{
+  const first=await open({howFrequent:30});let second;
+  const entries=[
+    annualEntry('2026-02-02T08:00+01:00','2026-02-02T16:00+01:00','Würselen 2 RTW X'),
+    annualEntry('2026-02-03T08:00+01:00','2026-02-03T16:00+01:00','würselen 2 rtw Y'),
+    annualEntry('2026-02-04T08:00+01:00','2026-02-04T16:00+01:00','Würselen 1 RTW Z'),
+    annualEntry('2026-02-05T08:00+01:00','2026-02-05T16:00+01:00','ITW'),
+    annualEntry('2026-02-06T08:00+01:00','2026-02-06T16:00+01:00','Würelen 2 RTW Y'),
+    annualEntry('2026-02-07T08:00+01:00','2026-02-07T16:00+01:00','Unbekannt')
+  ];
+  async function report(page){await page.locator('#annualOpenSettings').click();await page.locator('#annualYear').fill('2026');await page.locator('#annualLoad').click();await page.locator('#annualResults').waitFor({state:'visible'});}
+  try{
+    const requests=annualServices(first.server,entries);
+    const preferences=first.app.users.get(alice).get('preferences');
+    await report(first.page);
+    await first.page.locator('#annualFirstStation').fill('Würselen 2');
+    const classes=first.page.locator('[data-annual-class]');
+    assert.equal(await classes.nth(0).textContent(),'Erste Tätigkeitsstätte');
+    assert.equal(await classes.nth(1).textContent(),'Erste Tätigkeitsstätte');
+    assert.equal(await classes.nth(2).textContent(),'Andere Rettungswache / prüfen');
+    assert.equal(await classes.nth(3).textContent(),'Wache zuordnen / prüfen');
+    const before=requests.length;
+    await first.page.locator('#annualStationDetails summary').click();
+    await first.page.getByLabel('ITW',{exact:true}).fill('Würselen 2');
+    await first.page.getByLabel('Würelen 2 RTW Y',{exact:true}).fill('Würselen 2');
+    assert.equal(await classes.nth(3).textContent(),'Erste Tätigkeitsstätte');
+    assert.equal(await classes.nth(4).textContent(),'Erste Tätigkeitsstätte');
+    assert.equal(await classes.nth(5).textContent(),'Wache zuordnen / prüfen');
+    assert.equal(await first.page.locator('#annualStationNames option').count(),2);
+    await first.page.locator('#annualDutyDetails summary').click();
+    await first.page.locator('.annual-duty-station').first().fill('Würselen 1');
+    assert.equal(await classes.first().textContent(),'Andere Rettungswache / prüfen');
+    await first.page.locator('#annualSaveStations').click();
+    await first.page.getByText('Wachenzuordnung für 2026 gespeichert.',{exact:true}).waitFor();
+    assert.equal(requests.length,before);
+    assert.equal(first.app.users.get(alice).get('preferences'),preferences);
+    second=await open({howFrequent:30}, {width:1120,height:950},0,first.app);
+    annualServices(second.server,entries);await report(second.page);
+    assert.equal(await second.page.locator('#annualFirstStation').inputValue(),'Würselen 2');
+    assert.equal(await second.page.locator('[data-annual-class]').nth(3).textContent(),'Erste Tätigkeitsstätte');
+    assert.equal(await second.page.locator('[data-annual-class]').nth(4).textContent(),'Erste Tätigkeitsstätte');
+    assert.equal(await second.page.locator('[data-annual-class]').first().textContent(),'Erste Tätigkeitsstätte');
+    assert.equal(await second.page.locator('.annual-duty-station').first().inputValue(),'');
+    await second.page.locator('details.danger summary').click();second.page.once('dialog',dialog=>dialog.accept());await second.page.locator('#disconnect').click();
+    await second.page.waitForFunction(()=>annualReport===null);
+    assert.equal(first.app.users.get(alice).has('annualStations:2026'),false);
+    assert.equal(await second.page.evaluate(()=>annualVehicleStations.size+annualDutyStations.size),0);
+    assert.deepEqual(first.errors,[]);assert.deepEqual(second.errors,[]);
+  }finally{if(second)await second.page.close();await first.page.close();}
+});
+
+test('a 110-duty report pages and filters locally while CSV and printing include the complete year',async()=>{
+  const {page,server,calls,errors}=await open();
+  try{
+    const entries=Array.from({length:110},(_,index)=>{
+      const start=Date.UTC(2026,0,1,8)+index*86400000;
+      return annualEntry(new Date(start).toISOString(),new Date(start+8*3600000).toISOString(),['Würselen 2 RTW X','Würselen 1 RTW Z','ITW'][index%3]);
+    });
+    const requests=annualServices(server,entries);
+    await page.locator('#annualOpenSettings').click();await page.locator('#annualYear').fill('2026');await page.locator('#annualLoad').click();
+    await page.locator('#annualResults').waitFor({state:'visible'});
+    await page.locator('#annualFirstStation').fill('Würselen 2');
+    await page.locator('#annualDutyDetails summary').click();
+    assert.equal(await page.locator('#annualRows tr').count(),20);
+    assert.equal(await page.locator('#annualDutyPageStatus').textContent(),'1–20 von 110 Diensten');
+    assert.ok((await page.locator('#annualHeadline').textContent()).includes('880,00 Stunden'));
+    const sourceRequests=requests.length;
+    await page.locator('#annualDutyNext').click();
+    assert.equal(await page.locator('#annualDutyPageStatus').textContent(),'21–40 von 110 Diensten');
+    await page.locator('.annual-absence').first().fill('12.5');
+    await page.locator('#annualDutyNext').click();await page.locator('#annualDutyPrevious').click();
+    assert.equal(await page.locator('.annual-absence').first().inputValue(),'12.5');
+    await page.locator('#annualDutyFilter').selectOption('other');
+    assert.equal(await page.locator('#annualDutyPageStatus').textContent(),'1–20 von 37 Diensten');
+    assert.ok((await page.locator('[data-annual-class]').allTextContents()).every(text=>text==='Andere Rettungswache / prüfen'));
+    await page.locator('#annualDutyNext').click();assert.equal(await page.locator('#annualRows tr').count(),17);
+    assert.equal(await page.locator('#annualDutyNext').isDisabled(),true);
+    await page.locator('#annualDutyFilter').selectOption('unclear');
+    assert.equal(await page.locator('#annualDutyPageStatus').textContent(),'1–20 von 36 Diensten');
+    await page.locator('#annualDutyFilter').selectOption('edited');
+    assert.equal(await page.locator('#annualRows tr').count(),1);
+    assert.equal(await page.locator('.annual-absence').first().inputValue(),'12.5');
+    const csv=await page.evaluate(()=>annualCsv());assert.equal(csv.split('\r\n').length,111);assert.ok(csv.includes('"12,5"'));
+    await page.evaluate(()=>window.print=()=>{window.printedDutyCount=document.querySelectorAll('#annualRows tr').length;});
+    await page.locator('#annualPrint').click();
+    assert.equal(await page.evaluate(()=>window.printedDutyCount),110);
+    assert.equal(await page.locator('#annualRows tr').count(),1);
+    assert.equal(await page.locator('#annualDutyFilter').inputValue(),'edited');
+    assert.equal(requests.length,sourceRequests);assert.equal(calls.filter(method=>method==='getAnnualRosterSummary').length,1);
+    assert.ok((await page.locator('#annualHeadline').textContent()).includes('880,00 Stunden'));
+    assert.deepEqual(errors,[]);
   }finally{await page.close();}
 });

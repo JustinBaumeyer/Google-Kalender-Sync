@@ -74,7 +74,24 @@ async function action(method, text, saveFirst = false) {
       clearTimeout(progressTimer);
       $("syncPanel").hidden = true;
       annualReport = null;
+      annualDutyPage = 0;
+      annualDutyFilter = "all";
+      annualPrinting = false;
+      $("annualDutyFilter").value = "all";
       annualAbsence.clear();
+      annualVehicleStations.clear();
+      annualDutyStations.clear();
+      $("annualFirstStation").value = "";
+      [
+        "annualRows",
+        "annualMonths",
+        "annualVehicleStations",
+        "annualStationNames",
+        "annualMetrics"
+      ].forEach((id) => $(id).replaceChildren());
+      ["annualStationSummary", "annualStationMessage", "annualAbsenceTotals"].forEach(
+        (id) => ($(id).textContent = "")
+      );
       $("annualPanel").hidden = true;
       $("annualResults").hidden = true;
     }

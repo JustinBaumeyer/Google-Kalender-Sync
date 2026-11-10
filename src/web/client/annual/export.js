@@ -1,4 +1,5 @@
 function annualCsv() {
+  const separateNightWindow = $("annualNightStart").value === "21";
   const additions = [
     "Abfahrt_Wohnung",
     "Rückkehr_Wohnung",
@@ -17,15 +18,18 @@ function annualCsv() {
       "Beginn",
       "Ende",
       "Zeitzone",
-      "Einsatzorte",
+      "Fahrzeuge",
+      "Rettungswachen_zugeordnet",
+      "Abweichende_Wache_eigene_Angabe",
+      "Erste_Tätigkeitsstätte_eigene_Angabe",
       "Kürzel",
       "Zuordnung",
       "Feiertags_Bundesland",
       "Quelle_abgerufen_am",
       "Blockdauer_gesamt_h",
       "Dienstzeit_im_Jahr_h",
-      "Steuer_Nacht_20_06_h",
-      "DRK_RTV_Nacht_" + $("annualNightStart").value + "_06_h",
+      separateNightWindow ? "Steuer_Nacht_20_06_h" : "Nacht_20_06_h",
+      ...(separateNightWindow ? ["DRK_RTV_Nacht_21_06_h"] : []),
       "Steuer_Nacht_00_04_vor_00_h",
       "Steuer_Sonntag_50_h",
       "Steuer_Feiertag_125_h",
@@ -39,7 +43,12 @@ function annualCsv() {
       row.startLocal,
       row.endLocal,
       annualReport.timeZone,
-      row.sites.join(", "),
+      row.vehicles.join(", "),
+      annualStationsForDuty(row)
+        .map((name) => name || "Wache nicht zugeordnet")
+        .join(", "),
+      annualDutyStations.get(row.key) || "",
+      $("annualFirstStation").value.trim(),
       row.codes.join(", "),
       annualClass(row),
       annualReport.region,
@@ -47,7 +56,7 @@ function annualCsv() {
       annualHours(row.fullMinutes),
       annualHours(row.minutes),
       annualHours(row.nightMinutes),
-      annualHours(annualTariffMinutes(row)),
+      ...(separateNightWindow ? [annualHours(row.night21Minutes)] : []),
       annualHours(row.night40Minutes),
       annualHours(row.sunday50Minutes),
       annualHours(row.holiday125Minutes),
@@ -73,8 +82,7 @@ function annualCsv() {
 }
 function downloadAnnualCsv() {
   if (!annualReport) return;
-  for (const field of document.querySelectorAll(".annual-absence"))
-    if (!field.reportValidity()) return;
+  if (!annualVisibleInputsValid()) return;
   const url = URL.createObjectURL(new Blob([annualCsv()], { type: "text/csv;charset=utf-8" })),
     link = element("a");
   link.href = url;
@@ -92,12 +100,18 @@ function expandAnnualForPrint() {
     node.open
   ]);
   annualPrintState.forEach(([node]) => (node.open = true));
+  annualPrinting = true;
+  renderAnnualDuties();
 }
 function restoreAnnualAfterPrint() {
-  if (annualPrintState) annualPrintState.forEach(([node, open]) => (node.open = open));
+  if (!annualPrintState) return;
+  annualPrintState.forEach(([node, open]) => (node.open = open));
   annualPrintState = null;
+  annualPrinting = false;
+  renderAnnualDuties();
 }
 function printAnnualReport() {
+  if (!annualVisibleInputsValid()) return;
   expandAnnualForPrint();
   try {
     window.print();

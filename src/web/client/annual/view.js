@@ -8,32 +8,27 @@ function annualHours(minutes) {
     maximumFractionDigits: 2
   });
 }
-function annualTariffMinutes(values) {
-  return $("annualNightStart").value === "21" ? values.night21Minutes : values.nightMinutes;
-}
-function annualClass(row) {
-  const first = $("annualFirstSite").value;
-  if (!first || row.sites.includes("Einsatzort fehlt")) return "Bitte prüfen";
-  return row.sites.includes(first)
-    ? row.sites.length === 1
-      ? "Erste Tätigkeitsstätte"
-      : "Gemischte Einsatzorte"
-    : "Anderer Einsatzort – prüfen";
-}
 function renderAnnualAnnotations() {
   if (!annualReport) return;
   let over8 = 0,
     over12 = 0,
     entered = 0;
-  annualReport.rows.forEach((row, index) => {
+  const visible = new Map(
+    Array.from($("annualRows").children, (line) => [line.dataset.annualKey, line])
+  );
+  annualReport.rows.forEach((row) => {
     const hours = annualAbsence.get(row.key);
     if (hours !== undefined) {
       entered++;
       if (hours > 8) over8++;
       if (hours > 12) over12++;
     }
-    $("annualRows").children[index].querySelector("[data-annual-class]").textContent =
-      annualClass(row);
+    const line = visible.get(row.key);
+    if (!line) return;
+    line.querySelector("[data-annual-class]").textContent = annualClass(row);
+    line.querySelector("[data-annual-stations]").textContent = annualStationsForDuty(row)
+      .map((name) => name || "Wache nicht zugeordnet")
+      .join(", ");
   });
   $("annualAbsenceTotals").textContent =
     entered +
@@ -43,20 +38,22 @@ function renderAnnualAnnotations() {
     over8 +
     " · über 12 Stunden: " +
     over12;
-  const first = $("annualFirstSite").value;
+  const first = $("annualFirstStation").value.trim();
   const away = annualReport.rows.filter(
-    (row) => first && !row.sites.includes(first) && !row.sites.includes("Einsatzort fehlt")
+    (row) => annualClass(row) === "Andere Rettungswache / prüfen"
   ).length;
-  $("annualSiteSummary").textContent = first
-    ? "Gewählte erste Tätigkeitsstätte: " +
+  $("annualStationSummary").textContent = first
+    ? "Erste Tätigkeitsstätte: " +
       first +
       ". " +
       away +
-      " Dienstblöcke an anderen Einsatzorten – Auswärtstätigkeit jeweils prüfen."
-    : "Erste Tätigkeitsstätte zuordnen, um andere Einsatzorte getrennt zu erkennen.";
+      " Dienstblöcke anderen Rettungswachen zugeordnet. Auswärtstätigkeit jeweils prüfen."
+    : "Wähle die vom Arbeitgeber festgelegte erste Tätigkeitsstätte. Fahrzeuge derselben Wache werden zusammengefasst.";
+  renderAnnualStationChoices();
 }
 function renderAnnualReport(report) {
   annualReport = report;
+  const separateNightWindow = $("annualNightStart").value === "21";
   $("annualResults").hidden = false;
   $("annualTitle").textContent = report.year + " · Dienstzeiten laut ROSTER";
   $("annualProvenance").textContent =
@@ -69,7 +66,7 @@ function renderAnnualReport(report) {
     ") · ROSTER abgerufen: " +
     new Date(report.sourceLoadedAt).toLocaleString("de-DE") +
     (report.cacheHit ? " (Zwischenspeicher)" : "") +
-    " · Tarifnacht: " +
+    (separateNightWindow ? " · Tarifnacht: " : " · Nachtfenster: ") +
     $("annualNightStart").value +
     "–6 Uhr" +
     (report.includeFuture
@@ -82,7 +79,9 @@ function renderAnnualReport(report) {
   if (warnings.invalid) notes.push(warnings.invalid + " ungültige Zeiteinträge ausgelassen.");
   if (warnings.duplicates) notes.push(warnings.duplicates + " doppelte Einträge entfernt.");
   if (warnings.overlap)
-    notes.push("Überlappungen erkannt: Gesamtzeit ohne Doppelzählung; Einsatzorte bitte prüfen.");
+    notes.push(
+      "Überlappungen erkannt: Gesamtzeit ohne Doppelzählung; Fahrzeuge und Wachen bitte prüfen."
+    );
   (report.holidayNotes || []).forEach((item) =>
     notes.push(
       item.date +
@@ -121,14 +120,16 @@ function renderAnnualReport(report) {
       ]
     ],
     [
-      "Nachtzeiten",
+      "Nachtstunden",
       [
-        ["Steuerlich 20–6", annualHours(total.nightMinutes) + " h"],
         [
-          "DRK-RTV " + $("annualNightStart").value + "–6",
-          annualHours(annualTariffMinutes(total)) + " h"
+          separateNightWindow ? "Steuerlich 20–6" : "20–6 Uhr",
+          annualHours(total.nightMinutes) + " h"
         ],
-        ["davon steuerlich 0–4¹", annualHours(total.night40Minutes) + " h"]
+        ...(separateNightWindow
+          ? [["DRK-RTV 21–6", annualHours(total.night21Minutes) + " h"]]
+          : []),
+        ["davon 0–4 Uhr¹", annualHours(total.night40Minutes) + " h"]
       ]
     ],
     [
@@ -151,6 +152,10 @@ function renderAnnualReport(report) {
     group.append(list);
     $("annualMetrics").append(group);
   });
+  $("annualTariffHeader").hidden = !separateNightWindow;
+  $("annualNightHeader").textContent = separateNightWindow
+    ? "Nacht 20–6 h (Steuer)"
+    : "Nacht 20–6 h";
   $("annualTariffHeader").textContent = "Nacht " + $("annualNightStart").value + "–6 h (DRK-RTV)";
   $("annualMonths").replaceChildren();
   report.monthly.forEach((month) => {
@@ -163,62 +168,13 @@ function renderAnnualReport(report) {
       month.over12,
       annualHours(month.minutes),
       annualHours(month.nightMinutes),
-      annualHours(annualTariffMinutes(month)),
+      ...(separateNightWindow ? [annualHours(month.night21Minutes)] : []),
       annualHours(month.night40Minutes)
     ].forEach((value) => row.append(element("td", String(value))));
     $("annualMonths").append(row);
   });
-  const previous = $("annualFirstSite").value;
-  $("annualFirstSite").replaceChildren(new Option("Bitte zuordnen", ""));
-  report.workplaces
-    .filter((site) => site.name !== "Einsatzort fehlt")
-    .forEach((site) =>
-      $("annualFirstSite").add(
-        new Option(site.name + " · " + annualHours(site.minutes) + " h", site.name)
-      )
-    );
-  if (report.workplaces.some((site) => site.name === previous))
-    $("annualFirstSite").value = previous;
-  $("annualRows").replaceChildren();
-  report.rows.forEach((row) => {
-    const line = element("tr"),
-      dates = element("td");
-    dates.append(element("small", row.startLocal), element("small", row.endLocal));
-    line.append(dates);
-    line.append(element("td", row.sites.join(", ") + " · " + row.codes.join(", ")));
-    const place = element("td");
-    place.dataset.annualClass = "";
-    line.append(place);
-    [row.fullMinutes, row.minutes, row.nightMinutes].forEach((value) =>
-      line.append(element("td", annualHours(value)))
-    );
-    const cell = element("td"),
-      absence = input("number", annualAbsence.get(row.key) ?? "");
-    absence.min = "0";
-    absence.max = "744";
-    absence.step = "any";
-    absence.className = "annual-absence";
-    absence.setAttribute("aria-label", "Abwesenheit in Stunden ab " + row.startLocal);
-    absence.oninput = () => {
-      absence.setCustomValidity("");
-      if (absence.value === "") annualAbsence.delete(row.key);
-      else if (
-        Number.isFinite(absence.valueAsNumber) &&
-        absence.valueAsNumber >= 0 &&
-        absence.valueAsNumber <= 744
-      )
-        annualAbsence.set(row.key, absence.valueAsNumber);
-      else {
-        absence.setCustomValidity("Bitte eine Dauer zwischen 0 und 744 Stunden eingeben.");
-        absence.reportValidity();
-        return;
-      }
-      renderAnnualAnnotations();
-    };
-    cell.append(absence);
-    line.append(cell);
-    $("annualRows").append(line);
-  });
+  renderAnnualStationMap();
+  renderAnnualDuties();
   renderAnnualAnnotations();
   $("annualDownload").disabled = false;
   $("annualPrint").disabled = false;

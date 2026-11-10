@@ -10,7 +10,6 @@ function calculateAnnualRosterSummary_(data, options) {
     rows = [],
     days = new Map(),
     boundaries = new Map(),
-    sites = new Map(),
     overlap = false,
     now = Date.now();
   var sorted = entries.slice().sort(function (a, b) {
@@ -65,9 +64,6 @@ function calculateAnnualRosterSummary_(data, options) {
     return md == "05-01" || md == "12-25" || md == "12-26" || md == "12-24";
   }
   var blocks = rosterReportUnion_(entries);
-  var ongoing = blocks.find(function (block) {
-    return block.start <= now && block.end > now;
-  });
   blocks.forEach(function (block) {
     checkSyncBudget_();
     if (!options.includeFuture && block.end > now) {
@@ -121,7 +117,7 @@ function calculateAnnualRosterSummary_(data, options) {
           startLocal: Utilities.formatDate(new Date(block.start), timeZone, "yyyy-MM-dd HH:mm"),
           endLocal: Utilities.formatDate(new Date(block.end), timeZone, "yyyy-MM-dd HH:mm"),
           fullMinutes: (block.end - block.start) / 60000,
-          sites: block.sites.sort(),
+          vehicles: block.vehicles.sort(),
           codes: block.codes.sort(),
           crossYear: block.start < from || block.end > until
         },
@@ -148,26 +144,6 @@ function calculateAnnualRosterSummary_(data, options) {
     if (row.fullMinutes > 480) month.over8++;
     if (row.fullMinutes > 720) month.over12++;
   });
-  entries.forEach(function (entry) {
-    if (
-      !options.includeFuture &&
-      (entry.end > now || (ongoing && entry.start >= ongoing.start && entry.end <= ongoing.end))
-    )
-      return;
-    var site = entry.sites[0];
-    if (!sites.has(site)) sites.set(site, []);
-    sites.get(site).push(entry);
-  });
-  var workplaces = Array.from(sites, function (pair) {
-    return {
-      name: pair[0],
-      minutes: rosterReportUnion_(pair[1]).reduce(function (sum, entry) {
-        return sum + Math.max(0, Math.min(entry.end, until) - Math.max(entry.start, from)) / 60000;
-      }, 0)
-    };
-  }).sort(function (a, b) {
-    return a.name.localeCompare(b.name);
-  });
   var standbyMinutes = rosterReportUnion_(standby).reduce(function (sum, entry) {
     return (
       sum +
@@ -186,7 +162,6 @@ function calculateAnnualRosterSummary_(data, options) {
     receivedMonths: data.receivedMonths,
     rows: rows,
     monthly: monthly,
-    workplaces: workplaces,
     holidayProvider: options.holidayProvider || "",
     holidayNotes: options.holidayNotes || [],
     sourceLoadedAt: data.sourceLoadedAt || new Date().toISOString(),
