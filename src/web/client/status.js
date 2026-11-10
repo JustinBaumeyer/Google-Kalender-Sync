@@ -1,7 +1,8 @@
 function setDirty(value = true) {
   dirty = value;
+  if (value && !$("message").classList.contains("error")) $("message").textContent = "";
   $("dirtyHint").textContent = value
-    ? "Änderungen noch nicht gespeichert. Aktivieren und Synchronisieren speichert sie mit."
+    ? "Änderungen noch nicht gespeichert."
     : "Alle Änderungen gespeichert.";
 }
 function message(text, error = false) {

@@ -54,7 +54,9 @@ function createAnnualDutyRow(row) {
   line.dataset.annualKey = row.key;
   dates.append(element("small", row.startLocal), element("small", row.endLocal));
   line.append(dates);
-  line.append(element("td", row.vehicles.join(", ") + " · " + row.codes.join(", ")));
+  const vehicle = element("td", row.vehicles.join(", "));
+  vehicle.append(element("small", row.codes.join(", ")));
+  line.append(vehicle);
   const place = element("td");
   const stationName = element("small"),
     classification = element("small");
@@ -63,7 +65,7 @@ function createAnnualDutyRow(row) {
   const actualStation = input("text", annualDutyStations.get(row.key) || "");
   actualStation.maxLength = 120;
   actualStation.className = "annual-duty-station";
-  actualStation.placeholder = "Abweichende Wache (optional)";
+  actualStation.placeholder = "Abweichende Wache";
   actualStation.setAttribute("list", "annualStationNames");
   actualStation.setAttribute("aria-label", "Abweichende Rettungswache ab " + row.startLocal);
   actualStation.oninput = () => {
@@ -82,7 +84,7 @@ function createAnnualDutyRow(row) {
   place.append(stationName, classification, actualStation);
   line.append(place);
   [row.fullMinutes, row.minutes, row.nightMinutes].forEach((value) =>
-    line.append(element("td", annualHours(value)))
+    line.append(element("td", annualHours(value), "numeric"))
   );
   const cell = element("td"),
     absence = input("number", annualAbsence.get(row.key) ?? "");

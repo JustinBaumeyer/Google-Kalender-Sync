@@ -10,12 +10,7 @@
         >Die App verwendet deine eigenen Dienstplan-Zugangsdaten. Ohne Mitarbeiter-ID und Token
         bleibt die ROSTER-Quelle inaktiv. Kalender-Abos kannst du trotzdem verwenden.</p
       >
-      <div id="connectionSummary" hidden
-        ><p id="connectionText"></p
-        ><button type="button" id="editConnection" class="secondary"
-          >Zugangsdaten ändern</button
-        ></div
-      >
+      <div id="connectionSummary" hidden><p id="connectionText"></p></div>
       <div id="connectionFields"
         ><div class="grid">
           <label
@@ -41,8 +36,11 @@
           ></details
         ></div
       >
-      <button type="button" id="testConnection" class="secondary" style="margin-top: 0.8rem"
-        >Verbindung prüfen</button
+      <div class="actions connection-actions">
+        <button type="button" id="editConnection" class="secondary" hidden
+          >Zugangsdaten ändern</button
+        >
+        <button type="button" id="testConnection" class="secondary">Verbindung prüfen</button> </div
       ><p id="connectionResult" role="status"></p>
     </section>
     <section>
@@ -80,16 +78,20 @@
     <details class="panel" id="advanced"
       ><summary>Erweiterte Einstellungen</summary><div class="grid" id="advancedSettings"></div
     ></details>
+    <div class="actions settings-tools">
+      <button type="button" id="sync" class="secondary">Jetzt synchronisieren</button>
+      <button type="button" id="preview" class="secondary">Vorschau prüfen</button>
+      <button type="button" id="annualOpenSettings" class="secondary">Jahresübersicht</button>
+      <button type="button" id="stop" class="secondary">Pausieren</button>
+    </div>
     <div class="savebar">
-      <div id="message" role="status" aria-live="polite"></div>
-      <p id="dirtyHint" class="muted">Alle Änderungen gespeichert.</p>
+      <div class="savebar-status">
+        <div id="message" role="status" aria-live="polite"></div>
+        <p id="dirtyHint" class="muted">Alle Änderungen gespeichert.</p>
+      </div>
       <div class="actions">
         <button type="submit">Einstellungen speichern</button>
         <button type="button" id="enable" class="secondary">Synchronisierung aktivieren</button>
-        <button type="button" id="sync" class="secondary">Jetzt synchronisieren</button>
-        <button type="button" id="preview" class="secondary">Vorschau prüfen</button>
-        <button type="button" id="annualOpenSettings" class="secondary">Jahresübersicht</button>
-        <button type="button" id="stop" class="secondary">Pausieren</button>
       </div>
     </div>
     <details class="danger"

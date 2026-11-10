@@ -9,6 +9,9 @@
 * {
   box-sizing: border-box;
 }
+html {
+  scroll-padding-block: 1rem 9rem;
+}
 body {
   max-width: 1040px;
   margin: 0 auto;
@@ -26,6 +29,9 @@ h2 {
 }
 p {
   margin: 0.35rem 0 0.9rem;
+}
+p:empty {
+  margin: 0;
 }
 .eyebrow {
   color: #32664c;
@@ -48,6 +54,12 @@ header {
 #account {
   display: inline-block;
   overflow-wrap: anywhere;
+}
+.account-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
 }
 .status {
   background: #e7f0e9;
@@ -86,25 +98,50 @@ legend {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem 1.4rem;
 }
+.grid + .grid {
+  margin-top: 1rem;
+}
 label {
   display: block;
+  min-width: 0;
 }
 label > span {
   display: block;
   font-size: 0.9rem;
   font-weight: 650;
   margin-bottom: 0.35rem;
+  overflow-wrap: anywhere;
 }
 input:not([type="checkbox"]),
 select {
   width: 100%;
-  min-height: 44px;
+  height: 44px;
+  min-width: 0;
   padding: 0.6rem 0.7rem;
   border: 1px solid #b8c9bd;
   border-radius: 7px;
   background: white;
   color: inherit;
   font: inherit;
+  line-height: 1.25;
+}
+@supports (grid-template-rows: subgrid) {
+  .grid > label {
+    grid-row: span 3;
+  }
+  .grid > label:not(.toggle) {
+    display: grid;
+    grid-template-rows: subgrid;
+    row-gap: 0.35rem;
+  }
+  .grid > label:not(.toggle) > span {
+    align-self: end;
+    margin: 0;
+  }
+  .grid > label:not(.toggle) > small {
+    align-self: start;
+    margin: 0;
+  }
 }
 input:focus-visible,
 select:focus-visible,
@@ -123,7 +160,7 @@ summary:focus-visible {
   width: 18px;
   height: 18px;
   flex: none;
-  margin-top: 0.25rem;
+  margin-top: 0.1rem;
 }
 .toggle span {
   margin: 0;
@@ -158,6 +195,7 @@ button {
   color: white;
   cursor: pointer;
   font: 600 0.9rem system-ui;
+  line-height: 1.4;
 }
 button.secondary {
   background: white;
@@ -171,7 +209,7 @@ button.remove {
 }
 button:disabled {
   opacity: 0.55;
-  cursor: wait;
+  cursor: not-allowed;
 }
 .actions {
   display: flex;
@@ -179,13 +217,70 @@ button:disabled {
   gap: 0.65rem;
   align-items: center;
 }
+.actions + .actions,
+.connection-actions,
+.settings-tools {
+  margin-top: 0.75rem;
+}
+.field-actions {
+  align-items: flex-end;
+}
+.field-actions > label {
+  flex: 1 1 14rem;
+  max-width: 30rem;
+}
+.field-actions > button {
+  flex: 0 0 auto;
+}
+.duty-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 1rem;
+  align-items: end;
+  margin-block: 1rem 0.5rem;
+}
+.duty-navigation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  max-width: 27rem;
+  justify-self: end;
+}
+#annualDutyPageStatus {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
 .savebar {
   position: sticky;
   bottom: 0;
-  background: #f3f6f3f5;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #f3f6f3;
   border-top: 1px solid #d6e0d8;
   padding: 1rem 0;
-  margin-top: 1.4rem;
+  margin-top: 1rem;
+}
+.savebar-status {
+  flex: 1;
+  min-width: 0;
+}
+.savebar .actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.savebar #dirtyHint {
+  margin: 0;
+}
+.savebar #message {
+  margin: 0 0 0.25rem;
+  max-height: 4.5rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
 }
 #message {
   white-space: pre-wrap;
@@ -237,6 +332,9 @@ details .grid {
   background: #f3f7f1;
   border-radius: 9px;
   padding: 0.8rem;
+  min-width: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
 }
 .metric strong {
   display: block;
@@ -253,12 +351,33 @@ details .grid {
 .event-list li:last-child {
   border: 0;
 }
-.section-head {
+#inviteList li {
   display: flex;
-  gap: 0.8rem;
-  justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+}
+#inviteList li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#inviteList button {
+  flex: 0 0 auto;
+}
+#ownerInfo {
+  overflow-wrap: anywhere;
+}
+.section-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.section-head h2 {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 textarea {
   width: 100%;
@@ -270,6 +389,18 @@ textarea {
 }
 .table-scroll {
   overflow-x: auto;
+  max-width: 100%;
+  margin-top: 0.75rem;
+}
+.annual-duty-table td:nth-child(3) {
+  min-width: 14rem;
+}
+.numeric,
+.annual-duty-table th:nth-child(n + 4),
+.annual-month-table th:not(:first-child),
+.annual-month-table td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 table {
   width: 100%;
@@ -285,9 +416,11 @@ td {
 }
 th {
   white-space: nowrap;
+  vertical-align: bottom;
 }
 .annual-absence {
   min-width: 100px;
+  text-align: right;
 }
 .annual-summary {
   display: grid;
@@ -327,10 +460,27 @@ th {
   margin-top: 1rem;
   padding-top: 1rem;
 }
-@media (max-width: 650px) {
+@media (max-width: 900px) {
   .annual-summary {
     grid-template-columns: 1fr;
     gap: 1rem;
+  }
+}
+details[open] > summary {
+  margin-bottom: 0.75rem;
+}
+#connectionFields > details {
+  margin-top: 0.75rem;
+}
+textarea + button {
+  margin-top: 0.75rem;
+}
+@media (max-width: 760px) {
+  .duty-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .duty-navigation {
+    max-width: none;
   }
 }
 #annualRows small {
@@ -369,6 +519,9 @@ th {
   td {
     padding: 0.25rem;
   }
+  th {
+    white-space: normal;
+  }
   tr {
     break-inside: avoid;
   }
@@ -385,7 +538,45 @@ th {
   .rule-grid {
     grid-template-columns: 1fr;
   }
+  .grid > label {
+    grid-row: auto;
+  }
+  .grid > label:not(.toggle) {
+    display: block;
+  }
+  .grid > label:not(.toggle) > span {
+    margin-bottom: 0.35rem;
+  }
+  .grid > label:not(.toggle) > small {
+    margin-top: 0.25rem;
+  }
+  .section-head {
+    align-items: start;
+  }
+  .section-head h2 {
+    padding-top: 0.4rem;
+  }
+  .savebar {
+    display: grid;
+    gap: 0.6rem;
+    padding-block: 0.75rem;
+  }
+  .savebar .actions,
+  .settings-tools {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .field-actions > label {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .duty-navigation button {
+    padding-inline: 0.7rem;
+  }
   .actions button {
     flex: 1 1 45%;
+  }
+  .metric {
+    padding: 0.6rem;
   }
 }

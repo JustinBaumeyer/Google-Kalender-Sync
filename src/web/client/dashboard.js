@@ -26,6 +26,7 @@ function render(state) {
     ? "Ein Token ist gespeichert. Leer lassen, um ihn beizubehalten."
     : "Gib den Token aus deinem Dienstplan-Konto ein.";
   $("connectionSummary").hidden = !state.hasToken;
+  $("editConnection").hidden = !state.hasToken;
   $("connectionFields").hidden = state.hasToken;
   $("connectionText").textContent = state.connectionVerified
     ? "Dienstplan verbunden."

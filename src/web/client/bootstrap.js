@@ -57,6 +57,7 @@ $("closeSettings").onclick = () => showSettings(false);
 $("editConnection").onclick = () => {
   $("connectionFields").hidden = false;
   $("connectionSummary").hidden = true;
+  $("editConnection").hidden = true;
   $("employee").focus();
 };
 $("testConnection").onclick = () => diagnostic("test");
