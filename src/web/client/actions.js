@@ -23,9 +23,9 @@ function collect() {
     settings[name] = read();
   });
   const credentials = collectRosterCredentials(
-    settings.addRosterToCal &&
-      settings.sourceCalendars.some((row) => row[0] === "ROSTER") &&
-      !!(current.hasToken || $("token").value.trim())
+    settings.sourceCalendars.some(
+      (row) => (settings.addRosterToCal && row[0] === "ROSTER") || row[0].startsWith("TEAM_ROSTER:")
+    ) && !!(current.hasToken || $("token").value.trim())
   );
   document.querySelectorAll("#preferences input").forEach((control) => {
     if (!control.disabled && !control.closest("[hidden]") && !control.checkValidity())

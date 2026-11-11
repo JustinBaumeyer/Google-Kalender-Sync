@@ -4,6 +4,8 @@ var syncStartedAt = 0;
 var syncDeadline = 0;
 var syncPhase = "";
 var rosterFeedCache;
+var teamRosterCache = {};
+var teamRosterTokenReady = false;
 var lastProgressWriteAt = 0;
 var lastProgressPhase = "";
 

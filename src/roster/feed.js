@@ -14,14 +14,14 @@ function getRosterStartDate_() {
  *
  * @param {Date} [now] - Reference time (defaults to the current time).
  */
-function generateRosterPayload_(now) {
+function generateRosterPayload_(now, bounded) {
   var timeZone = typeof rosterTimeZone !== "undefined" ? rosterTimeZone : "Europe/Berlin";
   var currentMonth = Utilities.formatDate(now || new Date(), timeZone, "yyyy-MM").split("-");
   var year = Number(currentMonth[0]);
   var month = Number(currentMonth[1]) - 1;
   var startMonth = new Date(Date.UTC(year, month - 1, 1));
   var endMonth = new Date(Date.UTC(year, month + 3, 1)); // exclusive, through current month + 2
-  if (addRosterSinceStart) {
+  if (addRosterSinceStart && !bounded) {
     var contractStart = getRosterStartDate_();
     if (contractStart == null || isNaN(contractStart.getTime()))
       throw new Error("Could not determine roster contract start date");
@@ -53,9 +53,10 @@ function buildRosterMonthPayload_(startMonth, endMonth, timeZone) {
 }
 
 function getRosterICal_(skipTokenRefresh) {
-  if (!skipTokenRefresh)
+  if (!skipTokenRefresh && !teamRosterTokenReady)
     callWithBackoff_(function () {
       refreshRosterToken_();
+      teamRosterTokenReady = true;
       return;
     }, defaultMaxRetries);
   return callWithBackoff_(function () {

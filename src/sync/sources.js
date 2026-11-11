@@ -13,12 +13,13 @@ function isRosterSourceActive_() {
 
 function hasActiveSyncSources_() {
   return sourceCalendars.some(function (row) {
+    if (teamRosterEmployeeId_(row[0])) return hasRosterCredentials_(rosterUserId, rosterUserToken);
     return row[0] != "ROSTER" || isRosterSourceActive_();
   });
 }
 
 /** Failed sources prevent cleanup; inactive sources preserve their existing events. */
-function fetchSourceCalendars_(sourceCalendarURLs) {
+function fetchSourceCalendars_(sourceCalendarURLs, fetchRoster) {
   var result = [];
   var failedSources = 0;
   var inactiveSources = 0;
@@ -26,7 +27,19 @@ function fetchSourceCalendars_(sourceCalendarURLs) {
     var url = source[0].replace("webcal://", "https://");
     var colorId = source[1];
 
-    if (source[0] == "ROSTER") {
+    var colleague = teamRosterEmployeeId_(source[0]);
+    if (colleague) {
+      if (!hasRosterCredentials_(rosterUserId, rosterUserToken)) {
+        inactiveSources++;
+        continue;
+      }
+      var teamContent = fetchRoster
+        ? fetchRoster(function () {
+            return getColleagueRosterICal_(colleague, true);
+          })
+        : getColleagueRosterICal_(colleague);
+      result.push([teamContent, colorId]);
+    } else if (source[0] == "ROSTER") {
       if (!isRosterSourceActive_()) {
         Logger.log("Skipping inactive ROSTER source");
         inactiveSources++;

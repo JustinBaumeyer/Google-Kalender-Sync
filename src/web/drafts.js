@@ -57,6 +57,8 @@ function withDraftPreferences_(input, operation) {
       input && input.rosterUserId !== undefined ? String(input.rosterUserId).trim() : savedId;
     rosterUserToken = draftToken || savedToken;
     syncDeadline = Date.now() + 120000;
+    teamRosterCache = {};
+    teamRosterTokenReady = false;
     // Diagnostics never rotate a draft token or write to a destination calendar.
     var mayRefresh =
       !draftToken &&
@@ -64,13 +66,15 @@ function withDraftPreferences_(input, operation) {
       rosterUserId == savedId &&
       settings.rosterUrl == original.rosterUrl;
     var refreshAttempted = false;
-    return operation(settings, function () {
+    return operation(settings, function (fetchOperation) {
       try {
-        return getRosterICal_(true);
+        return fetchOperation ? fetchOperation() : getRosterICal_(true);
       } catch (err) {
         if (!mayRefresh || refreshAttempted || !err.rosterAuthRejected) throw err;
         refreshAttempted = true;
-        return getRosterICal_();
+        if (!fetchOperation) return getRosterICal_();
+        refreshRosterToken_();
+        return fetchOperation();
       }
     });
   } catch (err) {
@@ -85,6 +89,8 @@ function withDraftPreferences_(input, operation) {
     rosterUserId = oldId;
     targetCalendarTimeZone = oldTimeZone;
     syncDeadline = 0;
+    teamRosterCache = {};
+    teamRosterTokenReady = false;
     lock.releaseLock();
   }
 }

@@ -56,7 +56,7 @@ function renderFields() {
     emailMode.value === "off" ? false : emailMode.value === "self" ? true : email.value.trim()
   );
   [
-    ["addRosterToCal", "Dienstplan übernehmen"],
+    ["addRosterToCal", "Eigenen Dienstplan übernehmen"],
     ["addRosterRequests", "Einsatzwünsche anzeigen"],
     ["addAbsences", "Abwesenheiten anzeigen"],
     ["oncallAsFree", "Rufbereitschaft als verfügbar markieren"],

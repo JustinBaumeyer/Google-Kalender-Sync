@@ -84,9 +84,7 @@ function userVehicleKeyForDay_(teamIndex, dayKey, isNight) {
 function getTeamDutyIndex_(monthParams, from, to) {
   var index = {};
 
-  function ingest(response) {
-    var roster = response && response.data;
-    if (!roster || !roster.data) return;
+  function ingest(roster) {
     var legend = {};
     if (roster.legendDuties && roster.legendDuties.entries)
       roster.legendDuties.entries.forEach((e) => {
@@ -112,6 +110,25 @@ function getTeamDutyIndex_(monthParams, from, to) {
     });
   }
 
+  loadTeamRosters_(monthParams, from, to, false).forEach(ingest);
+
+  return index;
+}
+
+/** Fetch only team views accessible to the signed-in ROSTER account. Cache within one run. */
+function loadTeamRosters_(monthParams, from, to, strict) {
+  var key = JSON.stringify([
+    rosterUrl,
+    rosterUserId,
+    rosterUserToken,
+    rosterPlanningGroups,
+    monthParams,
+    from,
+    to
+  ]);
+  if (teamRosterCache[key]) return teamRosterCache[key];
+  var rosters = [],
+    complete = true;
   // Determine which planning groups to query.
   var groups =
     typeof rosterPlanningGroups !== "undefined" &&
@@ -123,7 +140,7 @@ function getTeamDutyIndex_(monthParams, from, to) {
     // Ask preload about every month: it only reports the groups planned for the
     // month it is given, so querying just one month misses groups the user works
     // in only in other months. Union the group ids across all months, deduped.
-    // All months are queried in parallel; a failed month is logged and skipped.
+    // Annotation tolerates partial data; calendar sources require a complete response.
     var seen = {};
     var months = monthParams || [];
     rosterFetchAll_(
@@ -136,18 +153,27 @@ function getTeamDutyIndex_(monthParams, from, to) {
           filterEmployee: 0,
           month: month
         })
-      }))
+      })),
+      strict
     ).forEach((body, i) => {
       try {
-        if (body == null) return;
+        if (body == null) {
+          complete = false;
+          return;
+        }
         var pre = JSON.parse(body);
-        (((pre.teamDuties || {}).data || {}).data || []).forEach((g) => {
+        var discovered = ((pre.teamDuties || {}).data || {}).data;
+        if (!Array.isArray(discovered)) throw new Error("Unvollständige Teamübersicht");
+        discovered.forEach((g) => {
           if (g.idPlanninggroup != null && !seen[g.idPlanninggroup]) {
             seen[g.idPlanninggroup] = true;
             groups.push(g.idPlanninggroup);
           }
         });
       } catch (e) {
+        if (e.syncPaused) throw e;
+        if (strict) throw new Error("Die Teamübersicht konnte nicht vollständig geladen werden.");
+        complete = false;
         Logger.log("Team-duty preload failed for month " + months[i] + ": " + (e.message || e));
       }
     });
@@ -155,9 +181,8 @@ function getTeamDutyIndex_(monthParams, from, to) {
 
   Logger.log("Team-duty planning groups: " + (groups.length ? groups.join(", ") : "(none)"));
 
-  // All groups are fetched in parallel. Each group stays isolated: a single group
-  // that errors (e.g. one the user can see but not fully query) must not abort
-  // the others and wipe out every partner.
+  // Annotations can use partial results. Calendar sources must stop on any failure
+  // so missing groups never look like deleted duties.
   rosterFetchAll_(
     groups.map((groupId) => ({
       endpoint: "team-duty/roster/" + rosterUserId,
@@ -166,17 +191,38 @@ function getTeamDutyIndex_(monthParams, from, to) {
         teamDuty: { idPlanninggroup: groupId, from: from, to: to },
         filterEmployee: 0
       })
-    }))
+    })),
+    strict
   ).forEach((body, i) => {
     try {
-      if (body == null) return;
-      ingest(JSON.parse(body));
+      if (body == null) {
+        complete = false;
+        return;
+      }
+      var roster = JSON.parse(body).data;
+      if (
+        !roster ||
+        !Array.isArray(roster.data) ||
+        !roster.legendDuties ||
+        !Array.isArray(roster.legendDuties.entries) ||
+        !roster.legendDuties.entries.every(function (entry) {
+          return entry && typeof entry.shortName == "string";
+        })
+      )
+        throw new Error("Unvollständige Teamübersicht");
+      rosters.push(roster);
     } catch (e) {
+      if (e.syncPaused) throw e;
+      if (strict) throw new Error("Die Teamübersicht konnte nicht vollständig geladen werden.");
+      complete = false;
       Logger.log(
         "Team-duty roster fetch failed for planning group " + groups[i] + ": " + (e.message || e)
       );
     }
   });
 
-  return index;
+  if (strict && !complete)
+    throw new Error("Die Teamübersicht konnte nicht vollständig geladen werden.");
+  if (complete) teamRosterCache[key] = rosters;
+  return rosters;
 }

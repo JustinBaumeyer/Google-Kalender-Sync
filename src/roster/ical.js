@@ -55,7 +55,7 @@ function formatDuration_(startDate, endDate) {
  * @param {Date} startDate - First day of the event.
  * @param {Date} endDate - Day after the last day of the event (exclusive).
  */
-function generateAllDayICalEntry_(uid, startDate, endDate, summary, description) {
+function generateAllDayICalEntry_(uid, startDate, endDate, summary, description, transparent) {
   function asDate(d) {
     return Utilities.formatDate(d, "GMT", "yyyyMMdd");
   }
@@ -68,6 +68,7 @@ function generateAllDayICalEntry_(uid, startDate, endDate, summary, description)
     asDate(startDate) +
     "\nDTEND;VALUE=DATE:" +
     asDate(endDate) +
+    (transparent ? "\nTRANSP:TRANSPARENT" : "") +
     "\nSUMMARY:" +
     icalEscape_(summary) +
     "\nDESCRIPTION:" +

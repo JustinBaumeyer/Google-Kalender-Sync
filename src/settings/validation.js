@@ -19,13 +19,20 @@ function validatePreferences_(settings) {
       return (
         Array.isArray(row) &&
         row.length >= 2 &&
-        row.length <= 4 &&
+        row.length <= 5 &&
         typeof row[0] == "string" &&
         !!row[0].trim() &&
         typeof row[1] == "string" &&
         !!row[1].trim() &&
-        (row[0] == "ROSTER" || /^(https?|webcal):\/\//i.test(row[0])) &&
-        (row.length < 4 || typeof row[3] == "string")
+        (row[0] == "ROSTER" ||
+          teamRosterEmployeeId_(row[0]) ||
+          /^(https?|webcal):\/\//i.test(row[0])) &&
+        (row.length < 4 || typeof row[3] == "string") &&
+        (row.length < 5 ||
+          (teamRosterEmployeeId_(row[0]) &&
+            typeof row[4] == "string" &&
+            !!row[4].trim() &&
+            row[4].length <= 120))
       );
     })
   )

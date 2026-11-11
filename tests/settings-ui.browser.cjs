@@ -6,6 +6,7 @@ const {chromium} = require('playwright');
 const vm = require('node:vm');
 const {load,shared,alice} = require('./helpers/apps-script.cjs');
 const {entry:annualEntry,services:annualServices}=require('./helpers/annual-roster.cjs');
+const {setup:teamSetup,roster:teamRoster,day:teamDay}=require('./helpers/team-roster.cjs');
 let browser;
 before(async()=>{
   browser=await chromium.launch({headless:true,
@@ -34,7 +35,7 @@ async function open(settings={}, viewport={width:1120,height:950}, syncDelay=0,e
       if(syncGate) await syncGate;
       else await new Promise(resolve=>setTimeout(resolve,syncDelay));
     }
-    return JSON.parse(JSON.stringify(argument===undefined ? server[method]() : server[method](argument)));
+    return JSON.parse(JSON.stringify(argument===undefined ? await server[method]() : await server[method](argument)));
   });
   await page.evaluate(()=>{
     function runner(success,error) {
@@ -570,4 +571,89 @@ test('K-coded sick days never appear as 24-hour duties in annual totals or CSV',
     assert.equal(lines.length,2);assert.equal(lines[1].includes('"K"'),false);
     assert.ok(lines[1].includes('"D"'));assert.deepEqual(errors,[]);
   }finally{await page.close();}
+});
+
+test('colleague lookup searches names locally, explicitly selects duplicate names and saves the stable ID across reloads',async()=>{
+  const {page,server,calls,errors}=await open();
+  const team=teamSetup({groups:{29:teamRoster([{id:456,name:'Meyer, Alex'},{id:789,name:'Meyer, Alex'},{id:900,name:'Müller, Bea'}]),335:teamRoster([])}});
+  server.UrlFetchApp=team.c.UrlFetchApp;
+  try {
+    const row=page.locator('[data-source-row]').first();
+    await row.getByLabel('Quelle',{exact:true}).selectOption('TEAM_ROSTER');
+    await row.getByLabel('Name der Person',{exact:true}).fill('Alex');
+    assert.equal(calls.filter(method=>method==='getTeamRosterPeople').length,0);
+    await row.getByRole('button',{name:'Suchen',exact:true}).click();
+    await row.getByText('2 Treffer. Bitte die Person auswählen.',{exact:true}).waitFor();
+    const matches=row.getByLabel('Person auswählen',{exact:true});
+    assert.equal(await matches.inputValue(),'');
+    assert.deepEqual(await matches.locator('option').allTextContents(),['Bitte auswählen','Alex Meyer · ID 456','Alex Meyer · ID 789']);
+    await page.getByRole('button',{name:'Einstellungen speichern',exact:true}).click();
+    await page.locator('#message').filter({hasText:'Bitte eine Person suchen'}).waitFor();
+    await matches.selectOption('789');await save(page);
+    const saved=server.getAppState().settings.sourceCalendars[0];
+    assert.deepEqual(Array.from(saved),['TEAM_ROSTER:789','Dienstplan',5,'calendar-'+alice,'Alex Meyer']);
+    assert.equal(await page.locator('[data-source-row]').first().getByLabel('Person auswählen',{exact:true}).inputValue(),'789');
+    assert.equal(await row.getByLabel('Adresse des Kalender-Abos',{exact:true}).isVisible(),false);
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+test('accent-insensitive colleague searches share a request across rows and fit a narrow screen',async()=>{
+  const {page,server,calls,errors}=await open({}, {width:360,height:800});
+  const team=teamSetup();server.UrlFetchApp=team.c.UrlFetchApp;
+  try {
+    const row=page.locator('[data-source-row]').first();
+    await row.getByLabel('Quelle',{exact:true}).selectOption('TEAM_ROSTER');
+    const query=row.getByLabel('Name der Person',{exact:true});
+    await query.fill('Muller');await query.press('Enter');
+    await row.getByText('1 Treffer. Bitte die Person auswählen.',{exact:true}).waitFor();
+    await row.getByLabel('Person auswählen',{exact:true}).selectOption('789');
+    await query.fill('Meyer');await row.getByRole('button',{name:'Suchen',exact:true}).click();
+    await row.getByLabel('Person auswählen',{exact:true}).locator('option[value="456"]').waitFor({state:'attached'});
+    await row.getByLabel('Person auswählen',{exact:true}).selectOption('456');
+    await page.getByRole('button',{name:'Quelle hinzufügen',exact:true}).click();
+    const second=page.locator('[data-source-row]').last();
+    await second.getByLabel('Quelle',{exact:true}).selectOption('TEAM_ROSTER');
+    await second.getByLabel('Name der Person',{exact:true}).fill('Nobody');
+    await second.getByRole('button',{name:'Suchen',exact:true}).click();
+    await second.getByText('Keine Person gefunden.',{exact:false}).waitFor();
+    assert.equal(calls.filter(method=>method==='getTeamRosterPeople').length,1);
+    assert.equal(team.requests.length,6);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    for(const control of [query,row.getByLabel('Person auswählen',{exact:true}),row.getByRole('button',{name:'Suchen',exact:true})])assert.ok((await control.boundingBox()).height>=44);
+    await page.screenshot({path:'/tmp/dienstplan-colleague-mobile.png',fullPage:true});
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+test('stale colleague lookup responses cannot overwrite a changed name; a failed request can be retried',async()=>{
+  const {page,server,errors}=await open();
+  const team=teamSetup();server.UrlFetchApp=team.c.UrlFetchApp;
+  const realLookup=server.getTeamRosterPeople;
+  let release;const gate=new Promise(resolve=>{release=resolve;});
+  server.getTeamRosterPeople=async(input)=>{await gate;return realLookup(input);};
+  try {
+    const row=page.locator('[data-source-row]').first();
+    await row.getByLabel('Quelle',{exact:true}).selectOption('TEAM_ROSTER');
+    const query=row.getByLabel('Name der Person',{exact:true});
+    await query.fill('Alex');await row.getByRole('button',{name:'Suchen',exact:true}).click();
+    await row.getByText('Teamübersicht wird geladen …',{exact:true}).waitFor();
+    await query.fill('Bea');release();
+    await row.getByRole('button',{name:'Suchen',exact:true}).waitFor({state:'visible'});
+    await page.waitForFunction(()=>!document.querySelector('.team-roster-picker button').disabled);
+    assert.equal(await row.getByLabel('Person auswählen',{exact:true}).locator('option[value="456"]').count(),0);
+    await row.getByRole('button',{name:'Suchen',exact:true}).click();
+    await row.getByLabel('Person auswählen',{exact:true}).locator('option[value="789"]').waitFor({state:'attached'});
+    // Re-render clears the completed lookup so a changed account cannot reuse its names.
+    await page.evaluate(()=>action('getAppState',''));
+    server.getTeamRosterPeople=()=>{throw new Error('Teamzugriff fehlgeschlagen');};
+    await row.getByLabel('Quelle',{exact:true}).selectOption('TEAM_ROSTER');
+    await row.getByLabel('Name der Person',{exact:true}).fill('Bea');
+    await row.getByRole('button',{name:'Suchen',exact:true}).click();
+    await row.getByText('Teamzugriff fehlgeschlagen',{exact:true}).waitFor();
+    server.getTeamRosterPeople=realLookup;
+    await row.getByRole('button',{name:'Suchen',exact:true}).click();
+    await row.getByLabel('Person auswählen',{exact:true}).locator('option[value="789"]').waitFor({state:'attached'});
+    assert.deepEqual(errors,[]);
+  }finally{release();await page.close();}
 });

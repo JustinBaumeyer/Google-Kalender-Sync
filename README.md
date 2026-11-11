@@ -2,7 +2,10 @@
 
 Eine gemeinsame Apps-Script-App für Dienstpläne und Kalender-Abos. Jede Person
 verwendet ihr eigenes Google-Konto und speichert ihre eigenen Zugangsdaten.
-Die Einstellungen werden im Webinterface erklärt.
+Die Einstellungen werden im Webinterface erklärt. Als weitere Quelle lässt sich
+eine Person aus der eigenen ROSTER-Teamübersicht auswählen. Deren erkennbare Dienste
+werden als ganztägige Termine übernommen. Genaue Uhrzeiten stehen in der
+Teamübersicht nicht zur Verfügung.
 
 ## Gemeinsame App einrichten
 
