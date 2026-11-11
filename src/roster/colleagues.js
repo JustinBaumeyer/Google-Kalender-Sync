@@ -5,25 +5,12 @@ function teamRosterEmployeeId_(source) {
 }
 
 /** Colleague views always use the normal four-month window, never the caller's contract. */
-function currentTeamRosters_() {
+function currentTeamRosters_(request) {
   if (!hasRosterCredentials_(rosterUserId, rosterUserToken))
     throw new Error("Bitte zuerst deinen eigenen Dienstplan-Zugang hinterlegen.");
-  var months = JSON.parse(generateRosterPayload_(undefined, true));
-  var from = months[0].begin;
-  var lastDay = Utilities.formatDate(
-    new Date(months[months.length - 1].end),
-    rosterTimeZone,
-    "yyyy-MM-dd"
-  );
-  var to = Utilities.parseDate(lastDay, rosterTimeZone, "yyyy-MM-dd").toISOString();
-  return loadTeamRosters_(
-    months.map(function (month) {
-      return month.begin;
-    }),
-    from,
-    to,
-    true
-  );
+  request =
+    request || teamRosterRequest_(JSON.parse(generateRosterPayload_(undefined, true)), false);
+  return loadTeamRosters_(request.monthParams, request.from, request.to, true);
 }
 
 function teamRosterPeople_(rosters) {
@@ -48,7 +35,9 @@ function getColleagueRosterICal_(employeeId, skipTokenRefresh) {
     refreshRosterToken_();
     teamRosterTokenReady = true;
   }
-  var rosters = currentTeamRosters_();
+  var request = teamRosterRequest_(JSON.parse(generateRosterPayload_(undefined, true)), addRelief);
+  var rosters = currentTeamRosters_(request);
+  var teamIndex = addTeamPartner || addRelief ? buildTeamDutyIndex_(rosters) : {};
   var people = teamRosterPeople_(rosters);
   var person = people.find(function (item) {
     return item.id == employeeId;
@@ -67,11 +56,7 @@ function getColleagueRosterICal_(employeeId, skipTokenRefresh) {
   var events = new Map();
   rosters.forEach(function (roster) {
     checkSyncBudget_();
-    var legend = new Map(
-      roster.legendDuties.entries.map(function (entry) {
-        return [entry.shortName, entry];
-      })
-    );
+    var legend = teamDutyLegend_(roster);
     roster.data
       .filter(function (row) {
         return String(row.item1.id) == employeeId;
@@ -92,39 +77,46 @@ function getColleagueRosterICal_(employeeId, skipTokenRefresh) {
           )
             throw new Error("Ein Eintrag der Teamübersicht ist unvollständig.");
           var date = Utilities.formatDate(instant, rosterTimeZone, "yyyy-MM-dd");
-          String(day.shortName || "")
-            .split(",")
-            .forEach(function (value) {
-              var code = value.trim(),
-                entry = legend.get(code);
-              if (!code || /^(K|UL|-)$/i.test(code) || rosterIgnoreList.indexOf(code) != -1) return;
-              // Unknown codes and absence types are not treated as worked duties.
-              var type = String((entry && entry.shiftTypeName) || "");
-              if (
-                !entry ||
-                /frei|urlaub|krank|abwesenheit/i.test(type) ||
-                !/dienst|bereitschaft|fortbildung|ausbildung|schulung/i.test(type)
-              )
-                return;
-              var start = new Date(date + "T00:00:00Z"),
-                end = new Date(start.getTime() + 86400000);
-              var uid = "team-roster-" + employeeId + "-" + date + "-" + encodeURIComponent(code);
-              events.set(
+          if (date < request.firstDay || date > request.lastDay) return;
+          teamDutyCodes_(day).forEach(function (code) {
+            var entry = legend.get(code);
+            if (rosterIgnoreList.indexOf(code) != -1) return;
+            // Unknown codes and absence types are not treated as worked duties.
+            var type = String((entry && entry.shiftTypeName) || "");
+            if (
+              !entry ||
+              /frei|urlaub|krank|abwesenheit/i.test(type) ||
+              !/dienst|bereitschaft|fortbildung|ausbildung|schulung/i.test(type)
+            )
+              return;
+            var start = new Date(date + "T00:00:00Z"),
+              end = new Date(start.getTime() + 86400000);
+            var uid = "team-roster-" + employeeId + "-" + date + "-" + encodeURIComponent(code);
+            events.set(
+              uid,
+              generateAllDayICalEntry_(
                 uid,
-                generateAllDayICalEntry_(
-                  uid,
-                  start,
-                  end,
-                  personTitle + " · " + code,
-                  [
-                    entry.longName || code,
-                    type,
-                    "Aus der Teamübersicht. Uhrzeiten sind dort nicht verfügbar."
-                  ].join("\n"),
-                  true
-                )
-              );
-            });
+                start,
+                end,
+                personTitle + " · " + code,
+                [
+                  entry.longName || code,
+                  type,
+                  "Aus der Teamübersicht. Uhrzeiten sind dort nicht verfügbar."
+                ]
+                  .concat(
+                    teamDescriptionLines_(
+                      teamIndex,
+                      teamDayKey_(instant),
+                      vehicleKeyFromLegend_(entry),
+                      employeeId
+                    )
+                  )
+                  .join("\n"),
+                true
+              )
+            );
+          });
         });
       });
   });

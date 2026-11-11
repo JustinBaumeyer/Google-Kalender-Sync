@@ -27,6 +27,7 @@
       "src/calendar/ownership-and-restoration.js",
       "src/roster/ical.js",
       "src/roster/client.js",
+      "src/roster/crew.js",
       "src/roster/team.js",
       "src/roster/colleagues.js",
       "src/roster/shifts.js",

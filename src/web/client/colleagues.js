@@ -58,7 +58,7 @@ function teamRosterPicker(grid, raw) {
     status,
     element(
       "small",
-      "Ganztägig und als „Verfügbar“, ohne Uhrzeiten oder Abwesenheiten. Zeitraum: letzter Monat bis zwei Monate voraus. Prüfe die Kalenderfreigaben."
+      "Ganztägig und als „Verfügbar“, ohne Uhrzeiten oder Abwesenheiten. Zeitraum: letzter Monat bis zwei Monate voraus. Teampartner und Ablösung lassen sich unten einschalten. Prüfe die Kalenderfreigaben."
     )
   );
   grid.append(panel);

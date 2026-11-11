@@ -57,8 +57,7 @@ function withDraftPreferences_(input, operation) {
       input && input.rosterUserId !== undefined ? String(input.rosterUserId).trim() : savedId;
     rosterUserToken = draftToken || savedToken;
     syncDeadline = Date.now() + 120000;
-    teamRosterCache = {};
-    teamRosterTokenReady = false;
+    resetRosterCaches_();
     // Diagnostics never rotate a draft token or write to a destination calendar.
     var mayRefresh =
       !draftToken &&
@@ -89,8 +88,7 @@ function withDraftPreferences_(input, operation) {
     rosterUserId = oldId;
     targetCalendarTimeZone = oldTimeZone;
     syncDeadline = 0;
-    teamRosterCache = {};
-    teamRosterTokenReady = false;
+    resetRosterCaches_();
     lock.releaseLock();
   }
 }

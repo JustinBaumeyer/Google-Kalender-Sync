@@ -5,7 +5,8 @@ verwendet ihr eigenes Google-Konto und speichert ihre eigenen Zugangsdaten.
 Die Einstellungen werden im Webinterface erklärt. Als weitere Quelle lässt sich
 eine Person aus der eigenen ROSTER-Teamübersicht auswählen. Deren erkennbare Dienste
 werden als ganztägige Termine übernommen. Genaue Uhrzeiten stehen in der
-Teamübersicht nicht zur Verfügung.
+Teamübersicht nicht zur Verfügung. Die Optionen für Teampartner und Ablösung gelten
+auch für ausgewählte Personen.
 
 ## Gemeinsame App einrichten
 
