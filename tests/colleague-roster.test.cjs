@@ -99,7 +99,7 @@ test('team-partner annotations tolerate a failed group but partial data is never
   const {c,requests}=setup({response:(url,request)=>url.includes('team-duty/roster/')&&JSON.parse(request.payload).teamDuty.idPlanninggroup===335?{status:503,body:{}}:null});
   c.loadUserPreferences_();const months=JSON.parse(c.generateRosterPayload_(undefined,true));
   const index=c.getTeamDutyIndex_(months.map(month=>month.begin),months[0].begin,'2027-01-30T23:00:00.000Z');
-  assert.ok(Object.values(index).some(slot=>Object.values(slot).some(crew=>crew.some(person=>person.id===456))));
+  assert.ok(index.duties.some(duty=>duty.id==='456'));
   assert.throws(()=>c.getColleagueRosterICal_('456',true),/Teamübersicht/);
   assert.equal(requests.length,12);
 });

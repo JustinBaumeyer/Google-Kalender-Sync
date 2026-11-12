@@ -58,20 +58,16 @@ function parseShiftToCal_(shift, legend, teamIndex) {
     if (block.remark) extraLines.push(block.remark);
     if (tagesbemerkung) extraLines.push(tagesbemerkung);
 
-    var dayKey = shift.data.key ? teamDayKey_(shift.data.key.day) : null;
-    var preferredVehicle = vehicleKeyFromLegend_(
-      Object.assign({ longName: block.nameWorkplace, shiftTypeName: shiftType }, leg)
-    );
-    var vehicleKey =
-      userVehicleKeyForDay_(
-        teamIndex,
-        dayKey,
-        teamShiftPhase_(shiftType),
-        preferredVehicle,
-        block.shortName
-      ) || preferredVehicle;
+    var dayKey = teamDayKey_((shift.data.key && shift.data.key.day) || block.start);
     extraLines = extraLines.concat(
-      teamDescriptionLines_(teamIndex, dayKey, vehicleKey, rosterUserId)
+      teamDescriptionLines_(
+        teamIndex,
+        rosterUserId,
+        dayKey,
+        block.shortName,
+        Object.assign({ longName: block.nameWorkplace, shiftTypeName: shiftType }, leg),
+        { start: block.start, end: block.end }
+      )
     );
 
     // On-call (Rufbereitschaft) standby should not block availability.

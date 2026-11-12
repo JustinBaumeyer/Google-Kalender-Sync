@@ -1,55 +1,95 @@
-function teamShiftPhase_(value) {
-  var type = String(value || "")
-    .trim()
-    .toLowerCase();
-  return type == "tagdienst"
-    ? "T"
-    : type == "nachtdienst"
-      ? "N"
-      : type == "frühdienst"
-        ? "F"
-        : type == "spätdienst"
-          ? "S"
-          : null;
+function teamDayKey_(value) {
+  var instant = new Date(value);
+  if (value == null || isNaN(instant.getTime())) return null;
+  var zone = typeof rosterTimeZone == "undefined" ? "Europe/Berlin" : rosterTimeZone;
+  return Utilities.parseDate(
+    Utilities.formatDate(instant, zone, "yyyy-MM-dd"),
+    zone,
+    "yyyy-MM-dd"
+  ).getTime();
 }
 
-/** Group legend labels without a fleet-abbreviation list or fuzzy station/unit matching. */
-function teamLegendAssignment_(entry) {
-  if (!entry || typeof entry.longName != "string") return null;
-  var phase = teamShiftPhase_(entry.shiftTypeName);
-  if (!phase) return null;
-  var name = entry.longName.normalize("NFC").replace(/\s+/g, " ").trim();
-  // Administrative/training labels can also have the generic type Tagdienst.
-  if (
-    /^(?:Verwaltung|Büro|(?:Jahres[-\s]*)?(?:Fortbildung|Fobi)|Ausbildung|Lehrgang|Dozent|Schulung|Praxisanleitung|Praxisbegleitung)\b/i.test(
-      name
-    )
-  )
-    return null;
-  // The legend supplies the assignment label; remove only generic shift, role
-  // and weekday qualifiers. Preserve all station names, numbers and unit letters.
-  var trainee = false;
-  name = name
-    .replace(/\bPrakti(?:kant(?:in|en)?|kum)?\b\.?/gi, function () {
-      trainee = true;
-      return " ";
-    })
-    .replace(
-      /\b(?:Tag(?:dienst)?|Nacht(?:dienst)?|Früh(?:dienst)?|Spät(?:dienst)?|werktags|samstags|sonntags|wochenends?|Präsenz|RufB|Rufbereitschaft|Fahrer|Beifahrer|NotSan|NFS|Notfallsanitäter|Rettungssanitäter|Rettungsassistent)\b\.?/gi,
-      " "
-    )
-    .replace(/[()[\]{}.,:;/]+/g, " ")
-    .replace(/([\p{L}])(\d)/gu, "$1 $2")
-    .replace(/(\d)([\p{L}])/gu, "$1 $2")
-    .replace(/\s*[-–]\s*$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return name ? { key: name.toUpperCase() + "|" + phase, trainee: trainee } : null;
-}
-
-function vehicleKeyFromLegend_(entry) {
-  var assignment = teamLegendAssignment_(entry);
-  return assignment ? assignment.key : null;
+/** Build once from the already fetched legend and team rows. */
+function buildTeamDutyIndex_(rosters) {
+  if (teamCrewCache.has(rosters)) return teamCrewCache.get(rosters);
+  var index = {
+    catalog: buildLegendAssignments_(rosters),
+    duties: [],
+    byEmployee: new Map(),
+    byAssignment: new Map()
+  };
+  var seen = new Map(),
+    dates = new Map();
+  rosters.forEach(function (roster) {
+    var legend = teamDutyLegend_(roster);
+    roster.data.forEach(function (person) {
+      checkSyncBudget_();
+      var employee = person && person.item1;
+      if (!employee || employee.id == null || typeof employee.name != "string") return;
+      ((person.item2 && person.item2.data) || []).forEach(function (day) {
+        checkSyncBudget_();
+        if (!day || !day.day) return;
+        if (!dates.has(day.day.date)) {
+          var key = teamDayKey_(day.day.date);
+          dates.set(
+            day.day.date,
+            key == null
+              ? null
+              : {
+                  key: key,
+                  date: Utilities.formatDate(new Date(key), rosterTimeZone, "yyyy-MM-dd")
+                }
+          );
+        }
+        var normalized = dates.get(day.day.date);
+        if (!normalized) return;
+        var dayKey = normalized.key,
+          date = normalized.date;
+        teamDutyCodes_(day).forEach(function (code) {
+          var entry = legend.get(code),
+            assignment = entry && index.catalog.get(entry);
+          if (!assignment) return;
+          var span = legendDutySpan_(entry, date);
+          var id = String(employee.id);
+          var signature = JSON.stringify([
+            id,
+            dayKey,
+            code,
+            assignment.key,
+            span && span.start.getTime(),
+            span && span.end.getTime(),
+            String(entry.shiftTypeName || "").toUpperCase()
+          ]);
+          var duty = seen.get(signature);
+          if (!duty) {
+            duty = {
+              id: id,
+              name: formatName_(employee.name),
+              day: dayKey,
+              code: code,
+              assignment: assignment.key,
+              type: String(entry.shiftTypeName || "").toUpperCase(),
+              span: span,
+              entries: new Set(),
+              qualifiers: new Set()
+            };
+            seen.set(signature, duty);
+            index.duties.push(duty);
+            if (!index.byEmployee.has(id)) index.byEmployee.set(id, []);
+            index.byEmployee.get(id).push(duty);
+            if (!index.byAssignment.has(assignment.key)) index.byAssignment.set(assignment.key, []);
+            index.byAssignment.get(assignment.key).push(duty);
+          }
+          duty.entries.add(entry);
+          assignment.qualifiers.forEach(function (qualifier) {
+            duty.qualifiers.add(qualifier);
+          });
+        });
+      });
+    });
+  });
+  teamCrewCache.set(rosters, index);
+  return index;
 }
 
 function teamDutyLegend_(roster) {
@@ -61,6 +101,7 @@ function teamDutyLegend_(roster) {
 }
 
 function teamDutyCodes_(day) {
+  // Explicit absence codes retained from the user's sync rules.
   return String(day.shortName || "")
     .split(",")
     .map(function (code) {
@@ -71,139 +112,82 @@ function teamDutyCodes_(day) {
     });
 }
 
-function teamDayKey_(value) {
-  var instant = new Date(value);
-  if (value == null || isNaN(instant.getTime())) return null;
-  var timeZone = typeof rosterTimeZone == "undefined" ? "Europe/Berlin" : rosterTimeZone;
-  return Utilities.parseDate(
-    Utilities.formatDate(instant, timeZone, "yyyy-MM-dd"),
-    timeZone,
-    "yyyy-MM-dd"
-  ).getTime();
-}
-
-/** Never jump over an unstaffed or unavailable day to a later crew. */
-function nextDayKey_(index, dayKey) {
-  if (dayKey == null) return null;
-  var timeZone = typeof rosterTimeZone == "undefined" ? "Europe/Berlin" : rosterTimeZone;
-  var today = Utilities.formatDate(new Date(dayKey), timeZone, "yyyy-MM-dd");
-  var tomorrow = new Date(Date.parse(today + "T00:00:00Z") + 86400000).toISOString().slice(0, 10);
-  var key = Utilities.parseDate(tomorrow, timeZone, "yyyy-MM-dd").getTime();
-  return index[key] ? key : null;
-}
-
-/** Reuse the already fetched team data for own and colleague calendar descriptions. */
-function buildTeamDutyIndex_(rosters) {
-  if (teamCrewCache.has(rosters)) return teamCrewCache.get(rosters);
-  var index = {},
-    dayKeys = new Map();
-  rosters.forEach(function (roster) {
-    var assignments = new Map();
-    teamDutyLegend_(roster).forEach(function (entry, code) {
-      assignments.set(code, teamLegendAssignment_(entry));
+/** Prefer the actual team row/code, then unambiguous timing or an exact catalog label. */
+function resolveTeamDuty_(index, employeeId, day, code, entry, span) {
+  var candidates = (index.byEmployee.get(String(employeeId)) || []).filter(function (duty) {
+    return duty.day == day;
+  });
+  var byCode = candidates.filter(function (duty) {
+    return duty.code == code;
+  });
+  if (byCode.length) candidates = byCode;
+  var exact = candidates.filter(function (duty) {
+    return duty.entries.has(entry);
+  });
+  if (exact.length) candidates = exact;
+  if (span) {
+    var matching = candidates.filter(function (duty) {
+      return duty.span && duty.span.start < span.end && duty.span.end > span.start;
     });
-    roster.data.forEach(function (person) {
-      checkSyncBudget_();
-      var employee = person && person.item1;
-      if (!employee || employee.id == null || typeof employee.name != "string") return;
-      ((person.item2 && person.item2.data) || []).forEach(function (day) {
-        checkSyncBudget_();
-        if (!day || !day.day) return;
-        var duties = teamDutyCodes_(day)
-          .map(function (code) {
-            var assignment = assignments.get(code);
-            return {
-              code: code,
-              vehicle: assignment && assignment.key,
-              trainee: assignment && assignment.trainee
-            };
-          })
-          .filter(function (duty) {
-            return duty.vehicle;
-          });
-        if (!duties.length) return;
-        var date = day.day.date;
-        if (!dayKeys.has(date)) dayKeys.set(date, teamDayKey_(date));
-        var dayKey = dayKeys.get(date);
-        if (dayKey == null) return;
-        duties.forEach(function (duty) {
-          var slot = index[dayKey] || (index[dayKey] = {});
-          var crew = slot[duty.vehicle] || (slot[duty.vehicle] = []);
-          var member = crew.find(function (item) {
-            return item.id == employee.id;
-          });
-          if (!member) {
-            member = {
-              name: formatName_(employee.name),
-              id: employee.id,
-              codes: [],
-              trainee: false
-            };
-            crew.push(member);
-          }
-          if (member.codes.indexOf(duty.code) == -1) member.codes.push(duty.code);
-          member.trainee = member.trainee || duty.trainee;
-        });
+    if (matching.length) candidates = matching;
+  }
+  var assignments = new Set(
+    candidates.map(function (duty) {
+      return duty.assignment;
+    })
+  );
+  if (assignments.size == 1)
+    return Object.assign({}, candidates[0], { span: span || candidates[0].span });
+  var definition = legendDefinition_(entry);
+  if (definition && index.byAssignment.has(definition.key))
+    return { assignment: definition.key, span: span, day: day, type: definition.type };
+  return null;
+}
+
+/** Crew overlap and relief boundaries use instants, never the wording of a shift type. */
+function teamDescriptionLines_(index, employeeId, day, code, entry, span) {
+  if (!index || !index.byEmployee || day == null) return [];
+  var current = resolveTeamDuty_(index, employeeId, day, code, entry, span);
+  if (!current) return [];
+  var duties = index.byAssignment.get(current.assignment) || [];
+  function names(rows) {
+    var people = new Map();
+    rows.forEach(function (duty) {
+      if (duty.id == employeeId) return;
+      var person = people.get(duty.id);
+      if (!person) {
+        person = { name: duty.name, qualifiers: new Set() };
+        people.set(duty.id, person);
+      }
+      duty.qualifiers.forEach(function (qualifier) {
+        person.qualifiers.add(qualifier);
       });
     });
-  });
-  teamCrewCache.set(rosters, index);
-  return index;
-}
-
-/** Resolve the caller's vehicle without picking an arbitrary duty on multi-duty days. */
-function userVehicleKeyForDay_(index, dayKey, phase, preferredKey, code) {
-  var slot = index && index[dayKey];
-  if (!slot || !phase) return null;
-  var suffix = "|" + phase;
-  var candidates = Object.keys(slot).filter(function (key) {
-    return (
-      key.endsWith(suffix) &&
-      slot[key].some(function (person) {
-        return person.id == rosterUserId;
-      })
-    );
-  });
-  if (preferredKey && candidates.indexOf(preferredKey) != -1) return preferredKey;
-  var byCode = candidates.filter(function (key) {
-    return slot[key].some(function (person) {
-      return person.id == rosterUserId && person.codes.indexOf(code) != -1;
+    return Array.from(people.values(), function (person) {
+      var qualifiers = Array.from(person.qualifiers).sort();
+      return person.name + (qualifiers.length ? " (" + qualifiers.join(" / ") + ")" : "");
+    }).sort(function (a, b) {
+      return a.localeCompare(b, "de");
     });
-  });
-  return byCode.length == 1 ? byCode[0] : candidates.length == 1 ? candidates[0] : null;
-}
-
-function teamDescriptionLines_(index, dayKey, vehicleKey, employeeId) {
-  if (!index || dayKey == null || !vehicleKey) return [];
-  function names(day, vehicle) {
-    var crew = (index[day] || {})[vehicle] || [];
-    return crew
-      .filter(function (person) {
-        return person.id != employeeId;
-      })
-      .map(function (person) {
-        return person.name + (person.trainee ? " (Prakti.)" : "");
-      })
-      .sort(function (a, b) {
-        return a.localeCompare(b, "de");
-      });
   }
   var lines = [];
-  var partners = addTeamPartner ? names(dayKey, vehicleKey) : [];
-  if (partners.length) lines.push("Team: " + partners.join(", "));
-  if (addRelief) {
-    var phase = vehicleKey.slice(-1);
-    var vehicle = vehicleKey.slice(0, -2);
-    var reliefDay = phase == "N" ? nextDayKey_(index, dayKey) : dayKey;
-    var following = phase == "F" ? ["S", "N"] : phase == "N" ? ["F", "T"] : ["N"];
-    // Use only the first visible following shift, never a guessed handover time.
-    for (var next of following) {
-      var key = vehicle + "|" + next;
-      if (!((index[reliefDay] || {})[key] || []).length) continue;
-      var relief = names(reliefDay, key);
-      if (relief.length) lines.push("Ablösung: " + relief.join(", "));
-      break;
-    }
+  if (addTeamPartner) {
+    var partners = names(
+      duties.filter(function (duty) {
+        return current.span && duty.span
+          ? duty.span.start < current.span.end && duty.span.end > current.span.start
+          : !current.span && !duty.span && duty.day == current.day && duty.type == current.type;
+      })
+    );
+    if (partners.length) lines.push("Team: " + partners.join(", "));
+  }
+  if (addRelief && current.span) {
+    var relief = names(
+      duties.filter(function (duty) {
+        return duty.span && duty.span.start.getTime() == current.span.end.getTime();
+      })
+    );
+    if (relief.length) lines.push("Ablösung: " + relief.join(", "));
   }
   return lines;
 }

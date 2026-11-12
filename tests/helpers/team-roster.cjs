@@ -7,8 +7,8 @@ function roster(people) {return {data:{legendDuties:{entries:[
   {shortName:'ITW',longName:'ITW',shiftTypeName:'Tagdienst'},
   {shortName:'K',longName:'anything',shiftTypeName:'Tagdienst'},
   {shortName:'UL',longName:'anything',shiftTypeName:'Tagdienst'},
-  {shortName:'F',longName:'frei',shiftTypeName:'Dienstfrei'},
-  {shortName:'X',longName:'Abwesenheit',shiftTypeName:'Abwesenheit'},
+  {shortName:'F',longName:'frei',shiftTypeName:'Dienstfrei',durationRawInMinutes:0},
+  {shortName:'X',longName:'Abwesenheit',shiftTypeName:'Abwesenheit',durationRawInMinutes:0},
 ]},data:people.map(person=>({item1:{id:person.id,name:person.name},item2:{data:person.days||[]}}))}};}
 function setup(options={}) {
   const app=shared();app.clock={now:Date.parse(options.now||'2026-11-11T09:00:00Z')};
