@@ -13,23 +13,43 @@ function teamShiftPhase_(value) {
           : null;
 }
 
-/** Match the vehicle, independently of role/shift labels. Keep distinct stations and units. */
-function vehicleKeyFromLegend_(entry) {
+/** Group legend labels without a fleet-abbreviation list or fuzzy station/unit matching. */
+function teamLegendAssignment_(entry) {
   if (!entry || typeof entry.longName != "string") return null;
   var phase = teamShiftPhase_(entry.shiftTypeName);
   if (!phase) return null;
   var name = entry.longName.normalize("NFC").replace(/\s+/g, " ").trim();
-  var match =
-    /^(.*?\b(?:RTW|KTW|ITW|NEF|NAW|RTH|ITH))(?=\s|[-:(]|[0-9]|$)(?:\s*-?\s*(\d+[a-z]?|[a-z])\b)?/i.exec(
+  // Administrative/training labels can also have the generic type Tagdienst.
+  if (
+    /^(?:Verwaltung|Büro|(?:Jahres[-\s]*)?(?:Fortbildung|Fobi)|Ausbildung|Lehrgang|Dozent|Schulung|Praxisanleitung|Praxisbegleitung)\b/i.test(
       name
-    );
-  if (!match) return null;
-  // Numbered/lettered units can have role text after their identifier. For named
-  // vehicles, retain any qualifier (e.g. ITW Aachen versus ITW Würselen).
-  var vehicle = match[2]
-    ? match[1] + " " + match[2]
-    : name.replace(/\s*[-:(]?\s*(?:Tagdienst|Nachtdienst|Frühdienst|Spätdienst)\b.*$/i, "").trim();
-  return vehicle.toUpperCase() + "|" + phase;
+    )
+  )
+    return null;
+  // The legend supplies the assignment label; remove only generic shift, role
+  // and weekday qualifiers. Preserve all station names, numbers and unit letters.
+  var trainee = false;
+  name = name
+    .replace(/\bPrakti(?:kant(?:in|en)?|kum)?\b\.?/gi, function () {
+      trainee = true;
+      return " ";
+    })
+    .replace(
+      /\b(?:Tag(?:dienst)?|Nacht(?:dienst)?|Früh(?:dienst)?|Spät(?:dienst)?|werktags|samstags|sonntags|wochenends?|Präsenz|RufB|Rufbereitschaft|Fahrer|Beifahrer|NotSan|NFS|Notfallsanitäter|Rettungssanitäter|Rettungsassistent)\b\.?/gi,
+      " "
+    )
+    .replace(/[()[\]{}.,:;/]+/g, " ")
+    .replace(/([\p{L}])(\d)/gu, "$1 $2")
+    .replace(/(\d)([\p{L}])/gu, "$1 $2")
+    .replace(/\s*[-–]\s*$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return name ? { key: name.toUpperCase() + "|" + phase, trainee: trainee } : null;
+}
+
+function vehicleKeyFromLegend_(entry) {
+  var assignment = teamLegendAssignment_(entry);
+  return assignment ? assignment.key : null;
 }
 
 function teamDutyLegend_(roster) {
@@ -78,9 +98,9 @@ function buildTeamDutyIndex_(rosters) {
   var index = {},
     dayKeys = new Map();
   rosters.forEach(function (roster) {
-    var vehicles = new Map();
+    var assignments = new Map();
     teamDutyLegend_(roster).forEach(function (entry, code) {
-      vehicles.set(code, vehicleKeyFromLegend_(entry));
+      assignments.set(code, teamLegendAssignment_(entry));
     });
     roster.data.forEach(function (person) {
       checkSyncBudget_();
@@ -91,7 +111,12 @@ function buildTeamDutyIndex_(rosters) {
         if (!day || !day.day) return;
         var duties = teamDutyCodes_(day)
           .map(function (code) {
-            return { code: code, vehicle: vehicles.get(code) };
+            var assignment = assignments.get(code);
+            return {
+              code: code,
+              vehicle: assignment && assignment.key,
+              trainee: assignment && assignment.trainee
+            };
           })
           .filter(function (duty) {
             return duty.vehicle;
@@ -108,10 +133,16 @@ function buildTeamDutyIndex_(rosters) {
             return item.id == employee.id;
           });
           if (!member) {
-            member = { name: formatName_(employee.name), id: employee.id, codes: [] };
+            member = {
+              name: formatName_(employee.name),
+              id: employee.id,
+              codes: [],
+              trainee: false
+            };
             crew.push(member);
           }
           if (member.codes.indexOf(duty.code) == -1) member.codes.push(duty.code);
+          member.trainee = member.trainee || duty.trainee;
         });
       });
     });
@@ -151,7 +182,7 @@ function teamDescriptionLines_(index, dayKey, vehicleKey, employeeId) {
         return person.id != employeeId;
       })
       .map(function (person) {
-        return person.name;
+        return person.name + (person.trainee ? " (Prakti.)" : "");
       })
       .sort(function (a, b) {
         return a.localeCompare(b, "de");

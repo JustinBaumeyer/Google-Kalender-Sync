@@ -666,10 +666,12 @@ test('legend plan times keep consecutive colleague early duties separate with cr
   const data=teamRoster([
     {id:456,name:'Meyer, Alex',days:[teamDay('2026-11-12T00:00:00+01:00','F'),teamDay('2026-11-13T00:00:00+01:00','F')]},
     {id:123,name:'User, Own',days:[teamDay('2026-11-12T00:00:00+01:00','F'),teamDay('2026-11-13T00:00:00+01:00','F')]},
+    {id:700,name:'Example, Intern',days:[teamDay('2026-11-12T00:00:00+01:00','P'),teamDay('2026-11-13T00:00:00+01:00','P')]},
     {id:789,name:'Partner, Late',days:[teamDay('2026-11-12T00:00:00+01:00','S'),teamDay('2026-11-13T00:00:00+01:00','S')]}
   ]);
   data.data.legendDuties.entries=[
     {shortName:'F',longName:'AC 40 KTW 2',shiftTypeName:'Frühdienst',from:{hourOfDay:7,minute:30},to:{hourOfDay:16,minute:0},followingDaysTo:0,isFlexiTime:false},
+    {shortName:'P',longName:'AC 40 KTW 2 Früh Prakti.',shiftTypeName:'Frühdienst',from:{hourOfDay:7,minute:30},to:{hourOfDay:16,minute:0},followingDaysTo:0,isFlexiTime:false},
     {shortName:'S',longName:'AC 40 KTW 2',shiftTypeName:'Spätdienst',from:{hourOfDay:16,minute:0},to:{hourOfDay:23,minute:30},followingDaysTo:0,isFlexiTime:false}
   ];
   const team=teamSetup({groups:{29:data,335:teamRoster([])}}),writes=[];
@@ -690,7 +692,7 @@ test('legend plan times keep consecutive colleague early duties separate with cr
     assert.equal(writes.length,2);
     assert.deepEqual(writes.map(event=>[event.start.dateTime,event.end.dateTime]),[['2026-11-12T06:30:00Z','2026-11-12T15:00:00Z'],['2026-11-13T06:30:00Z','2026-11-13T15:00:00Z']]);
     assert.ok(writes.every(event=>!event.start.date&&event.description.includes('Frühdienst · 08h30')&&event.description.includes('Planzeiten aus der Legende')));
-    assert.ok(writes.every(event=>event.description.includes('Team: Own User')&&event.description.includes('Ablösung: Late Partner')));
+    assert.ok(writes.every(event=>event.description.includes('Team: Intern Example (Prakti.), Own User')&&event.description.includes('Ablösung: Late Partner')));
     assert.ok(writes.every(event=>!event.description.includes('Alex Meyer')));
     assert.equal(server.getAppState().settings.addTeamPartner,true);assert.equal(server.getAppState().settings.addRelief,true);
     assert.equal(team.requests.filter(request=>request.url.endsWith('team-duty/preload')).length,9);

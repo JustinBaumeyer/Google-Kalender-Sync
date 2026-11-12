@@ -68,7 +68,7 @@ function renderFields() {
     [
       "addRelief",
       "Ablösung anzeigen",
-      "Früh → Spät/Nacht, Tag/Spät → Nacht, Nacht → Früh/Tag am Folgetag. Verwendet sichtbare Dienste auf demselben Fahrzeug."
+      "Früh → Spät/Nacht, Tag/Spät → Nacht, Nacht → Früh/Tag am Folgetag. Verwendet sichtbare Dienste mit derselben Zuordnung aus der Legende."
     ]
   ].forEach((args) => toggle(roster, ...args));
   [

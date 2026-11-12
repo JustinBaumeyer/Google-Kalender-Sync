@@ -24,7 +24,7 @@ function monthEndTeam(){return team([
   {id:901,name:'Person, Absent',days:[day('2027-01-31T00:00:00+01:00','K,UL,RB')]}
 ]);}
 
-test('vehicle matching supports named, numbered and lettered emergency vehicles without merging stations or units',()=>{
+test('legend label grouping supports named, numbered and lettered assignments without merging stations or units',()=>{
   const {c}=setup();c.loadUserPreferences_();
   const key=(name,type='Tagdienst')=>c.vehicleKeyFromLegend_({longName:name,shiftTypeName:type});
   assert.equal(key('ITW'),'ITW|T');assert.equal(key('ITW - Nachtdienst','Nachtdienst'),'ITW|N');
@@ -34,7 +34,13 @@ test('vehicle matching supports named, numbered and lettered emergency vehicles 
   assert.notEqual(key('Würselen 2 RTW X'),key('Würselen 2 RTW Y'));
   assert.notEqual(key('Würselen 2 RTW X'),key('Würselen 1 RTW X'));
   assert.notEqual(key('ITW Aachen'),key('ITW Würselen'));
-  for(const name of ['KTW9','NEF 2','NAW','RTH Christoph 1','ITH'])assert.ok(key(name),name);
+  for(const name of ['KTW9','NEF 2','NAW','RTH Christoph 1','ITH','Christoph Europa 1','Sonderfahrzeug 7'])assert.ok(key(name),name);
+  assert.equal(key('ACL 9 KTW 2 samstags'),key('ACL 9 KTW 2 Prakti. werktags'));
+  assert.equal(key('ACL 9 KTW 3 Praktikum'),key('ACL 9 KTW 3'));
+  assert.equal(key('Würs 1 NEF 2 Tag Prakti.'),key('Würs 1 NEF 2 Tag'));
+  assert.equal(key('Atego ITW werktags Präsenz','Frühdienst'),'ATEGO ITW|F');
+  assert.equal(key('KTW9'),key('KTW 9'));
+  assert.notEqual(key('Christoph Europa 1'),key('Christoph Europa 2'));
   for(const [name,type] of [['Verwaltung','Tagdienst'],['ITW','Rufbereitschaft'],['ITW','Fortbildung'],['ITW',''],['ITW','Abwesenheit']])assert.equal(key(name,type),null);
 });
 
@@ -155,4 +161,31 @@ test('relief discovery includes the next month group and a failed lookahead disc
   const failed=setup({...options,response:(url,request)=>url.endsWith('team-duty/preload')&&JSON.parse(request.payload).month==='2027-01-31T23:00:00.000Z'?{status:500,body:{}}:options.response(url,request)});
   failed.c.Calendar.Events.list=()=>assert.fail('Calendar must stay untouched');
   assert.throws(()=>failed.c.startSync(),/Teamübersicht/);assert.equal(failed.writes.length,0);
+});
+
+test('legend trainee roles share their assignment without losing the Prakti label in crew and relief descriptions',()=>{
+  const date='2026-11-12T00:00:00+01:00';
+  const entries=[
+    {shortName:'R',longName:'Station 1 Sonderfahrzeug 2 Tag',shiftTypeName:'Tagdienst'},
+    {shortName:'P',longName:'Station 1 Sonderfahrzeug 2 Tag Prakti.',shiftTypeName:'Tagdienst'},
+    {shortName:'N',longName:'Station 1 Sonderfahrzeug 2 Nacht',shiftTypeName:'Nachtdienst'},
+    {shortName:'NP',longName:'Station 1 Sonderfahrzeug 2 Nacht Praktikant',shiftTypeName:'Nachtdienst'}
+  ];
+  const data=team([
+    {id:456,name:'Meyer, Alex',days:[day(date,'R')]},
+    {id:123,name:'User, Own',days:[day(date,'R')]},
+    {id:700,name:'Example, Intern',days:[day(date,'P')]},
+    {id:789,name:'Crew, Regular',days:[day(date,'N')]},
+    {id:701,name:'Example, Night Intern',days:[day(date,'NP')]}
+  ],entries);
+  const {c,requests}=setup({settings:{addTeamPartner:true,addRelief:true},groups:{29:data,335:data}});c.loadUserPreferences_();
+  const result=icalEvents(c,c.getColleagueRosterICal_('456',true))[0];
+  assert.match(result.description,/Team: Intern Example \(Prakti\.\), Own User/);
+  assert.match(result.description,/Ablösung: Night Intern Example \(Prakti\.\), Regular Crew/);
+  assert.equal(result.description.includes('Regular Crew (Prakti.)'),false);
+  const trainee=icalEvents(c,c.getColleagueRosterICal_('700',true))[0];
+  assert.match(trainee.description,/Station 1 Sonderfahrzeug 2 Tag Prakti\./);
+  assert.match(trainee.description,/Team: Alex Meyer, Own User/);
+  assert.equal(trainee.uid,'team-roster-700-2026-11-12-P');
+  assert.equal(requests.length,7);
 });
