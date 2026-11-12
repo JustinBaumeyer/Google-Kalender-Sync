@@ -29,7 +29,7 @@ function teamRosterPeople_(rosters) {
   });
 }
 
-/** Team dates/codes are not shift times. Emit DATE entries, without personal notes or requests. */
+/** Combine team dates with scheduled legend times; personal notes/requests stay excluded. */
 function getColleagueRosterICal_(employeeId, skipTokenRefresh) {
   if (!skipTokenRefresh && !teamRosterTokenReady) {
     refreshRosterToken_();
@@ -89,12 +89,34 @@ function getColleagueRosterICal_(employeeId, skipTokenRefresh) {
               !/dienst|bereitschaft|fortbildung|ausbildung|schulung/i.test(type)
             )
               return;
-            var start = new Date(date + "T00:00:00Z"),
-              end = new Date(start.getTime() + 86400000);
             var uid = "team-roster-" + employeeId + "-" + date + "-" + encodeURIComponent(code);
-            events.set(
-              uid,
-              generateAllDayICalEntry_(
+            var crew = teamDescriptionLines_(
+              teamIndex,
+              teamDayKey_(instant),
+              vehicleKeyFromLegend_(entry),
+              employeeId
+            );
+            var span = legendDutySpan_(entry, date);
+            var content;
+            if (span) {
+              content = shiftBlockToICal_({
+                uid: uid,
+                shortName: code,
+                summary: personTitle + " · " + code,
+                longName: entry.longName || code,
+                shiftType: type,
+                start: span.start,
+                end: span.end,
+                extraLines: [
+                  "Planzeiten aus der Legende der Teamübersicht. Individuelle Abweichungen sind darin nicht enthalten."
+                ].concat(crew),
+                transparent: true,
+                keepSeparate: true
+              });
+            } else {
+              var start = new Date(date + "T00:00:00Z"),
+                end = new Date(start.getTime() + 86400000);
+              content = generateAllDayICalEntry_(
                 uid,
                 start,
                 end,
@@ -102,20 +124,16 @@ function getColleagueRosterICal_(employeeId, skipTokenRefresh) {
                 [
                   entry.longName || code,
                   type,
-                  "Aus der Teamübersicht. Uhrzeiten sind dort nicht verfügbar."
+                  entry.isFlexiTime === true
+                    ? "Flexible Dienstzeit laut Legende; ganztägig dargestellt."
+                    : "Keine eindeutigen vollständigen Planzeiten in der Legende; ganztägig dargestellt."
                 ]
-                  .concat(
-                    teamDescriptionLines_(
-                      teamIndex,
-                      teamDayKey_(instant),
-                      vehicleKeyFromLegend_(entry),
-                      employeeId
-                    )
-                  )
+                  .concat(crew)
                   .join("\n"),
                 { transparent: true, keepSeparate: true }
-              )
-            );
+              );
+            }
+            events.set(uid, content);
           });
         });
       });

@@ -29,6 +29,7 @@
       "src/roster/client.js",
       "src/roster/crew.js",
       "src/roster/team.js",
+      "src/roster/legend-times.js",
       "src/roster/colleagues.js",
       "src/roster/shifts.js",
       "src/roster/token.js",

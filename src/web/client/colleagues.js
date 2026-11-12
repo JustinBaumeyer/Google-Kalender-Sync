@@ -58,7 +58,7 @@ function teamRosterPicker(grid, raw) {
     status,
     element(
       "small",
-      "Jeder Dienst bleibt einzeln, ganztägig und als „Verfügbar“, ohne Uhrzeiten oder Abwesenheiten. Zeitraum: letzter Monat bis zwei Monate voraus. Teampartner und Ablösung lassen sich unten einschalten. Prüfe die Kalenderfreigaben."
+      "Übernimmt die Planzeiten aus der Dienstlegende. Flexible oder unvollständige Zeiten erscheinen ganztägig. Jeder Dienst bleibt einzeln und als „Verfügbar“. Zeitraum: letzter Monat bis zwei Monate voraus. Teampartner und Ablösung lassen sich unten einschalten. Prüfe die Kalenderfreigaben."
     )
   );
   grid.append(panel);
