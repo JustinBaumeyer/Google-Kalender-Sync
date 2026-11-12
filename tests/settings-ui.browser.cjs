@@ -660,15 +660,18 @@ test('stale colleague lookup responses cannot overwrite a changed name; a failed
   }finally{release();await page.close();}
 });
 
-test('saved team and relief switches apply to an actual colleague-calendar sync without a second crew fetch',async()=>{
+test('saved crew switches keep consecutive colleague early duties separate with their descriptions in Calendar',async()=>{
   const app=shared();app.clock={now:Date.parse('2026-11-11T09:00:00Z')};
   const {page,server,errors,actualRunSync}=await open({}, {width:1120,height:950},0,app);
   const data=teamRoster([
-    {id:456,name:'Meyer, Alex',days:[teamDay('2026-11-12T00:00:00+01:00','D')]},
-    {id:123,name:'User, Own',days:[teamDay('2026-11-12T00:00:00+01:00','D')]},
-    {id:789,name:'Partner, Night',days:[teamDay('2026-11-12T00:00:00+01:00','N')]}
+    {id:456,name:'Meyer, Alex',days:[teamDay('2026-11-12T00:00:00+01:00','F'),teamDay('2026-11-13T00:00:00+01:00','F')]},
+    {id:123,name:'User, Own',days:[teamDay('2026-11-12T00:00:00+01:00','F'),teamDay('2026-11-13T00:00:00+01:00','F')]},
+    {id:789,name:'Partner, Late',days:[teamDay('2026-11-12T00:00:00+01:00','S'),teamDay('2026-11-13T00:00:00+01:00','S')]}
   ]);
-  data.data.legendDuties.entries.filter(entry=>['D','N'].includes(entry.shortName)).forEach(entry=>entry.longName='ITW');
+  data.data.legendDuties.entries=[
+    {shortName:'F',longName:'AC 40 KTW 2',shiftTypeName:'Frühdienst'},
+    {shortName:'S',longName:'AC 40 KTW 2',shiftTypeName:'Spätdienst'}
+  ];
   const team=teamSetup({groups:{29:data,335:teamRoster([])}}),writes=[];
   server.UrlFetchApp=team.c.UrlFetchApp;
   server.Calendar.Events={list:()=>({items:[]}),insert:event=>{writes.push(JSON.parse(JSON.stringify(event)));return {};}};
@@ -684,9 +687,10 @@ test('saved team and relief switches apply to an actual colleague-calendar sync 
     await page.locator('[data-preference="addRelief"]').check();
     await save(page);
     await page.locator('#sync').click();await page.getByText('Sync beendet.',{exact:true}).waitFor();
-    assert.equal(writes.length,1);assert.equal(writes[0].start.date,'2026-11-12');
-    assert.ok(writes[0].description.includes('Team: Own User'));assert.ok(writes[0].description.includes('Ablösung: Night Partner'));
-    assert.equal(writes[0].description.includes('Alex Meyer'),false);
+    assert.equal(writes.length,2);
+    assert.deepEqual(writes.map(event=>[event.start.date,event.end.date]),[['2026-11-12','2026-11-13'],['2026-11-13','2026-11-14']]);
+    assert.ok(writes.every(event=>event.description.includes('Team: Own User')&&event.description.includes('Ablösung: Late Partner')));
+    assert.ok(writes.every(event=>!event.description.includes('Alex Meyer')));
     assert.equal(server.getAppState().settings.addTeamPartner,true);assert.equal(server.getAppState().settings.addRelief,true);
     assert.equal(team.requests.filter(request=>request.url.endsWith('team-duty/preload')).length,9);
     assert.equal(team.requests.filter(request=>request.url.includes('team-duty/roster/')).length,4);

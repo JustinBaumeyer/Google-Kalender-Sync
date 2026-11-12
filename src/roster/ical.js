@@ -54,8 +54,10 @@ function formatDuration_(startDate, endDate) {
  * @param {string} uid - Unique identifier for the event.
  * @param {Date} startDate - First day of the event.
  * @param {Date} endDate - Day after the last day of the event (exclusive).
+ * @param {Object} [options] - transparent marks free time; keepSeparate prevents consolidation.
  */
-function generateAllDayICalEntry_(uid, startDate, endDate, summary, description, transparent) {
+function generateAllDayICalEntry_(uid, startDate, endDate, summary, description, options) {
+  options = options || {};
   function asDate(d) {
     return Utilities.formatDate(d, "GMT", "yyyyMMdd");
   }
@@ -68,7 +70,8 @@ function generateAllDayICalEntry_(uid, startDate, endDate, summary, description,
     asDate(startDate) +
     "\nDTEND;VALUE=DATE:" +
     asDate(endDate) +
-    (transparent ? "\nTRANSP:TRANSPARENT" : "") +
+    (options.transparent ? "\nTRANSP:TRANSPARENT" : "") +
+    (options.keepSeparate ? "\nX-DPSYNC-KEEP-SEPARATE:TRUE" : "") +
     "\nSUMMARY:" +
     icalEscape_(summary) +
     "\nDESCRIPTION:" +
