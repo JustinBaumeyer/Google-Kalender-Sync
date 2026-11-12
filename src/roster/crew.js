@@ -2,7 +2,15 @@ function teamShiftPhase_(value) {
   var type = String(value || "")
     .trim()
     .toLowerCase();
-  return type == "tagdienst" ? "T" : type == "nachtdienst" ? "N" : null;
+  return type == "tagdienst"
+    ? "T"
+    : type == "nachtdienst"
+      ? "N"
+      : type == "frühdienst"
+        ? "F"
+        : type == "spätdienst"
+          ? "S"
+          : null;
 }
 
 /** Match the vehicle, independently of role/shift labels. Keep distinct stations and units. */
@@ -20,7 +28,7 @@ function vehicleKeyFromLegend_(entry) {
   // vehicles, retain any qualifier (e.g. ITW Aachen versus ITW Würselen).
   var vehicle = match[2]
     ? match[1] + " " + match[2]
-    : name.replace(/\s*[-:(]?\s*(?:Tagdienst|Nachtdienst)\b.*$/i, "").trim();
+    : name.replace(/\s*[-:(]?\s*(?:Tagdienst|Nachtdienst|Frühdienst|Spätdienst)\b.*$/i, "").trim();
   return vehicle.toUpperCase() + "|" + phase;
 }
 
@@ -153,13 +161,18 @@ function teamDescriptionLines_(index, dayKey, vehicleKey, employeeId) {
   var partners = addTeamPartner ? names(dayKey, vehicleKey) : [];
   if (partners.length) lines.push("Team: " + partners.join(", "));
   if (addRelief) {
-    var night = vehicleKey.endsWith("|N");
+    var phase = vehicleKey.slice(-1);
     var vehicle = vehicleKey.slice(0, -2);
-    var relief = names(
-      night ? nextDayKey_(index, dayKey) : dayKey,
-      vehicle + (night ? "|T" : "|N")
-    );
-    if (relief.length) lines.push("Ablösung: " + relief.join(", "));
+    var reliefDay = phase == "N" ? nextDayKey_(index, dayKey) : dayKey;
+    var following = phase == "F" ? ["S", "N"] : phase == "N" ? ["F", "T"] : ["N"];
+    // Use only the first visible following shift, never a guessed handover time.
+    for (var next of following) {
+      var key = vehicle + "|" + next;
+      if (!((index[reliefDay] || {})[key] || []).length) continue;
+      var relief = names(reliefDay, key);
+      if (relief.length) lines.push("Ablösung: " + relief.join(", "));
+      break;
+    }
   }
   return lines;
 }

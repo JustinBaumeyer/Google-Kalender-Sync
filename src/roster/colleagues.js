@@ -113,7 +113,7 @@ function getColleagueRosterICal_(employeeId, skipTokenRefresh) {
                     )
                   )
                   .join("\n"),
-                true
+                { transparent: true, keepSeparate: true }
               )
             );
           });
