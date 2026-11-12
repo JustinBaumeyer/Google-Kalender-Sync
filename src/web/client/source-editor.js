@@ -23,19 +23,21 @@ function addSource(raw) {
     "Quelle",
     select(
       [
-        ["ROSTER", "DRK-Dienstplan"],
+        ["ROSTER", "Eigener DRK-Dienstplan"],
+        ["TEAM_ROSTER", "Dienstplan einer anderen Person"],
         ["ICS", "Kalender-Abo (ICS)"]
       ],
-      raw[0] === "ROSTER" ? "ROSTER" : "ICS"
+      raw[0] === "ROSTER" ? "ROSTER" : raw[0].startsWith("TEAM_ROSTER:") ? "TEAM_ROSTER" : "ICS"
     )
   );
   const url = field(
     grid,
     "Adresse des Kalender-Abos",
-    input("text", raw[0] === "ROSTER" ? "" : raw[0]),
+    input("text", /^(ROSTER$|TEAM_ROSTER:)/.test(raw[0]) ? "" : raw[0]),
     "https://… oder webcal://…"
   );
   url.inputMode = "url";
+  const colleague = teamRosterPicker(grid, raw);
   const matching = calendarChoices.filter((cal) => cal.name === raw[1]);
   const selectedId = raw[3] || (matching.length === 1 ? matching[0].id : "__new");
   const options = calendarChoices.map((cal) => [
@@ -58,13 +60,19 @@ function addSource(raw) {
   targetVisibility();
   const color = field(grid, "Terminfarbe", select(colors, raw[2] == null ? "" : raw[2]));
   const updateKind = () => {
-    url.parentElement.hidden = kind.value === "ROSTER";
+    url.parentElement.hidden = kind.value !== "ICS";
+    colleague.panel.hidden = kind.value !== "TEAM_ROSTER";
   };
   kind.onchange = updateKind;
   updateKind();
   sourceReaders.set(row, () => {
-    const source = kind.value === "ROSTER" ? "ROSTER" : url.value.trim();
-    if (!source || (source !== "ROSTER" && !/^(https?|webcal):\/\//i.test(source)))
+    const person = kind.value === "TEAM_ROSTER" ? colleague.read() : null;
+    const source = person
+      ? "TEAM_ROSTER:" + person.id
+      : kind.value === "ROSTER"
+        ? "ROSTER"
+        : url.value.trim();
+    if (!source || (kind.value === "ICS" && !/^(https?|webcal):\/\//i.test(source)))
       invalid(url, "Bitte eine gültige Kalender-Adresse eingeben.");
     if (target.value === "__new" && !newName.value.trim())
       invalid(newName, "Bitte einen Namen für den neuen Kalender eingeben.");
@@ -90,7 +98,9 @@ function addSource(raw) {
           : /^\d+$/.test(color.value)
             ? Number(color.value)
             : color.value;
-    return [source, name, selectedColor, id];
+    return person
+      ? [source, name, selectedColor, id, person.name]
+      : [source, name, selectedColor, id];
   });
 }
 function normalizedDay(value) {

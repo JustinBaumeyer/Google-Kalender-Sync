@@ -1,4 +1,5 @@
 function render(state) {
+  teamPeopleRequest = undefined;
   const wasEditing = current && !$("preferences").hidden;
   current = copy(state);
   readers.clear();

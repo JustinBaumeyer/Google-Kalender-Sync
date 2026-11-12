@@ -14,14 +14,14 @@ function getRosterStartDate_() {
  *
  * @param {Date} [now] - Reference time (defaults to the current time).
  */
-function generateRosterPayload_(now) {
+function generateRosterPayload_(now, bounded) {
   var timeZone = typeof rosterTimeZone !== "undefined" ? rosterTimeZone : "Europe/Berlin";
   var currentMonth = Utilities.formatDate(now || new Date(), timeZone, "yyyy-MM").split("-");
   var year = Number(currentMonth[0]);
   var month = Number(currentMonth[1]) - 1;
   var startMonth = new Date(Date.UTC(year, month - 1, 1));
   var endMonth = new Date(Date.UTC(year, month + 3, 1)); // exclusive, through current month + 2
-  if (addRosterSinceStart) {
+  if (addRosterSinceStart && !bounded) {
     var contractStart = getRosterStartDate_();
     if (contractStart == null || isNaN(contractStart.getTime()))
       throw new Error("Could not determine roster contract start date");
@@ -53,15 +53,15 @@ function buildRosterMonthPayload_(startMonth, endMonth, timeZone) {
 }
 
 function getRosterICal_(skipTokenRefresh) {
-  if (!skipTokenRefresh)
+  if (!skipTokenRefresh && !teamRosterTokenReady)
     callWithBackoff_(function () {
       refreshRosterToken_();
+      teamRosterTokenReady = true;
       return;
     }, defaultMaxRetries);
   return callWithBackoff_(function () {
-    var jsonResponse = JSON.parse(
-      rosterFetch_("rosters/preload", "POST", generateRosterPayload_())
-    );
+    var payload = generateRosterPayload_();
+    var jsonResponse = JSON.parse(rosterFetch_("rosters/preload", "POST", payload));
     var icsContent =
       "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//GoogleKalenderSync/EN\nMETHOD:REQUEST\nNAME:Roster\nX-WR-CALNAME:Roster\n";
 
@@ -72,23 +72,8 @@ function getRosterICal_(skipTokenRefresh) {
     var teamIndex = {};
     if (addTeamPartner || addRelief) {
       try {
-        // Collect every day across all months to span the full team-duty range,
-        // plus one month-start per month so group discovery covers every month
-        // (groups the user works in only in a later month would otherwise be missed).
-        var allDays = [];
-        var monthParams = [];
-        jsonResponse.forEach((m) => {
-          var item2 = ((((m.rosterUrlaubEinsatzwunsch || {}).data || {}).data || [])[0] || {})
-            .item2;
-          if (item2 && item2.data && item2.data.length) {
-            monthParams.push(new Date(item2.data[0].day.date).toISOString());
-            item2.data.forEach((d) => allDays.push(d.day.date));
-          }
-        });
-        allDays.sort();
-        var from = new Date(allDays[0]).toISOString();
-        var to = new Date(allDays[allDays.length - 1]).toISOString();
-        teamIndex = getTeamDutyIndex_(monthParams, from, to);
+        var request = teamRosterRequest_(JSON.parse(payload), addRelief);
+        teamIndex = getTeamDutyIndex_(request.monthParams, request.from, request.to);
       } catch (e) {
         if (e.syncPaused) throw e;
         Logger.log("Could not build team-duty index: " + (e.message || e));

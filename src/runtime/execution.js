@@ -4,8 +4,18 @@ var syncStartedAt = 0;
 var syncDeadline = 0;
 var syncPhase = "";
 var rosterFeedCache;
+var teamRosterCache = {};
+var teamCrewCache = new WeakMap();
+var teamRosterTokenReady = false;
 var lastProgressWriteAt = 0;
 var lastProgressPhase = "";
+
+function resetRosterCaches_() {
+  rosterFeedCache = undefined;
+  teamRosterCache = {};
+  teamCrewCache = new WeakMap();
+  teamRosterTokenReady = false;
+}
 
 function publishSyncProgress_(phase, completed, total, status) {
   if (!syncStartedAt && !status) return;

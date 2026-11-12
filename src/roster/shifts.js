@@ -58,37 +58,21 @@ function parseShiftToCal_(shift, legend, teamIndex) {
     if (block.remark) extraLines.push(block.remark);
     if (tagesbemerkung) extraLines.push(tagesbemerkung);
 
-    // Vehicle + day used for both team-partner and relief lookups. Prefer locating
-    // the user inside the fetched team rosters (works across planning groups whose
-    // legends name the vehicle differently); fall back to the user's own legend.
-    var dayKey =
-      shift.data.key && shift.data.key.day ? new Date(shift.data.key.day).getTime() : null;
-    var isNight = shiftType == "Nachtdienst";
-    var vehicleKey = null;
-    if (teamIndex && dayKey != null)
-      vehicleKey = userVehicleKeyForDay_(teamIndex, dayKey, isNight) || vehicleKeyFromLegend_(leg);
-    var crewNames = function (dKey, vKey) {
-      var crew = ((teamIndex && teamIndex[dKey]) || {})[vKey];
-      return crew ? crew.filter((p) => p.id != rosterUserId).map((p) => p.name) : [];
-    };
-
-    // Colleagues on the same vehicle that day (day vs. night respected), excluding self.
-    if (addTeamPartner && vehicleKey && dayKey != null) {
-      var partners = crewNames(dayKey, vehicleKey);
-      if (partners.length) extraLines.push("Team: " + partners.join(", "));
-    }
-
-    // Relief crew: a day shift is relieved by the night crew the same day; a
-    // night shift by the day crew the next day (same vehicle).
-    if (addRelief && vehicleKey && dayKey != null) {
-      var pipe = vehicleKey.lastIndexOf("|");
-      var vehicle = vehicleKey.slice(0, pipe);
-      var relief =
-        vehicleKey.slice(pipe + 1) == "N"
-          ? crewNames(nextDayKey_(teamIndex, dayKey), vehicle + "|T")
-          : crewNames(dayKey, vehicle + "|N");
-      if (relief.length) extraLines.push("Ablösung: " + relief.join(", "));
-    }
+    var dayKey = shift.data.key ? teamDayKey_(shift.data.key.day) : null;
+    var preferredVehicle = vehicleKeyFromLegend_(
+      Object.assign({ longName: block.nameWorkplace, shiftTypeName: shiftType }, leg)
+    );
+    var vehicleKey =
+      userVehicleKeyForDay_(
+        teamIndex,
+        dayKey,
+        teamShiftPhase_(shiftType),
+        preferredVehicle,
+        block.shortName
+      ) || preferredVehicle;
+    extraLines = extraLines.concat(
+      teamDescriptionLines_(teamIndex, dayKey, vehicleKey, rosterUserId)
+    );
 
     // On-call (Rufbereitschaft) standby should not block availability.
     var transparent = oncallAsFree && shiftType == "Rufbereitschaft";

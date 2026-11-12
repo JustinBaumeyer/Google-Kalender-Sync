@@ -91,7 +91,7 @@ function previewSynchronization(input) {
             if (!cachedRoster) throw new Error("Der Dienstplan konnte nicht geladen werden.");
             sources.push([cachedRoster, source[1]]);
           } else {
-            var fetched = fetchSourceCalendars_([source]);
+            var fetched = fetchSourceCalendars_([source], fetchRoster);
             if (fetched.failedSources)
               throw new Error("Ein Kalender-Abo konnte nicht geladen werden.");
             sources = sources.concat(fetched.responses);
