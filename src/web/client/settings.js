@@ -68,7 +68,7 @@ function renderFields() {
     [
       "addRelief",
       "Ablösung anzeigen",
-      "Früh → Spät/Nacht, Tag/Spät → Nacht, Nacht → Früh/Tag am Folgetag. Verwendet sichtbare Dienste mit derselben Zuordnung aus der Legende."
+      "Zeigt sichtbare Dienste derselben Zuordnung, die laut Planzeiten zum Dienstende beginnen. Ohne eindeutige Uhrzeiten wird keine Ablösung abgeleitet."
     ]
   ].forEach((args) => toggle(roster, ...args));
   [

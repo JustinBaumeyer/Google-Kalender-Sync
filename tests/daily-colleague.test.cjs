@@ -2,12 +2,13 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {setup,day,roster,clone}=require('./helpers/team-roster.cjs');
 const first='2026-11-12T00:00:00+01:00',second='2026-11-13T00:00:00+01:00';
+const clocks=(fh,fm,th,tm,offset=0)=>({from:{hourOfDay:fh,minute:fm},to:{hourOfDay:th,minute:tm},followingDaysTo:offset});
 const definitions=[
-  {shortName:'F',longName:'AC 40 KTW 2',shiftTypeName:'Frühdienst'},
-  {shortName:'S',longName:'AC 40 KTW 2',shiftTypeName:'Spätdienst'},
-  {shortName:'N',longName:'AC 40 KTW 2',shiftTypeName:'Nachtdienst'},
-  {shortName:'T',longName:'AC 40 KTW 2',shiftTypeName:'Tagdienst'},
-  {shortName:'OTHER',longName:'AC 40 KTW 3',shiftTypeName:'Frühdienst'}
+  {shortName:'F',longName:'AC 40 KTW 2',shiftTypeName:'Frühdienst',...clocks(7,30,16,0)},
+  {shortName:'S',longName:'AC 40 KTW 2',shiftTypeName:'Spätdienst',...clocks(16,0,23,30)},
+  {shortName:'N',longName:'AC 40 KTW 2',shiftTypeName:'Nachtdienst',...clocks(23,30,7,30,1)},
+  {shortName:'T',longName:'AC 40 KTW 2',shiftTypeName:'Tagdienst',...clocks(8,0,20,0)},
+  {shortName:'OTHER',longName:'AC 40 KTW 3',shiftTypeName:'Frühdienst',...clocks(7,30,16,0)}
 ];
 function fixture(settings={}) {
   const data=roster([
@@ -30,10 +31,10 @@ test('consecutive colleague early duties stay separate with their own crew descr
   const {c}=fixture({consolidateMaxGapMinutes:10080});c.loadUserPreferences_();
   const result=parsed(c,c.getColleagueRosterICal_('456',true));
   assert.equal(result.length,2);
-  assert.deepEqual(result.map(event=>[event.startDate.toString(),event.endDate.toString()]),[['2026-11-12','2026-11-13'],['2026-11-13','2026-11-14']]);
+  assert.deepEqual(result.map(event=>[event.startDate.toString(),event.endDate.toString()]),[['2026-11-12T06:30:00Z','2026-11-12T15:00:00Z'],['2026-11-13T06:30:00Z','2026-11-13T15:00:00Z']]);
   assert.match(result[0].description,/Team: Own User/);assert.match(result[0].description,/Ablösung: First Late Crew/);
   assert.equal(result[0].description.includes('Second Late Crew'),false);assert.equal(result[0].description.includes('Night Crew'),false);
-  assert.match(result[1].description,/Team: Second Partner/);assert.match(result[1].description,/Ablösung: Second Late Crew/);
+  assert.match(result[1].description,/Team: Day Crew, Second Partner/);assert.match(result[1].description,/Ablösung: Second Late Crew/);
   assert.equal(result[1].description.includes('Own User'),false);
   assert.ok(result.every(event=>!event.description.includes('Alex Meyer')&&!event.description.includes('Other Vehicle')));
   assert.equal(new Set(c.icsEventsIds).size,2);
@@ -53,6 +54,12 @@ test('an existing joined colleague event is shortened and its second day restore
     const calendar=new c.ICAL.Component(c.ICAL.parse(content));
     calendar.getAllSubcomponents('vevent').forEach(component=>{
       component.removeProperty('x-dpsync-keep-separate');
+      const stamp=component.getFirstPropertyValue('dtstart');
+      const date=new Date(Date.UTC(stamp.year,stamp.month-1,stamp.day));
+      component.removeProperty('dtstart');component.removeProperty('dtend');
+      component.addPropertyWithValue('dtstart',c.ICAL.Time.fromDateString(date.toISOString().slice(0,10)));
+      date.setUTCDate(date.getUTCDate()+1);
+      component.addPropertyWithValue('dtend',c.ICAL.Time.fromDateString(date.toISOString().slice(0,10)));
       component.updatePropertyWithValue('description','AC 40 KTW 2\nFrühdienst\nAus der Teamübersicht. Uhrzeiten sind dort nicht verfügbar.');
     });
     return calendar.toString();
@@ -63,17 +70,17 @@ test('an existing joined colleague event is shortened and its second day restore
   legacy=false;app.clock.now+=60000;
   assert.deepEqual(clone(c.startSync().lastStats),{added:1,updated:1,removed:0});
   assert.equal(stored.length,2);assert.equal(stored[0].id,originalId);
-  assert.deepEqual(stored.map(event=>[event.start.date,event.end.date]),[['2026-11-12','2026-11-13'],['2026-11-13','2026-11-14']]);
+  assert.deepEqual(stored.map(event=>[event.start.dateTime,event.end.dateTime]),[['2026-11-12T06:30:00Z','2026-11-12T15:00:00Z'],['2026-11-13T06:30:00Z','2026-11-13T15:00:00Z']]);
   assert.match(stored[0].description,/Team: Own User/);assert.match(stored[0].description,/Ablösung: First Late Crew/);
-  assert.match(stored[1].description,/Team: Second Partner/);assert.match(stored[1].description,/Ablösung: Second Late Crew/);
+  assert.match(stored[1].description,/Team: Day Crew, Second Partner/);assert.match(stored[1].description,/Ablösung: Second Late Crew/);
   app.clock.now+=60000;assert.deepEqual(clone(c.startSync().lastStats),{added:0,updated:0,removed:0});
 });
 
-test('own early and late duties share the same phase and relief matching as colleague duties',()=>{
+test('own and colleague duties share clock-based crew and relief matching',()=>{
   const {c}=fixture();c.loadUserPreferences_();
   const request=c.teamRosterRequest_(JSON.parse(c.generateRosterPayload_(undefined,true)),true);
   const index=c.getTeamDutyIndex_(request.monthParams,request.from,request.to);
-  const shift={data:{key:{day:first},rosterDetails:{entries:[{shortName:'F',nameWorkplace:'AC 40 KTW 2',nameShiftType:'Frühdienst',from:first,to:'2026-11-12T08:00:00+01:00'}]}}};
+  const shift={data:{key:{day:first},rosterDetails:{entries:[{shortName:'F',nameWorkplace:'AC 40 KTW 2',nameShiftType:'Frühdienst',from:'2026-11-12T07:30:00+01:00',to:'2026-11-12T16:00:00+01:00'}]}}};
   const own=c.parseShiftToCal_(shift,{F:definitions[0]},index).blocks[0];
   assert.ok(own.extraLines.includes('Team: Alex Meyer'));assert.ok(own.extraLines.includes('Ablösung: First Late Crew'));
   const late=components(c,c.getColleagueRosterICal_('101',true)).map(component=>new c.ICAL.Event(component));
@@ -111,5 +118,5 @@ test('ordinary all-day spans and timed events still consolidate while colleague 
   const blocks=parsed(c,timed);assert.equal(blocks.length,1);assert.equal(blocks[0].endDate.toString(),'2026-11-12T12:00:00Z');
   const preview=c.previewSynchronization({settings:{}});
   assert.equal(preview.errors.length,0);assert.equal(preview.events.length,2);
-  assert.deepEqual(Array.from(preview.events,event=>[event.start,event.end]),[['2026-11-12','2026-11-13'],['2026-11-13','2026-11-14']]);
+  assert.deepEqual(Array.from(preview.events,event=>[event.start.replace('.000Z','Z'),event.end.replace('.000Z','Z')]),[['2026-11-12T06:30:00Z','2026-11-12T15:00:00Z'],['2026-11-13T06:30:00Z','2026-11-13T15:00:00Z']]);
 });

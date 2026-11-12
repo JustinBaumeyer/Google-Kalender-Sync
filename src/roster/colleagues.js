@@ -81,22 +81,18 @@ function getColleagueRosterICal_(employeeId, skipTokenRefresh) {
           teamDutyCodes_(day).forEach(function (code) {
             var entry = legend.get(code);
             if (rosterIgnoreList.indexOf(code) != -1) return;
-            // Unknown codes and absence types are not treated as worked duties.
-            var type = String((entry && entry.shiftTypeName) || "");
-            if (
-              !entry ||
-              /frei|urlaub|krank|abwesenheit/i.test(type) ||
-              !/dienst|bereitschaft|fortbildung|ausbildung|schulung/i.test(type)
-            )
-              return;
+            if (!isTeamDutyDefinition_(entry)) return;
+            var type = String(entry.shiftTypeName || "");
             var uid = "team-roster-" + employeeId + "-" + date + "-" + encodeURIComponent(code);
+            var span = legendDutySpan_(entry, date);
             var crew = teamDescriptionLines_(
               teamIndex,
+              employeeId,
               teamDayKey_(instant),
-              vehicleKeyFromLegend_(entry),
-              employeeId
+              code,
+              entry,
+              span
             );
-            var span = legendDutySpan_(entry, date);
             var content;
             if (span) {
               content = shiftBlockToICal_({
