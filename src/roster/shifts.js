@@ -163,11 +163,11 @@ function shiftBlockToICal_(block) {
   if (typeAndDuration) descLines.push(typeAndDuration);
   descLines = descLines.concat(block.extraLines);
   return generateICalEntry_(
-    block.shortName + start + end,
+    block.uid || block.shortName + start + end,
     start,
     end,
     block.summary,
     descLines.join("\n"),
-    block.transparent
+    { transparent: block.transparent, keepSeparate: !!block.keepSeparate }
   );
 }

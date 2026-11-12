@@ -14,27 +14,31 @@ function icalEscape_(text) {
     .replace(/\r?\n/g, "\\n");
 }
 
-/**
- * Builds a timed VEVENT. start/end are pre-formatted iCal UTC timestamps.
- * If transparent is true the event is marked as free (TRANSP:TRANSPARENT).
- */
-function generateICalEntry_(uid, start, end, summary, description, transparent) {
+/** Shared VEVENT envelope for timed and date-only roster entries. */
+function generateICalEvent_(uid, startLine, endLine, summary, description, options) {
+  options = options || {};
   return (
     "BEGIN:VEVENT\nUID:" +
     uid +
     "\nSEQUENCE:0\nDTSTAMP:" +
     toICalDate_(new Date()) +
-    "\nDTSTART:" +
-    start +
-    "\nDTEND:" +
-    end +
-    (transparent ? "\nTRANSP:TRANSPARENT" : "") +
+    "\n" +
+    startLine +
+    "\n" +
+    endLine +
+    (options.transparent ? "\nTRANSP:TRANSPARENT" : "") +
+    (options.keepSeparate ? "\nX-DPSYNC-KEEP-SEPARATE:TRUE" : "") +
     "\nSUMMARY:" +
     icalEscape_(summary) +
     "\nDESCRIPTION:" +
     icalEscape_(description) +
     "\nEND:VEVENT\n"
   );
+}
+
+/** start/end are pre-formatted iCal UTC timestamps. */
+function generateICalEntry_(uid, start, end, summary, description, options) {
+  return generateICalEvent_(uid, "DTSTART:" + start, "DTEND:" + end, summary, description, options);
 }
 
 /**
@@ -57,26 +61,13 @@ function formatDuration_(startDate, endDate) {
  * @param {Object} [options] - transparent marks free time; keepSeparate prevents consolidation.
  */
 function generateAllDayICalEntry_(uid, startDate, endDate, summary, description, options) {
-  options = options || {};
-  function asDate(d) {
-    return Utilities.formatDate(d, "GMT", "yyyyMMdd");
-  }
-  return (
-    "BEGIN:VEVENT\nUID:" +
-    uid +
-    "\nSEQUENCE:0\nDTSTAMP:" +
-    toICalDate_(new Date()) +
-    "\nDTSTART;VALUE=DATE:" +
-    asDate(startDate) +
-    "\nDTEND;VALUE=DATE:" +
-    asDate(endDate) +
-    (options.transparent ? "\nTRANSP:TRANSPARENT" : "") +
-    (options.keepSeparate ? "\nX-DPSYNC-KEEP-SEPARATE:TRUE" : "") +
-    "\nSUMMARY:" +
-    icalEscape_(summary) +
-    "\nDESCRIPTION:" +
-    icalEscape_(description) +
-    "\nEND:VEVENT\n"
+  return generateICalEvent_(
+    uid,
+    "DTSTART;VALUE=DATE:" + Utilities.formatDate(startDate, "GMT", "yyyyMMdd"),
+    "DTEND;VALUE=DATE:" + Utilities.formatDate(endDate, "GMT", "yyyyMMdd"),
+    summary,
+    description,
+    options
   );
 }
 
