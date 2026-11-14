@@ -131,3 +131,26 @@ test('the legacy adoption limit applies across all targets and remaining work co
   assert.equal(c.runSync_(),0);assert.equal(patches,150);
   assert.equal(app.users.get(owner).has('adoptLegacyEvents'),false);
 });
+
+test('successful Calendar deletes accept empty responses without reporting a failure', () => {
+  for (const response of [null, undefined, '']) {
+    const c=load(shared(),owner), calls=[];
+    c.targetCalendarId='target';
+    c.Calendar.Events={remove:(calendar,id)=>{calls.push([calendar,id]);return response;}};
+    c.removeManagedEvent_('notice');
+    assert.deepEqual(calls,[['target','notice']]);
+    assert.equal(c.syncStats.removed,1);
+  }
+});
+
+test('Calendar deletion failures still retry and never count as successful removals', () => {
+  const c=load(shared(),owner);let calls=0;
+  c.targetCalendarId='target';c.Utilities.sleep=()=>{};
+  c.Calendar.Events={remove:()=>{calls++;throw new Error('rate limit exceeded');}};
+  assert.throws(()=>c.removeManagedEvent_('notice'),/Ein Kalendertermin konnte nicht entfernt werden/);
+  assert.equal(calls,c.defaultMaxRetries+1);
+  assert.equal(c.syncStats.removed,0);
+  c.Calendar.Events.remove=()=>{throw new Error('Forbidden');};
+  assert.throws(()=>c.removeManagedEvent_('notice'),/Forbidden/);
+  assert.equal(c.syncStats.removed,0);
+});

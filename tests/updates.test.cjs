@@ -444,7 +444,7 @@ test('retired update notices are removed once, preserving duties and other owner
   const c=loadApp(shared(),owner), removed=[];
   c.syncOwnerId='mine';c.targetCalendarId='target';c.syncStats={removed:0};
   c.callWithBackoff_=fn=>fn();c.checkSyncBudget_=()=>{};c.publishSyncProgress_=()=>{};
-  c.Calendar.Events={remove:(calendar,id)=>{assert.equal(calendar,'target');removed.push(id);}};
+  c.Calendar.Events={remove:(calendar,id)=>{assert.equal(calendar,'target');removed.push(id);return null;}};
   const notice=(id,props={})=>({id,summary:'Dienstplan Update verfügbar',
     start:{dateTime:'2020-01-01T08:00:00Z'},end:{dateTime:'2020-01-01T08:00:00Z'},
     extendedProperties:{private:{fromGAS:'true',syncOwner:'mine',id:'20200101T080000Z-updateNotification',...props}}});

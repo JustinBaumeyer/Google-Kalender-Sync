@@ -41,7 +41,9 @@ function processEventCleanup_() {
 
 function removeManagedEvent_(id) {
   var result = callWithBackoff_(function () {
-    return Calendar.Events.remove(targetCalendarId, id);
+    Calendar.Events.remove(targetCalendarId, id);
+    // DELETE has no response body. Reserve null for exhausted retries.
+    return true;
   }, defaultMaxRetries);
   if (result === null)
     throw new Error(
