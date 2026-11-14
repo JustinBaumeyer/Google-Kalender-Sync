@@ -42,13 +42,14 @@ function rosterFetch_(endpoint, method, payload) {
 /**
  * Performs several authenticated roster API requests in parallel via
  * UrlFetchApp.fetchAll (one round-trip instead of one per request).
- * Failed requests are logged and returned as null so one bad request
- * doesn't abort the others.
+ * By default failed requests are logged and returned as null. Strict calendar
+ * sources throw instead, so a partial response cannot trigger event cleanup.
  *
  * @param {Array.<{endpoint: string, method: string, payload: ?string}>} calls - Requests to perform.
+ * @param {boolean} [strict] - Reject incomplete results and mark authorization failures.
  * @return {Array.<?string>} One response body per request, null where the request failed.
  */
-function rosterFetchAll_(calls) {
+function rosterFetchAll_(calls, strict) {
   checkSyncBudget_();
   if (!calls.length) return [];
   var requests = calls.map(function (call) {
@@ -67,6 +68,15 @@ function rosterFetchAll_(calls) {
   });
   return UrlFetchApp.fetchAll(requests).map(function (response, i) {
     if (response.getResponseCode() != 200) {
+      if (strict) {
+        var error = new Error(
+          "Die Teamübersicht konnte nicht vollständig geladen werden (HTTP " +
+            response.getResponseCode() +
+            "). Bitte deinen Dienstplan-Zugang prüfen."
+        );
+        error.rosterAuthRejected = [401, 403].indexOf(response.getResponseCode()) != -1;
+        throw error;
+      }
       Logger.log(
         "Roster API call to " +
           calls[i].endpoint +

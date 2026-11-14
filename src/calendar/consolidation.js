@@ -39,8 +39,9 @@ function consolidateVevents_(vevents) {
   var singles = [];
   for (var comp of vevents) {
     // Only plain single events are consolidated; recurring events, their
-    // exceptions and events without dtstart/summary pass through untouched.
+    // exceptions, explicitly separate duty cells and incomplete events pass through untouched.
     var mergeable =
+      String(comp.getFirstPropertyValue("x-dpsync-keep-separate")).toLowerCase() != "true" &&
       !comp.hasProperty("rrule") &&
       !comp.hasProperty("rdate") &&
       !comp.hasProperty("exdate") &&

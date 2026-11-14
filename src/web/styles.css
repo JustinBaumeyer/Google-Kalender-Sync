@@ -580,3 +580,10 @@ textarea + button {
     padding: 0.6rem;
   }
 }
+
+.team-roster-picker {
+  grid-column: 1 / -1;
+}
+.team-roster-picker > label {
+  margin-top: 1rem;
+}

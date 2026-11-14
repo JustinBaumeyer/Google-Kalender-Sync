@@ -56,12 +56,20 @@ function renderFields() {
     emailMode.value === "off" ? false : emailMode.value === "self" ? true : email.value.trim()
   );
   [
-    ["addRosterToCal", "Dienstplan übernehmen"],
+    ["addRosterToCal", "Eigenen Dienstplan übernehmen"],
     ["addRosterRequests", "Einsatzwünsche anzeigen"],
     ["addAbsences", "Abwesenheiten anzeigen"],
     ["oncallAsFree", "Rufbereitschaft als verfügbar markieren"],
-    ["addTeamPartner", "Teampartner anzeigen", "Erfordert zusätzliche Dienstplan-Abfragen."],
-    ["addRelief", "Ablösung anzeigen", "Erfordert zusätzliche Dienstplan-Abfragen."]
+    [
+      "addTeamPartner",
+      "Teampartner anzeigen",
+      "Für eigene und ausgewählte Dienstpläne. Verwendet die Teamübersicht."
+    ],
+    [
+      "addRelief",
+      "Ablösung anzeigen",
+      "Zeigt sichtbare Dienste derselben Zuordnung, die laut Planzeiten zum Dienstende beginnen. Ohne eindeutige Uhrzeiten wird keine Ablösung abgeleitet."
+    ]
   ].forEach((args) => toggle(roster, ...args));
   [
     ["addEventsToCalendar", "Neue Termine hinzufügen"],

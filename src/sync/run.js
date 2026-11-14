@@ -99,7 +99,7 @@ function startSync(event) {
 
 // Resume at the interrupted target; each target owns its loading and write phases.
 function runSync_() {
-  rosterFeedCache = undefined;
+  resetRosterCaches_();
   if (onlyFutureEvents) startUpdateTime = new ICAL.Time.fromJSDate(new Date());
   var calendars = condenseCalendarMap_(sourceCalendars);
   var calendarLookup = {};
