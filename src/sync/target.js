@@ -44,6 +44,8 @@ function syncTargetCalendar_(calendar, migration, calendarLookup) {
       return false;
     }
 
+    removeLegacyUpdateNotifications_();
+
     //------------------------ Parse ical events --------------------------
 
     vevents = timedSyncStep_(targetCalendarName + ": Termine auswerten", function () {

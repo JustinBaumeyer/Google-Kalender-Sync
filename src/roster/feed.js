@@ -170,18 +170,6 @@ function getRosterICal_(skipTokenRefresh) {
       icsContent += shiftBlockToICal_(block);
     });
 
-    if (updateAvailable == "true") {
-      var date = toICalDate_(new Date());
-      icsContent += generateICalEntry_(
-        date + "-updateNotification",
-        date,
-        date,
-        "Dienstplan Update verfügbar",
-        "Es ist ein Update für das Dienstplanprogramm verfügbar. Bitte den Updateanweisungen in der Gruppe folgen."
-      );
-      Logger.log("update updateAvailable " + updateAvailable);
-    }
-
     icsContent += "END:VCALENDAR";
     return icsContent;
   }, defaultMaxRetries);

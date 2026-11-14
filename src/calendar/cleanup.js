@@ -49,3 +49,23 @@ function removeManagedEvent_(id) {
     );
   syncStats.removed++;
 }
+
+/** Retire generated update notices, including past ones, without deleting duties. */
+function removeLegacyUpdateNotifications_() {
+  var allowLegacy = userPrp.getProperty("adoptLegacyEvents") == "true";
+  calendarEvents.forEach(function (event) {
+    var properties = getOwnedSyncProperties_(event, allowLegacy);
+    if (
+      !properties ||
+      !/^\d{8}T\d{6}Z-updateNotification$/.test(properties.id || "") ||
+      event.summary != "Dienstplan Update verfügbar" ||
+      event.recurringEventId ||
+      event.recurrence
+    )
+      return;
+    checkSyncBudget_();
+    removeManagedEvent_(event.id);
+    // The ordinary cleanup must not attempt to delete the same event again.
+    icsEventsIds.push(properties["rec-id"] || properties.id);
+  });
+}

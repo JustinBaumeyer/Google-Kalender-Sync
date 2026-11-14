@@ -428,3 +428,36 @@ test('fresh installations update and roll back without a settings file',()=>{
   assert.deepEqual(state.current,original);
   assert.equal(state.current.some(file=>file.name==='settings'),false);
 });
+
+test('roster feeds never emit calendar update notices, even with a pending release',()=>{
+  const {load:loadApp,shared,owner}=require('./helpers/apps-script.cjs');
+  const c=loadApp(shared(),owner);
+  c.updateAvailable='true';c.addTeamPartner=false;c.addRelief=false;
+  c.callWithBackoff_=fn=>fn();
+  c.rosterFetch_=()=> '[]';
+  c.generateRosterPayload_=()=> '[]';
+  assert.equal(c.getRosterICal_(true).includes('BEGIN:VEVENT'),false);
+});
+
+test('retired update notices are removed once, preserving duties and other owners',()=>{
+  const {load:loadApp,shared,owner}=require('./helpers/apps-script.cjs');
+  const c=loadApp(shared(),owner), removed=[];
+  c.syncOwnerId='mine';c.targetCalendarId='target';c.syncStats={removed:0};
+  c.callWithBackoff_=fn=>fn();c.checkSyncBudget_=()=>{};c.publishSyncProgress_=()=>{};
+  c.Calendar.Events={remove:(calendar,id)=>{assert.equal(calendar,'target');removed.push(id);}};
+  const notice=(id,props={})=>({id,summary:'Dienstplan Update verfügbar',
+    start:{dateTime:'2020-01-01T08:00:00Z'},end:{dateTime:'2020-01-01T08:00:00Z'},
+    extendedProperties:{private:{fromGAS:'true',syncOwner:'mine',id:'20200101T080000Z-updateNotification',...props}}});
+  const owned=notice('owned'),foreign=notice('foreign',{syncOwner:'other'}),
+    legacy=notice('legacy',{syncOwner:''}),manual=notice('manual',{fromGAS:'false'}),
+    duty=notice('duty',{id:'real-shift'});
+  c.calendarEvents=[owned,foreign,legacy,manual,duty];c.icsEventsIds=[];
+  c.removeLegacyUpdateNotifications_();
+  assert.deepEqual(removed,['owned']);
+  assert.equal(c.syncStats.removed,1);
+  c.calendarEvents=[owned];c.calendarEventsIds=[owned.extendedProperties.private.id];
+  c.processEventCleanup_();
+  assert.deepEqual(removed,['owned']);
+  c.userPrp.setProperty('adoptLegacyEvents','true');c.calendarEvents=[legacy];
+  c.removeLegacyUpdateNotifications_();assert.deepEqual(removed,['owned','legacy']);
+});
