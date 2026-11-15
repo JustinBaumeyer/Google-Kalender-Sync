@@ -158,8 +158,9 @@ function shiftBlockToICal_(block) {
     .join(" · ");
   if (typeAndDuration) descLines.push(typeAndDuration);
   descLines = descLines.concat(block.extraLines);
+  // Overtime changes the end time, but must keep the same calendar identity.
   return generateICalEntry_(
-    block.uid || block.shortName + start + end,
+    block.uid || "roster-shift-" + encodeURIComponent(block.shortName) + "-" + start,
     start,
     end,
     block.summary,

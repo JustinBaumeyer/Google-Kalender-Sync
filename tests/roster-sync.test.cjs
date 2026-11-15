@@ -234,3 +234,101 @@ test('syncs month-edge shifts and keeps them through rollover without duplicates
   assert.equal(stored.length,3);
   assert.equal(stored.filter(event=>event.extendedProperties.private.id===deleted.extendedProperties.private.id).length,1);
 });
+
+function overtimeFixture() {
+  const fixture=load('2026-11-15T20:00:00Z'), c=fixture.context;
+  const stored=[],writes=[];
+  const block={shortName:'W2N',summary:'W2N | Würs 2 RTW 01',shiftType:'Nachtdienst',
+    extraLines:[],start:new Date('2026-11-14T18:00:00Z'),end:new Date('2026-11-15T06:00:00Z')};
+  c.Calendar.Events.insert=event=>{
+    const saved={...event,id:'google-'+writes.length};stored.push(saved);writes.push(['insert',saved.id]);return saved;
+  };
+  c.Calendar.Events.update=(event,_,id)=>{
+    const saved={...event,id};stored[stored.findIndex(e=>e.id===id)]=saved;writes.push(['update',id]);return saved;
+  };
+  c.Calendar.Events.remove=(_,id)=>{
+    stored.splice(stored.findIndex(e=>e.id===id),1);writes.push(['remove',id]);return null;
+  };
+  c.Calendar.Events.list=()=>({items:structuredClone(stored)});
+  c.setupTargetCalendar_=()=>({id:'calendar',timeZone:'Europe/Berlin'});
+  c.fetchSourceCalendars_=()=>({responses:[['BEGIN:VCALENDAR\nVERSION:2.0\n'+c.shiftBlockToICal_(block)+'END:VCALENDAR']],failedSources:0,inactiveSources:0});
+  const sync=()=>c.syncTargetCalendar_(['Dienstplan',[['ROSTER',5]]],{enabled:false,adopted:0,remaining:0},{});
+  const seed=(end,id,owner=c.syncOwnerId)=>{
+    const savedEnd=block.end;block.end=new Date(end);
+    const comp=new c.ICAL.Component(c.ICAL.parse('BEGIN:VCALENDAR\nVERSION:2.0\n'+c.shiftBlockToICal_(block)+'END:VCALENDAR')).getFirstSubcomponent('vevent');
+    comp.updatePropertyWithValue('uid',block.shortName+c.toICalDate_(block.start)+c.toICalDate_(block.end));
+    const event=c.createEvent_(comp,'Europe/Berlin');event.id=id;event.extendedProperties.private.syncOwner=owner;
+    stored.push(event);block.end=savedEnd;return event;
+  };
+  return {...fixture,c,stored,writes,block,sync,seed};
+}
+
+test('overtime entered after an overnight shift updates the same Google event',()=>{
+  const {c,stored,writes,block,sync}=overtimeFixture();
+  sync();const id=stored[0].id,uid=stored[0].extendedProperties.private.id;
+  block.end=new Date('2026-11-15T06:45:00Z');sync();
+  assert.equal(stored.length,1);assert.equal(stored[0].id,id);
+  assert.equal(stored[0].extendedProperties.private.id,uid);
+  assert.equal(stored[0].end.dateTime,'2026-11-15T06:45:00Z');
+  assert.match(stored[0].description,/12h45/);
+  sync();assert.deepEqual(writes,[['insert',id],['update',id]]);
+});
+
+test('legacy overnight shifts are updated in place and existing overtime duplicates are repaired',()=>{
+  const {stored,writes,block,sync,seed}=overtimeFixture();
+  seed('2026-11-15T06:00:00Z','original');seed('2026-11-15T06:45:00Z','duplicate');
+  block.end=new Date('2026-11-15T06:45:00Z');sync();
+  assert.equal(stored.length,1);assert.equal(stored[0].id,'original');
+  assert.equal(stored[0].end.dateTime,'2026-11-15T06:45:00Z');
+  sync();assert.deepEqual(writes,[['update','original'],['remove','duplicate']]);
+});
+
+test('overtime repair preserves unrelated shifts, other owners and disabled writes',()=>{
+  const {c,stored,writes,block,sync,seed}=overtimeFixture();
+  seed('2026-11-15T06:00:00Z','original');seed('2026-11-15T06:45:00Z','other-owner','someone-else');
+  const originalStart=block.start;block.start=new Date('2026-11-14T17:00:00Z');
+  seed('2026-11-15T05:00:00Z','another-shift');block.start=originalStart;
+  block.end=new Date('2026-11-15T06:45:00Z');c.modifyExistingEvents=false;sync();
+  assert.deepEqual(writes,[]);assert.equal(stored.length,3);
+  c.modifyExistingEvents=true;sync();
+  assert.deepEqual(writes,[['update','original']]);assert.equal(stored.length,3);
+});
+
+test('unchanged stable shifts repair legacy copies without rewriting the canonical event',()=>{
+  const {stored,writes,sync,seed}=overtimeFixture();
+  sync();const id=stored[0].id;writes.length=0;
+  seed('2026-11-15T06:45:00Z','legacy-copy');sync();
+  assert.equal(stored.length,1);assert.equal(stored[0].id,id);
+  assert.deepEqual(writes,[['remove','legacy-copy']]);
+});
+
+test('failed overtime updates leave all existing copies intact',()=>{
+  const {c,stored,writes,block,sync,seed}=overtimeFixture();
+  seed('2026-11-15T06:00:00Z','original');seed('2026-11-15T06:45:00Z','duplicate');
+  block.end=new Date('2026-11-15T06:45:00Z');
+  c.Calendar.Events.update=()=>null;
+  assert.throws(sync,/Ein geänderter Termin konnte nicht gespeichert werden/);
+  assert.equal(stored.length,2);assert.deepEqual(writes,[]);
+});
+
+test('overtime migration honors disabled deletion and repairs future shifts without deleting the canonical event',()=>{
+  for(const allowRemoval of [false,true]) {
+    const {c,clock,stored,writes,block,sync,seed}=overtimeFixture();
+    clock.now='2026-11-14T12:00:00Z';c.removeEventsFromCalendar=allowRemoval;
+    seed('2026-11-15T06:00:00Z','original');seed('2026-11-15T06:45:00Z','duplicate');
+    block.end=new Date('2026-11-15T06:45:00Z');sync();
+    assert.equal(stored[0].id,'original');
+    assert.equal(stored.length,allowRemoval?1:2);
+    assert.equal(writes.some(([operation,id])=>operation==='remove'&&id==='original'),false);
+  }
+});
+
+test('duplicate stable UIDs retain the copy matching the source even when it is listed last',()=>{
+  const {stored,writes,block,sync}=overtimeFixture();
+  sync();const stale=structuredClone(stored[0]);
+  block.end=new Date('2026-11-15T06:45:00Z');sync();
+  stale.id='stale-copy';stored.unshift(stale);writes.length=0;
+  sync();
+  assert.equal(stored.length,1);assert.equal(stored[0].end.dateTime,'2026-11-15T06:45:00Z');
+  assert.deepEqual(writes,[['remove','stale-copy']]);
+});

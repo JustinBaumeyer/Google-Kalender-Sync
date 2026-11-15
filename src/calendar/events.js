@@ -5,9 +5,33 @@
  * @param {string} calendarTz - The timezone of the target calendar
  */
 function processEvent_(event, calendarTz) {
-  //------------------------ Create the event object ------------------------
   var newEvent = createEvent_(event, calendarTz);
-  if (newEvent == null) return;
+  var uid = String(
+    newEvent ? newEvent.extendedProperties.private.id : event.getFirstPropertyValue("uid")
+  );
+  var rosterMatches = findRosterShiftMatches_(uid, event);
+  if (rosterMatches.length) {
+    // Prefer the stable UID if already migrated; otherwise reuse the original
+    // Google event. Keep legacy IDs out of ordinary missing-source cleanup.
+    if (!calendarEventsIndex.has(uid)) calendarEventsIndex.set(uid, rosterMatches[0]);
+    rosterMatches.forEach(function (i) {
+      icsEventsIds.push(calendarEventsIds[i]);
+    });
+  }
+  if (newEvent == null) {
+    // An unchanged stable event may still have copies from the old UID scheme.
+    if (rosterMatches.length && !onlyFutureEvents && modifyExistingEvents) {
+      var digest = Utilities.computeDigest(
+        Utilities.DigestAlgorithm.MD5,
+        new ICAL.Event(event, { strictExceptions: true }).toString()
+      ).toString();
+      var unchangedIndex = rosterMatches.find(function (i) {
+        return calendarEvents[i].extendedProperties.private.MD5 == digest;
+      });
+      if (unchangedIndex !== undefined) removeDuplicateRosterShifts_(rosterMatches, unchangedIndex);
+    }
+    return;
+  }
 
   var eventId = newEvent.extendedProperties.private["id"];
   var index = calendarEventsIndex.has(eventId) ? calendarEventsIndex.get(eventId) : -1;
@@ -30,6 +54,7 @@ function processEvent_(event, calendarTz) {
         "Ein geänderter Termin konnte nicht gespeichert werden. Bestehende Termine bleiben erhalten."
       );
     syncStats.updated++;
+    removeDuplicateRosterShifts_(rosterMatches, index);
   } else if (index == -1 && addEventsToCalendar) {
     Logger.log("Adding new event " + eventId);
     var inserted = callWithBackoff_(function () {
@@ -41,6 +66,41 @@ function processEvent_(event, calendarTz) {
       );
     syncStats.added++;
   }
+}
+
+/** Match only owned, single roster shifts with the same code and start time. */
+function findRosterShiftMatches_(uid, event) {
+  var match = /^roster-shift-(.*)-(\d{8}T\d{6}Z)$/.exec(uid);
+  if (!match || event.hasProperty("recurrence-id") || event.hasProperty("rrule")) return [];
+  var prefix;
+  try {
+    prefix = decodeURIComponent(match[1]) + match[2];
+  } catch (err) {
+    return [];
+  }
+  var allowLegacy = userPrp.getProperty("adoptLegacyEvents") == "true";
+  var matches = [];
+  calendarEvents.forEach(function (existing, i) {
+    var properties = getOwnedSyncProperties_(existing, allowLegacy);
+    if (!properties || existing.recurrence || existing.recurringEventId) return;
+    var oldUid = properties.id || "";
+    if (
+      oldUid == uid ||
+      (oldUid.indexOf(prefix) == 0 && /^\d{8}T\d{6}Z$/.test(oldUid.slice(prefix.length)))
+    )
+      matches.push(i);
+  });
+  return matches;
+}
+
+/** Delete obsolete copies only after the canonical shift is saved or unchanged. */
+function removeDuplicateRosterShifts_(matches, canonicalIndex) {
+  if (!matches.length || !removeEventsFromCalendar) return;
+  matches.forEach(function (i) {
+    if (i == canonicalIndex) return;
+    checkSyncBudget_();
+    removeManagedEvent_(calendarEvents[i].id);
+  });
 }
 
 /**
