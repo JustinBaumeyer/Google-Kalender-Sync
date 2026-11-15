@@ -54,6 +54,7 @@ function removeManagedEvent_(id) {
 
 /** Retire generated update notices, including past ones, without deleting duties. */
 function removeLegacyUpdateNotifications_() {
+  if (!removeEventsFromCalendar) return;
   var allowLegacy = userPrp.getProperty("adoptLegacyEvents") == "true";
   calendarEvents.forEach(function (event) {
     var properties = getOwnedSyncProperties_(event, allowLegacy);

@@ -70,6 +70,11 @@ function parseResponses_(responses) {
         : // Same fallback id as below, so events without UID are matched too.
           Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, event.toString()).toString();
       ignoredEventIds.add(uid);
+      // Ignored components never reach the writer's legacy-ID migration.
+      // Mark their owned old copies too, so ignores still override retention.
+      findRosterShiftMatches_(uid, event).forEach(function (i) {
+        ignoredEventIds.add(calendarEventsIds[i]);
+      });
       Logger.log("Ignoring event '" + event.getFirstPropertyValue("summary") + "'");
       return false;
     });

@@ -332,3 +332,33 @@ test('duplicate stable UIDs retain the copy matching the source even when it is 
   assert.equal(stored.length,1);assert.equal(stored[0].end.dateTime,'2026-11-15T06:45:00Z');
   assert.deepEqual(writes,[['remove','stale-copy']]);
 });
+
+test('update notice retirement honors disabled deletion during a full sync',()=>{
+  const {c,stored,writes,sync}=overtimeFixture();
+  stored.push({id:'notice',summary:'Dienstplan Update verfügbar',
+    start:{dateTime:'2026-11-15T06:00:00Z'},end:{dateTime:'2026-11-15T06:00:00Z'},
+    extendedProperties:{private:{fromGAS:'true',syncOwner:c.syncOwnerId,id:'20261115T060000Z-updateNotification'}}});
+  c.removeEventsFromCalendar=false;sync();
+  assert.ok(stored.some(event=>event.id==='notice'));
+  assert.equal(writes.some(([operation])=>operation==='remove'),false);
+  c.removeEventsFromCalendar=true;sync();
+  assert.equal(stored.some(event=>event.id==='notice'),false);
+  assert.equal(writes.filter(([operation,id])=>operation==='remove'&&id==='notice').length,1);
+});
+
+test('ignore rules remove past legacy overtime copies while preserving other owners and shifts',()=>{
+  const {c,stored,writes,block,sync,seed}=overtimeFixture();
+  seed('2026-11-15T06:00:00Z','original');seed('2026-11-15T06:45:00Z','overtime-copy');
+  seed('2026-11-15T06:00:00Z','other-owner','someone-else');
+  block.shortName='W2T';seed('2026-11-15T06:00:00Z','other-shift');block.shortName='W2N';
+  c.ignoreEvents=['W2N'];sync();
+  assert.deepEqual(stored.map(event=>event.id).sort(),['other-owner','other-shift']);
+  assert.deepEqual(writes,[['remove','original'],['remove','overtime-copy']]);
+});
+
+test('ignore rules preserve legacy copies when deletion is disabled',()=>{
+  const {c,stored,writes,sync,seed}=overtimeFixture();
+  seed('2026-11-15T06:00:00Z','original');
+  c.ignoreEvents=['W2N'];c.removeEventsFromCalendar=false;sync();
+  assert.deepEqual(stored.map(event=>event.id),['original']);assert.deepEqual(writes,[]);
+});

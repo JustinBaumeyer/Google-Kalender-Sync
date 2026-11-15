@@ -443,6 +443,7 @@ test('retired update notices are removed once, preserving duties and other owner
   const {load:loadApp,shared,owner}=require('./helpers/apps-script.cjs');
   const c=loadApp(shared(),owner), removed=[];
   c.syncOwnerId='mine';c.targetCalendarId='target';c.syncStats={removed:0};
+  c.removeEventsFromCalendar=true;
   c.callWithBackoff_=fn=>fn();c.checkSyncBudget_=()=>{};c.publishSyncProgress_=()=>{};
   c.Calendar.Events={remove:(calendar,id)=>{assert.equal(calendar,'target');removed.push(id);return null;}};
   const notice=(id,props={})=>({id,summary:'Dienstplan Update verfügbar',
