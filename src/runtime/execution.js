@@ -73,6 +73,7 @@ var syncPhase = "";
 
 var rosterFeedCache;
 
+var rosterShiftKeys = new Map(); // shift UID -> identity (code + start), see shiftBlockToICal_
 var teamRosterCache = {};
 
 var teamCrewCache = new WeakMap();
@@ -87,6 +88,7 @@ var lastProgressPhase = "";
 
 function resetRosterCaches_() {
   rosterFeedCache = undefined;
+  rosterShiftKeys = new Map();
   teamRosterCache = {};
   teamCrewCache = new WeakMap();
   legendDutySpanCache = new Map();

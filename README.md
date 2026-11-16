@@ -30,6 +30,11 @@ diesen Kalender unverändert; alle anderen werden im selben Lauf weiter abgeglic
 Einstellungen für Sichtbarkeit, Kalendername im Titel und die Erinnerung ganztägiger Termine
 werden beim nächsten Lauf auch auf bereits übernommene Termine angewendet.
 
+Ein Dienst wird an Kürzel und Beginn erkannt. Ändert sich nur sein Ende, etwa durch
+nachgetragene Überstunden, wird der vorhandene Kalendertermin angepasst und kein zweiter
+angelegt. Doppelte Einträge desselben Dienstes aus früheren Versionen entfernt der nächste
+Lauf, auch wenn der Dienst schon vorbei ist.
+
 ## Gemeinsame App einrichten
 
 1. Den letzten erfolgreichen Build im Branch [release](https://github.com/JustinBaumeyer/Google-Kalender-Sync/tree/release) öffnen.
