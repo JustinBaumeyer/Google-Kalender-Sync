@@ -84,3 +84,64 @@ function fetchRosterReportHolidays_(year, region) {
     region: region
   };
 }
+
+/** Cache only the small time/vehicle dataset, not raw roster responses or remarks. */
+function loadAnnualRosterData_(year, timeZone, forceReload) {
+  var cache = annualCache_();
+  var identity = JSON.stringify([
+    year,
+    timeZone,
+    rosterUserId,
+    rosterUrl,
+    rosterIgnoreList.slice().sort()
+  ]);
+  var key = "annual-roster:v3:" + sha256Hex_(identity),
+    raw = cache && !forceReload && cache.get(key),
+    data;
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+      if (Array.isArray(data.entries) && Array.isArray(data.standby))
+        return Object.assign(data, { cacheHit: true });
+    } catch (_) {}
+  }
+  if (
+    !callWithBackoff_(function () {
+      refreshRosterToken_();
+      return true;
+    })
+  )
+    throw new Error("Der Dienstplan-Zugang konnte nicht erneuert werden.");
+  var body = rosterReportPayload_(year, timeZone);
+  var response = callWithBackoff_(function () {
+    return JSON.parse(rosterFetch_("rosters/preload", "POST", body));
+  });
+  if (!response) throw new Error("Die Jahresdaten konnten nicht vollständig geladen werden.");
+  data = collectAnnualRosterEntries_(response, year, timeZone, rosterIgnoreList);
+  data.sourceLoadedAt = new Date().toISOString();
+  data.cacheHit = false;
+  raw = JSON.stringify(data);
+  if (cache && byteLength_(raw) < 90000) {
+    var keys = JSON.parse(userPrp.getProperty("annualCacheKeys") || "[]").filter(function (item) {
+      return item != key;
+    });
+    keys.push(key);
+    while (keys.length > 12) cache.remove(keys.shift());
+    // Record the key first so disconnect can always remove private cached data.
+    userPrp.setProperty("annualCacheKeys", JSON.stringify(keys));
+    cache.put(key, raw, 900);
+  }
+  return data;
+}
+
+function clearAnnualRosterCache_() {
+  var cache = annualCache_();
+  if (cache) cache.removeAll(JSON.parse(userPrp.getProperty("annualCacheKeys") || "[]"));
+}
+
+/** The per-account cache of Apps Script; absent only in a reduced test environment. */
+function annualCache_() {
+  return typeof CacheService != "undefined" && typeof CacheService.getUserCache == "function"
+    ? CacheService.getUserCache()
+    : null;
+}

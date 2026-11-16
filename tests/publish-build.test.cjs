@@ -19,6 +19,7 @@ function fixture(t) {
   git('config', 'user.name', 'Build test');git('config', 'user.email', 'build@example.com');
   fs.cpSync(path.join(root, 'src'), path.join(work, 'src'), {recursive:true});
   fs.cpSync(path.join(root, 'vendor'), path.join(work, 'vendor'), {recursive:true});
+  fs.cpSync(path.join(root, 'migration'), path.join(work, 'migration'), {recursive:true});
   fs.copyFileSync(path.join(root, '.gitignore'), path.join(work, '.gitignore'));
   fs.writeFileSync(path.join(work, 'README.md'), 'Source repository\n');
   git('add', '.');git('commit', '-m', 'Source');

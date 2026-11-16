@@ -1,15 +1,15 @@
-async function initialize() {
-  busy(true);
-  try {
-    const [choices, state] = await Promise.all([call("getCalendarChoices"), call("getAppState")]);
-    calendarChoices = choices;
-    render(state);
-  } catch (error) {
-    message(error.message || String(error), true);
-  } finally {
-    busy(false);
-  }
+function initialize() {
+  return whileBusy(
+    async () => {
+      const [choices, state] = await Promise.all([call("getCalendarChoices"), call("getAppState")]);
+      calendarChoices = choices;
+      render(state);
+    },
+    (text) => message(text, true)
+  );
 }
+$("themeChoice").value = savedTheme();
+$("themeChoice").onchange = () => applyTheme($("themeChoice").value);
 $("copyErrorReport").onclick = copyErrorReport;
 $("annualYear").value = new Date().getFullYear() - 1;
 annualRegions.forEach(([code, name]) => $("annualRegion").add(new Option(name, code)));
@@ -65,6 +65,22 @@ $("preview").onclick = () => diagnostic("preview");
 $("dashboardPreview").onclick = () => diagnostic("preview");
 $("dashboardSync").onclick = () => action("startSync", "Sync beendet.", true);
 $("dashboardPause").onclick = () => action("stopSync", "Automatischer Sync pausiert.");
+$("dashboardEnable").onclick = () => action("install", "Automatischer Sync aktiviert.", true);
+$("repairTriggers").onclick = () => action("install", "Auslöser neu eingerichtet.");
+$("sectionNav").onclick = (event) => {
+  const target = event.target.closest("[data-section]");
+  if (!target) return;
+  const section = $(target.dataset.section);
+  if (section.tagName === "DETAILS") section.open = true;
+  section.scrollIntoView({
+    behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    block: "start"
+  });
+};
+// Relative times ("vor 10 Minuten") age while the page stays open.
+setInterval(() => {
+  if (dashboardState && !document.hidden) renderStatus(dashboardState);
+}, 60000);
 $("manageAccess").onclick = openInvitations;
 $("addInvite").onclick = () => {
   if (!$("inviteEmail").value || !$("inviteEmail").reportValidity()) return;

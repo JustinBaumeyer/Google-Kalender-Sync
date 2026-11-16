@@ -1,3 +1,18 @@
+/** Options shared by single and parallel roster requests. */
+function rosterRequestOptions_(method, payload) {
+  var options = {
+    validateHttpsCertificates: false,
+    muteHttpExceptions: true,
+    method: method,
+    headers: {
+      authorization: "Bearer " + rosterUserToken,
+      "content-type": "application/json"
+    }
+  };
+  if (payload != null) options.payload = payload;
+  return options;
+}
+
 /**
  * Performs an authenticated request against the roster API and returns the response body.
  * Throws on any non-200 status so callWithBackoff_ can retry.
@@ -9,18 +24,7 @@
  */
 function rosterFetch_(endpoint, method, payload) {
   checkSyncBudget_();
-  var options = {
-    validateHttpsCertificates: false,
-    muteHttpExceptions: true,
-    method: method,
-    headers: {
-      authorization: "Bearer " + rosterUserToken,
-      "content-type": "application/json"
-    }
-  };
-  if (payload != null) options.payload = payload;
-
-  var response = UrlFetchApp.fetch(rosterUrl + endpoint, options);
+  var response = UrlFetchApp.fetch(rosterUrl + endpoint, rosterRequestOptions_(method, payload));
   var status = response.getResponseCode();
   if (status == 401 || status == 403) {
     var error = new Error(
@@ -53,18 +57,10 @@ function rosterFetchAll_(calls, strict) {
   checkSyncBudget_();
   if (!calls.length) return [];
   var requests = calls.map(function (call) {
-    var request = {
-      url: rosterUrl + call.endpoint,
-      method: call.method,
-      validateHttpsCertificates: false,
-      muteHttpExceptions: true,
-      headers: {
-        authorization: "Bearer " + rosterUserToken,
-        "content-type": "application/json"
-      }
-    };
-    if (call.payload != null) request.payload = call.payload;
-    return request;
+    return Object.assign(
+      { url: rosterUrl + call.endpoint },
+      rosterRequestOptions_(call.method, call.payload)
+    );
   });
   return UrlFetchApp.fetchAll(requests).map(function (response, i) {
     if (response.getResponseCode() != 200) {
@@ -87,4 +83,9 @@ function rosterFetchAll_(calls, strict) {
     }
     return response.getContentText();
   });
+}
+
+function refreshRosterToken_() {
+  rosterUserToken = JSON.parse(rosterFetch_("auth/refreshToken", "GET")).data;
+  userPrp.setProperty("rosterUserToken", rosterUserToken);
 }

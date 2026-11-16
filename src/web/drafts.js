@@ -1,12 +1,5 @@
 function rosterConnectionKey_(token, employee, address) {
-  return Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256,
-    JSON.stringify([token || "", employee || "", address || ""])
-  )
-    .map(function (byte) {
-      return ("0" + (byte & 255).toString(16)).slice(-2);
-    })
-    .join("");
+  return sha256Hex_(JSON.stringify([token || "", employee || "", address || ""]));
 }
 
 function markRosterConnectionVerified_() {
@@ -34,63 +27,62 @@ function nextPlannedRun_(saved, enabled) {
 
 function withDraftPreferences_(input, operation) {
   requireWebUser_();
-  var lock = LockService.getUserLock();
-  if (!lock.tryLock(0)) throw new Error("Eine Synchronisierung läuft. Bitte danach erneut prüfen.");
-  var original = readUserPreferences_(),
-    oldToken = rosterUserToken,
-    oldId = rosterUserId,
-    oldTimeZone = targetCalendarTimeZone;
-  try {
-    var draft = decodePreferences_(JSON.stringify((input && input.settings) || {}));
-    validatePreferences_(draft);
-    if (input && input.rosterUserToken !== undefined && typeof input.rosterUserToken != "string")
-      throw new Error("Der Dienstplan-Token ist ungültig.");
-    var settings = Object.assign({}, original, draft);
-    validatePreferences_(settings);
-    Object.keys(settings).forEach(function (name) {
-      globalThis[name] = settings[name];
-    });
-    var savedId = userPrp.getProperty("rosterUserId"),
-      savedToken = userPrp.getProperty("rosterUserToken");
-    var draftToken = input && input.rosterUserToken && input.rosterUserToken.trim();
-    rosterUserId =
-      input && input.rosterUserId !== undefined ? String(input.rosterUserId).trim() : savedId;
-    rosterUserToken = draftToken || savedToken;
-    syncDeadline = Date.now() + 120000;
-    resetRosterCaches_();
-    // Diagnostics never rotate a draft token or write to a destination calendar.
-    var mayRefresh =
-      !draftToken &&
-      savedToken &&
-      rosterUserId == savedId &&
-      settings.rosterUrl == original.rosterUrl;
-    var refreshAttempted = false;
-    return operation(settings, function (fetchOperation) {
-      try {
-        return fetchOperation ? fetchOperation() : getRosterICal_(true);
-      } catch (err) {
-        if (!mayRefresh || refreshAttempted || !err.rosterAuthRejected) throw err;
-        refreshAttempted = true;
-        if (!fetchOperation) return getRosterICal_();
-        refreshRosterToken_();
-        return fetchOperation();
-      }
-    });
-  } catch (err) {
-    if (err.syncPaused)
-      throw new Error("Die Prüfung dauert zu lange. Bitte später erneut versuchen.");
-    throw err;
-  } finally {
-    Object.keys(original).forEach(function (name) {
-      globalThis[name] = original[name];
-    });
-    rosterUserToken = oldToken;
-    rosterUserId = oldId;
-    targetCalendarTimeZone = oldTimeZone;
-    syncDeadline = 0;
-    resetRosterCaches_();
-    lock.releaseLock();
-  }
+  return withUserLock_("Eine Synchronisierung läuft. Bitte danach erneut prüfen.", function () {
+    var original = readUserPreferences_(),
+      oldToken = rosterUserToken,
+      oldId = rosterUserId,
+      oldTimeZone = targetCalendarTimeZone;
+    try {
+      var draft = decodePreferences_(JSON.stringify((input && input.settings) || {}));
+      validatePreferences_(draft);
+      if (input && input.rosterUserToken !== undefined && typeof input.rosterUserToken != "string")
+        throw new Error("Der Dienstplan-Token ist ungültig.");
+      var settings = Object.assign({}, original, draft);
+      validatePreferences_(settings);
+      Object.keys(settings).forEach(function (name) {
+        globalThis[name] = settings[name];
+      });
+      var savedId = userPrp.getProperty("rosterUserId"),
+        savedToken = userPrp.getProperty("rosterUserToken");
+      var draftToken = input && input.rosterUserToken && input.rosterUserToken.trim();
+      rosterUserId =
+        input && input.rosterUserId !== undefined ? String(input.rosterUserId).trim() : savedId;
+      rosterUserToken = draftToken || savedToken;
+      syncDeadline = Date.now() + 120000;
+      resetRosterCaches_();
+      // Diagnostics never rotate a draft token or write to a destination calendar.
+      var mayRefresh =
+        !draftToken &&
+        savedToken &&
+        rosterUserId == savedId &&
+        settings.rosterUrl == original.rosterUrl;
+      var refreshAttempted = false;
+      return operation(settings, function (fetchOperation) {
+        try {
+          return fetchOperation ? fetchOperation() : getRosterICal_(true);
+        } catch (err) {
+          if (!mayRefresh || refreshAttempted || !err.rosterAuthRejected) throw err;
+          refreshAttempted = true;
+          if (!fetchOperation) return getRosterICal_();
+          refreshRosterToken_();
+          return fetchOperation();
+        }
+      });
+    } catch (err) {
+      if (err.syncPaused)
+        throw new Error("Die Prüfung dauert zu lange. Bitte später erneut versuchen.");
+      throw err;
+    } finally {
+      Object.keys(original).forEach(function (name) {
+        globalThis[name] = original[name];
+      });
+      rosterUserToken = oldToken;
+      rosterUserId = oldId;
+      targetCalendarTimeZone = oldTimeZone;
+      syncDeadline = 0;
+      resetRosterCaches_();
+    }
+  });
 }
 
 function testRosterConnection(input) {
@@ -106,5 +98,13 @@ function testRosterConnection(input) {
     var components = new ICAL.Component(ICAL.parse(content)).getAllSubcomponents("vevent");
     markRosterConnectionVerified_();
     return { ok: true, message: "Verbindung funktioniert.", eventsFound: components.length };
+  });
+}
+
+function getTeamRosterPeople(input) {
+  return withDraftPreferences_(input, function (settings, fetchRoster) {
+    return fetchRoster(function () {
+      return teamRosterPeople_(currentTeamRosters_());
+    });
   });
 }

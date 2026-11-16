@@ -22,23 +22,15 @@ function processEvent_(event, calendarTz) {
 
   if (index > -1 && modifyExistingEvents) {
     Logger.log("Updating existing event " + eventId);
-    var updated = callWithBackoff_(function () {
+    calendarRequest_(function () {
       return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
-    }, defaultMaxRetries);
-    if (updated == null)
-      throw new Error(
-        "Ein geänderter Termin konnte nicht gespeichert werden. Bestehende Termine bleiben erhalten."
-      );
+    }, "Ein geänderter Termin konnte nicht gespeichert werden. Bestehende Termine bleiben erhalten.");
     syncStats.updated++;
   } else if (index == -1 && addEventsToCalendar) {
     Logger.log("Adding new event " + eventId);
-    var inserted = callWithBackoff_(function () {
+    calendarRequest_(function () {
       return Calendar.Events.insert(newEvent, targetCalendarId);
-    }, defaultMaxRetries);
-    if (inserted == null)
-      throw new Error(
-        "Ein neuer Termin konnte nicht gespeichert werden. Bestehende Termine bleiben erhalten."
-      );
+    }, "Ein neuer Termin konnte nicht gespeichert werden. Bestehende Termine bleiben erhalten.");
     syncStats.added++;
   }
 }
@@ -65,7 +57,7 @@ function createEvent_(event, calendarTz) {
 
   var digest = Utilities.computeDigest(
     Utilities.DigestAlgorithm.MD5,
-    icalEvent.toString()
+    icalEvent.toString() + eventRenderSignature_(icalEvent.startDate.isDate)
   ).toString();
   if (calendarEventsMD5Set.has(digest)) {
     showSkipMessage &&
@@ -139,13 +131,10 @@ function createEvent_(event, calendarTz) {
 
   if (event.hasProperty("location")) newEvent.location = icalEvent.location;
 
-  var validVisibilityValues = ["default", "public", "private", "confidential"];
-  if (validVisibilityValues.includes(overrideVisibility.toLowerCase())) {
-    newEvent.visibility = overrideVisibility.toLowerCase();
-  } else if (event.hasProperty("class")) {
-    var classString = event.getFirstPropertyValue("class").toString().toLowerCase();
-    if (validVisibilityValues.includes(classString)) newEvent.visibility = classString;
-  }
+  var visibility =
+    eventVisibility_(overrideVisibility) ||
+    (event.hasProperty("class") && eventVisibility_(event.getFirstPropertyValue("class")));
+  if (visibility) newEvent.visibility = visibility;
 
   if (event.hasProperty("transp")) {
     var transpValue = event.getFirstPropertyValue("transp").toString().toLowerCase();
@@ -208,6 +197,51 @@ function createEvent_(event, calendarTz) {
   return newEvent;
 }
 
+/** Keeps only the matching values of a multi-value property and drops it once empty. */
+function keepPropertyValues_(event, name, keep) {
+  event.getAllProperties(name).forEach(function (property) {
+    var values = property.getValues().filter(function (value) {
+      return keep(value, property);
+    });
+    if (values.length == 0) event.removeProperty(property);
+    else if (values.length == 1) property.setValue(values[0]);
+    else property.setValues(values);
+  });
+}
+
+/** A visibility Google Calendar accepts, or "" for anything else. */
+function eventVisibility_(value) {
+  var visibility = String(value == null ? "" : value).toLowerCase();
+  return ["default", "public", "private", "confidential"].indexOf(visibility) != -1
+    ? visibility
+    : "";
+}
+
+/** A Calendar request that still fails after all retries aborts the target before any cleanup. */
+function calendarRequest_(request, failureMessage) {
+  var result = callWithBackoff_(request);
+  if (result == null) throw new Error(failureMessage);
+  return result;
+}
+
+/**
+ * Settings that change how an unchanged source event is written. Mixing them into
+ * the digest lets a changed setting reach events that were imported earlier.
+ * Program defaults add nothing, so digests stored by earlier versions stay valid.
+ *
+ * @param {boolean} allDay - Whether the event is an all-day event
+ * @return {string} Suffix for the change digest
+ */
+function eventRenderSignature_(allDay) {
+  var parts = [];
+  if (eventVisibility_(overrideVisibility))
+    parts.push("visibility=" + eventVisibility_(overrideVisibility));
+  if (addCalToTitle) parts.push("calendarInTitle");
+  if (allDay && defaultAllDayReminder >= 0 && defaultAllDayReminder <= 40320)
+    parts.push("allDayReminder=" + defaultAllDayReminder);
+  return parts.length ? "\n#" + parts.join(";") : "";
+}
+
 /**
  * Checks if the provided event has taken place in the past.
  * Removes all past instances of the provided icalEvent object.
@@ -266,37 +300,12 @@ function checkSkipEvent_(event, icalEvent) {
           rrule.setValue(recur);
         }
 
-        var exDates = event.getAllProperties("exdate");
-        exDates.forEach(function (e) {
-          var values = e.getValues();
-          values = values.filter(function (value) {
-            return new ICAL.Time.fromString(value.toString()) > newStartDate;
-          });
-          if (values.length == 0) {
-            event.removeProperty(e);
-          } else if (values.length == 1) {
-            e.setValue(values[0]);
-          } else if (values.length > 1) {
-            e.setValues(values);
-          }
+        keepPropertyValues_(event, "exdate", function (value) {
+          return new ICAL.Time.fromString(value.toString()) > newStartDate;
         });
-
-        var rdates = event.getAllProperties("rdate");
-        rdates.forEach(function (r) {
-          var vals = r.getValues();
-          vals = vals.filter(function (v) {
-            var valTime = new ICAL.Time.fromString(v.toString(), r);
-            return (
-              valTime.compare(startUpdateTime) >= 0 && valTime.compare(icalEvent.startDate) > 0
-            );
-          });
-          if (vals.length == 0) {
-            event.removeProperty(r);
-          } else if (vals.length == 1) {
-            r.setValue(vals[0]);
-          } else if (vals.length > 1) {
-            r.setValues(vals);
-          }
+        keepPropertyValues_(event, "rdate", function (value, property) {
+          var time = new ICAL.Time.fromString(value.toString(), property);
+          return time.compare(startUpdateTime) >= 0 && time.compare(icalEvent.startDate) > 0;
         });
         Logger.log("Adjusted RRule/RDate to exclude past instances");
       } else {

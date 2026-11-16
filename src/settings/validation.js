@@ -106,7 +106,7 @@ function validatePreferences_(settings) {
   )
     throw new Error("Eine Ausblendregel enthält ungültige Werte");
   var serialized = encodePreferences_(settings);
-  if (Utilities.newBlob(serialized).getBytes().length > 9000)
+  if (byteLength_(serialized) > 9000)
     throw new Error("Die Einstellungen überschreiten den verfügbaren Speicherplatz");
   return serialized;
 }
