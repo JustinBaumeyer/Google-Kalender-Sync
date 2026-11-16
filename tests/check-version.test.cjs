@@ -32,7 +32,7 @@ test('a changed program without a higher version is reported before it is releas
   const version = checkVersion(work, 'release').current;
   assert.deepEqual(checkVersion(work, 'release'), {status: 'unchanged', current: version, released: version, changed: [], updater: []});
 
-  edit('src/settings/defaults.js', source => source.replace('howFrequent: 15', 'howFrequent: 30'));
+  edit('src/settings/preferences.js', source => source.replace('howFrequent: 15', 'howFrequent: 30'));
   const missing = checkVersion(work, 'release');
   assert.equal(missing.status, 'missing');assert.deepEqual(missing.changed, ['Code.gs']);
   assert.equal(report(missing)[0][0], 'warning');

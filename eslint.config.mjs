@@ -38,11 +38,11 @@ const appsScript = Object.fromEntries(
     "Utilities"
   ].map((name) => [name, "readonly"])
 );
-// Preferences are loaded onto globalThis for the sync engine (src/settings/store.js).
+// Preferences are loaded onto globalThis for the sync engine (src/settings/preferences.js).
 const preferences = Object.fromEntries(
   Object.keys(
     new Function(
-      readFileSync(new URL("./src/settings/defaults.js", import.meta.url), "utf8") +
+      readFileSync(new URL("./src/settings/preferences.js", import.meta.url), "utf8") +
         "\nreturn preferenceDefaults;"
     )()
   ).map((name) => [name, "writable"])

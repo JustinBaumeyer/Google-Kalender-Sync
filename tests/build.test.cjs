@@ -33,7 +33,7 @@ test('source changes are caught before stale installation files can be shipped',
     fs.writeFileSync(file, source);
   }
   assert.deepEqual(check(directory), []);
-  const file = path.join(directory, 'src/settings/defaults.js');
+  const file = path.join(directory, 'src/settings/preferences.js');
   fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('howFrequent: 15', 'howFrequent: 30'));
   assert.deepEqual(check(directory), ['Code.gs']);
   const properties = {getProperty: () => null};

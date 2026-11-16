@@ -235,15 +235,18 @@ wurde.
 
 | Verzeichnis | Inhalt |
 | --- | --- |
-| `src/sync/` | Ablauf, Fortsetzung, Zeitsteuerung, Laufverlauf und Verarbeitung eines Zielkalenders |
-| `src/calendar/` | Kalenderzuordnung, Laden und Abgleichen von Terminen, Serien und Löschungen |
-| `src/roster/` | Dienstplan-API, Token, Monatsabfragen, Teamdaten und iCal-Ausgabe |
-| `src/reports/` | Feiertagsabruf, Nutzer-Cache, Dienstaufbereitung und Jahresberechnung |
-| `src/settings/` | Standardwerte, Speicherung, Validierung und Altdaten |
-| `src/web/` | Zugriffskontrolle und Web-Endpunkte, HTML-Vorlagen und CSS |
-| `src/web/client/` | Browsercode für Einstellungen, Vorschau, Fortschritt, Umzug und Jahresansicht |
-| `src/runtime/` | Laufzeitbudget, Fortschrittsstatus, Fehlerberichte und Wiederholungen |
-| `src/updates/` | Update-Prüfung der App und separater Inhaber-Updater |
+| `src/sync/` | Ablauf mit Laufverlauf (`run`), Auslöser und Update-Prüfung (`schedule`), Verarbeitung eines Zielkalenders (`target`), Quellen (`sources`) |
+| `src/calendar/` | Zielkalender, vorhandene Termine und Bereinigung, Auswertung der Quellen, Schreiben von Terminen, Serien, Zusammenfassen und Ausblendregeln |
+| `src/roster/` | Dienstplan-API mit Token, Monatsabfragen, Legende, Teamdaten und iCal-Ausgabe |
+| `src/reports/` | Feiertags- und Jahresdaten mit Nutzer-Cache, Dienstaufbereitung und Jahresberechnung |
+| `src/settings/` | Standardwerte, Speicherung und Altdaten (`preferences`), Validierung |
+| `src/web/` | Zugriff und Einladungen, Seite und Zustand (`app`), Prüfungen, Vorschau, Jahresübersicht, Umzug; HTML-Vorlagen und CSS |
+| `src/web/client/` | Browsercode: Grundlagen (`core`), Status, Übersicht, Einstellungen, Nebenansichten (`panels`) und Jahresansicht |
+| `src/runtime/` | Laufzeitbudget und Fortschritt (`execution`), Wiederholungen, Fehlerberichte und Fehler-E-Mails (`failures`) |
+| `src/updates/` | Separater Inhaber-Updater |
+
+Eine Datei entspricht einem Thema und nicht einer einzelnen Funktion. Neue Hilfsfunktionen
+gehören in die thematisch passende Datei; eine eigene Datei lohnt sich erst für ein neues Thema.
 
 `src/manifest.json` legt Zuordnung und Reihenfolge der Quelldateien fest. Der Build
 fügt sie ohne zusätzliche Laufzeit-Bibliothek zusammen. Die Funktionen verwenden
@@ -251,7 +254,7 @@ weiterhin den gemeinsamen Apps-Script-Namensraum; neue Hilfsfunktionen enden auf
 `_`, damit sie nicht über `google.script.run` aufrufbar sind. Die Bibliotheken
 liegen unter `vendor/` und werden unverändert in `Code.gs` eingebunden; ihre
 Lizenzhinweise bleiben erhalten. Standardeinstellungen stehen in
-`src/settings/defaults.js`, persönliche Werte in den User Properties. Eine
+`src/settings/preferences.js`, persönliche Werte in den User Properties. Eine
 vorhandene `settings.gs` wird nur für den Umzug älterer Installationen behalten.
 Die Apps-Script-Manifeste und `migration/Export.gs` werden direkt gepflegt.
 
