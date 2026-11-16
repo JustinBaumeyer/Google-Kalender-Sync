@@ -15,7 +15,10 @@ Die Startansicht zeigt den Zustand der Synchronisierung auf einen Blick: aktiv, 
 laufend, fehlgeschlagen oder seit längerem ohne Lauf. Darunter stehen der nächste geplante
 Lauf, die Quellen und das Ergebnis des letzten Laufs. **Verlauf der letzten Läufe** fasst
 aufeinanderfolgende Läufe mit gleichem Ergebnis zusammen und behält höchstens zwölf Einträge
-je Konto. Die Oberfläche folgt dem hellen oder dunklen Farbschema des Geräts.
+je Konto. Die Oberfläche folgt dem hellen oder dunklen Farbschema des Geräts. Unter
+**Darstellung** in der Fußzeile lässt sich das Schema fest auf hell oder dunkel stellen,
+falls ein Browser die Geräteeinstellung nicht weitergibt oder Seiten selbst umfärbt; die
+Wahl bleibt auf dem jeweiligen Gerät gespeichert.
 
 Google deaktiviert Zeitauslöser gelegentlich ohne Rückmeldung, etwa nach einer abgelaufenen
 Berechtigung. Bleibt der Sync länger als drei Intervalle (mindestens zwei Stunden) aus, weist

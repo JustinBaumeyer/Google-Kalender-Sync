@@ -798,3 +798,75 @@ test('new accounts get a setup guide, and the owner an update notice, on a phone
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
 });
+
+// Runs inside the page: the contrast of every visible piece of text against what is painted behind it.
+function lowContrastText(minimum) {
+  const canvas=document.createElement('canvas').getContext('2d',{willReadFrequently:true});
+  const rgba=color=>{canvas.clearRect(0,0,1,1);canvas.fillStyle=color;canvas.fillRect(0,0,1,1);const d=canvas.getImageData(0,0,1,1).data;return [d[0],d[1],d[2],d[3]/255];};
+  const over=(top,under)=>[0,1,2].map(i=>top[i]*top[3]+under[i]*(1-top[3])).concat(1);
+  const luminance=color=>color.slice(0,3).map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4);}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+  const backdrop=element=>{
+    const layers=[];
+    for(let node=element;node;node=node.parentElement){const color=rgba(getComputedStyle(node).backgroundColor);if(color[3]>0)layers.push(color);if(color[3]===1)break;}
+    return layers.reverse().reduce((under,top)=>over(top,under),[255,255,255,1]);
+  };
+  const failures=[];
+  for(const element of document.querySelectorAll('body *')){
+    if(!element.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})||element.closest(':disabled'))continue;
+    const control=['INPUT','SELECT','TEXTAREA'].includes(element.tagName)&&element.type!=='checkbox';
+    if(!control&&!Array.from(element.childNodes).some(node=>node.nodeType===3&&node.textContent.trim()))continue;
+    const behind=backdrop(element),text=over(rgba(getComputedStyle(element).color),behind);
+    const light=Math.max(luminance(text),luminance(behind)),dark=Math.min(luminance(text),luminance(behind));
+    const ratio=(light+.05)/(dark+.05);
+    if(ratio<minimum)failures.push(ratio.toFixed(2)+' '+element.tagName.toLowerCase()+(element.id?'#'+element.id:'')+' "'+(element.textContent||element.value||'').trim().slice(0,30)+'"');
+  }
+  return failures;
+}
+const pageBrightness=page=>page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor.match(/\d+/g).slice(0,3).reduce((sum,part)=>sum+Number(part),0));
+
+test('all text stays readable in the light and dark scheme, automatic or chosen by hand',async()=>{
+  const app=shared();app.project.set('appOwnerEmail',alice);
+  const {page,server,errors}=await open({ignoreEvents:[{title:'Chemie',weekday:'Mo',start:'08:30',end:'10:00'}]},{width:1120,height:950},0,app);
+  try{
+    const user=app.users.get(alice);
+    user.set('lastSyncAt',new Date(Date.now()-600000).toISOString());user.set('lastSyncStats',JSON.stringify({added:12,updated:3,removed:1}));
+    user.set('lastSyncError','Dienstplan-Zugriff abgelehnt');user.set('lastSyncDiagnostic','Bericht');
+    user.set('syncHistory',JSON.stringify([{at:new Date().toISOString(),ms:2100,ok:false,error:'Dienstplan-Zugriff abgelehnt'},{at:new Date(Date.now()-9e5).toISOString(),ms:4200,ok:true,added:1,updated:0,removed:0}]));
+    app.project.set('availableVersion',String(server.version+1));
+    await page.evaluate(()=>action('getAppState',''));
+    await page.locator('#advanced summary').click();await page.locator('#editConnection').click();
+    // [device preference, choice in the app, expected result]
+    for(const [device,choice,dark] of [['light','auto',false],['dark','auto',true],['light','dark',true],['dark','light',false]]){
+      await page.emulateMedia({colorScheme:device});
+      await page.locator('#themeChoice').selectOption(choice);
+      await page.waitForTimeout(250); // Colour transitions end before measuring.
+      const label=device+' device, '+choice+' choice';
+      assert.equal(await pageBrightness(page)<150,dark,label);
+      assert.equal(await page.evaluate(()=>document.querySelector('meta[name="color-scheme"]').content),choice==='auto'?'light dark':'only '+choice);
+      for(const view of ['#closeSettings','#editSettings']){
+        assert.deepEqual(await page.evaluate(lowContrastText,4.5),[],label+' before '+view);
+        if(view==='#closeSettings'){await page.locator(view).click();await page.locator('#historyPanel:not([open]) summary').click({timeout:1000}).catch(()=>{});}
+        else await page.locator(view).click();
+      }
+      if(dark&&choice==='dark')await page.screenshot({path:shot('settings-chosen-dark'),fullPage:true});
+    }
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+test('the public pages and the access notice are readable in both schemes',async()=>{
+  const denied=load(shared(),'stranger@example.com').accessDeniedPage_();
+  for(const colorScheme of ['light','dark']){
+    const page=await browser.newPage({viewport:{width:900,height:900},colorScheme});
+    try{
+      for(const file of ['index.html','datenschutz.html']){
+        await page.goto('file://'+path.join(__dirname,'../docs',file));
+        assert.equal(await pageBrightness(page)<150,colorScheme==='dark',file);
+        assert.deepEqual(await page.evaluate(lowContrastText,4.5),[],file+' in '+colorScheme);
+      }
+      await page.screenshot({path:shot('website-'+colorScheme)});
+      await page.setContent(denied);
+      assert.deepEqual(await page.evaluate(lowContrastText,4.5),[],'access notice in '+colorScheme);
+    }finally{await page.close();}
+  }
+});

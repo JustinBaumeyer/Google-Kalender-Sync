@@ -1,5 +1,6 @@
-/* Design tokens. Every colour below is used through a variable so the dark theme
-   only has to replace this block. */
+/* Design tokens. Every colour is used through a variable, so the dark scheme only has
+   to replace this block. The page declares both schemes; browsers then leave the
+   colours alone instead of darkening the page on their own. */
 :root {
   color-scheme: light dark;
   --bg: #f2f5f2;
@@ -14,6 +15,7 @@
   --accent-hover: #0f5639;
   --on-accent: #ffffff;
   --accent-soft: #e3f0e7;
+  --accent-border: #b3d0c0;
   --accent-text: #1c5a3f;
   --danger: #a32225;
   --danger-soft: #fbecec;
@@ -37,6 +39,8 @@
   background: var(--bg);
   accent-color: var(--accent);
 }
+/* The only place with dark colours. It follows the device by default; a manual
+   choice in the footer retargets this rule (applyTheme in client/core.js). */
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0e1512;
@@ -51,6 +55,7 @@
     --accent-hover: #55c290;
     --on-accent: #05140d;
     --accent-soft: #1b3227;
+    --accent-border: #2e5542;
     --accent-text: #82d6aa;
     --danger: #ff938d;
     --danger-soft: #371b1b;
@@ -164,6 +169,17 @@ small {
 .app-footer a:not([href]) {
   display: none;
 }
+.theme-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.theme-choice select {
+  width: auto;
+  height: 32px;
+  padding: 0.1rem 0.4rem;
+  font-size: inherit;
+}
 
 /* ---------- Status ---------- */
 .status {
@@ -183,7 +199,7 @@ small {
 .status[data-state="running"] {
   --state: var(--accent);
   --state-soft: var(--accent-soft);
-  --state-border: color-mix(in srgb, var(--accent) 25%, var(--border));
+  --state-border: var(--accent-border);
 }
 .status[data-state="error"] {
   --state: var(--danger);
@@ -202,7 +218,7 @@ small {
   margin-top: 0.38rem;
   border-radius: 50%;
   background: var(--state);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--state) 22%, transparent);
+  box-shadow: 0 0 0 4px var(--state-border);
 }
 .status[data-state="running"] .status-dot,
 .status[data-state="loading"] .status-dot {
@@ -210,8 +226,7 @@ small {
 }
 @keyframes pulse {
   50% {
-    box-shadow: 0 0 0 8px color-mix(in srgb, var(--state) 0%, transparent);
-    opacity: 0.55;
+    opacity: 0.45;
   }
 }
 .status-text {
@@ -722,8 +737,7 @@ button:disabled {
   margin: 0 -0.25rem 1rem;
   padding: 0.5rem 0.25rem;
   overflow-x: auto;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(8px);
+  background: var(--bg);
   scrollbar-width: none;
 }
 .section-nav button {
@@ -748,8 +762,7 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: blur(10px);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);

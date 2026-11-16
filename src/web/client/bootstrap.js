@@ -8,6 +8,8 @@ function initialize() {
     (text) => message(text, true)
   );
 }
+$("themeChoice").value = savedTheme();
+$("themeChoice").onchange = () => applyTheme($("themeChoice").value);
 $("copyErrorReport").onclick = copyErrorReport;
 $("annualYear").value = new Date().getFullYear() - 1;
 annualRegions.forEach(([code, name]) => $("annualRegion").add(new Option(name, code)));

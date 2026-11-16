@@ -65,6 +65,40 @@ const weekdays = [
   ["So", "Sonntag"]
 ];
 
+/**
+ * Colour scheme. The stylesheet keeps the dark colours once, in a media rule that
+ * follows the device. A manual choice retargets that rule and declares a single
+ * scheme, which also keeps browsers from darkening or lightening the page themselves.
+ * The choice stays on this device.
+ */
+const themeRule = Array.from(document.styleSheets)
+  .flatMap((sheet) => Array.from(sheet.cssRules))
+  .find((rule) => rule.media && rule.media.mediaText.includes("prefers-color-scheme"));
+function savedTheme() {
+  try {
+    return localStorage.getItem("dienstplanTheme") || "auto";
+  } catch (_) {
+    return "auto"; // Storage can be blocked; the automatic scheme still works.
+  }
+}
+function applyTheme(choice) {
+  const fixed = choice === "dark" || choice === "light";
+  if (themeRule)
+    themeRule.media.mediaText =
+      choice === "dark" ? "all" : choice === "light" ? "not all" : "(prefers-color-scheme: dark)";
+  document.documentElement.style.colorScheme = fixed ? "only " + choice : "";
+  // Some browsers read the scheme from a meta tag, which Apps Script removes from the file.
+  let meta = document.querySelector('meta[name="color-scheme"]');
+  if (!meta) {
+    meta = document.head.appendChild(document.createElement("meta"));
+    meta.name = "color-scheme";
+  }
+  meta.content = fixed ? "only " + choice : "light dark";
+  try {
+    localStorage.setItem("dienstplanTheme", choice);
+  } catch (_) {}
+}
+applyTheme(savedTheme());
 const errorText = (error) => (error && error.message) || String(error);
 /** A reporter that writes into the status line of one panel. */
 const showIn = (id) => (text) => {
