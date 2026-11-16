@@ -13,6 +13,7 @@ var backoffRecoverableErrors = [
 ];
 
 function callWithBackoff_(func, maxRetries) {
+  if (maxRetries === undefined) maxRetries = defaultMaxRetries;
   var tries = 0;
   var result;
   while (tries <= maxRetries) {
@@ -116,10 +117,7 @@ function buildSyncDiagnostic_(error) {
 function notifyError_(message) {
   if (typeof errorNotificationEmail === "undefined" || !errorNotificationEmail) return;
 
-  var recipient =
-    errorNotificationEmail === true
-      ? Session.getEffectiveUser().getEmail()
-      : errorNotificationEmail;
+  var recipient = errorNotificationEmail === true ? currentUserEmail_() : errorNotificationEmail;
   if (!recipient) return;
 
   var lastNotified = Number(userPrp.getProperty("lastErrorNotification")) || 0;

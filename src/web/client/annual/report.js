@@ -186,10 +186,9 @@ async function loadAnnualReport() {
     $("annualMessage").textContent = "Bitte ein Jahr von 2020 bis 2099 eingeben.";
     return;
   }
-  busy(true);
   $("annualProgress").hidden = false;
   $("annualMessage").textContent = "Jahresdaten werden geladen und ausgewertet …";
-  try {
+  await whileBusy(async () => {
     const report = await call("getAnnualRosterSummary", {
       year,
       region: $("annualRegion").value,
@@ -215,12 +214,8 @@ async function loadAnnualReport() {
     renderAnnualReport(report);
     $("annualMessage").textContent =
       "Jahresübersicht erstellt. Wachenzuordnungen lassen sich speichern. Eigene Abwesenheitsangaben und Abweichungen beim einzelnen Dienst vor dem Neuladen als CSV exportieren.";
-  } catch (error) {
-    $("annualMessage").textContent = error.message || String(error);
-  } finally {
-    busy(false);
-    $("annualProgress").hidden = true;
-  }
+  }, showIn("annualMessage"));
+  $("annualProgress").hidden = true;
 }
 function annualOptionsChanged() {
   if (annualReport) {

@@ -65,6 +65,38 @@ const weekdays = [
   ["So", "Sonntag"]
 ];
 
+const errorText = (error) => (error && error.message) || String(error);
+/** A reporter that writes into the status line of one panel. */
+const showIn = (id) => (text) => {
+  $(id).textContent = text;
+};
+/**
+ * Locks the page while `work` talks to the server. A failure reaches `report` as
+ * text, so each panel shows it next to its own controls.
+ */
+async function whileBusy(work, report) {
+  busy(true);
+  try {
+    return await work();
+  } catch (error) {
+    report(errorText(error));
+  } finally {
+    busy(false);
+  }
+}
+/** Copies to the clipboard; where the browser refuses, the text is selected in `field` instead. */
+async function copyText(text, field) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_) {
+    field.value = text;
+    field.hidden = false;
+    field.focus();
+    field.select();
+    return false;
+  }
+}
 function element(tag, text, className) {
   const node = document.createElement(tag);
   if (text !== undefined) node.textContent = text;

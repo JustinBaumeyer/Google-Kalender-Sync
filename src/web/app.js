@@ -11,8 +11,8 @@ function accessDeniedPage_() {
   var email = "",
     configured = true;
   try {
-    email = Session.getActiveUser().getEmail().trim().toLowerCase();
-    configured = !!scriptPrp.getProperty("appOwnerEmail");
+    email = visitorEmail_();
+    configured = !!appOwnerEmail_();
   } catch (err) {
     // The generic explanation below still applies.
   }
@@ -64,11 +64,9 @@ function getAppState() {
   var email = requireWebUser_();
   var saved = userPrp.getProperties();
   var settings = readUserPreferences_(saved);
-  var enabled = ScriptApp.getProjectTriggers().some(function (trigger) {
-    return trigger.getHandlerFunction() == "startSync";
-  });
+  var enabled = hasTrigger_("startSync");
   var progress = saved.syncProgress ? JSON.parse(saved.syncProgress) : null;
-  var isOwner = email == scriptPrp.getProperty("appOwnerEmail");
+  var isOwner = email == appOwnerEmail_();
   var availableVersion = Number(scriptPrp.getProperty("availableVersion")) || 0;
   return {
     version: version,
@@ -123,25 +121,15 @@ function saveAppSettings(input) {
     if (typeof input.rosterUserToken != "string")
       throw new Error("Der Dienstplan-Token ist ungültig");
     var token = input.rosterUserToken.trim();
-    if (Utilities.newBlob(token).getBytes().length > 9000)
+    if (byteLength_(token) > 9000)
       throw new Error("Der Dienstplan-Token ist zu lang zum Speichern");
     if (token) values.rosterUserToken = token;
   }
-  var lock = LockService.getUserLock();
-  if (!lock.tryLock(0))
-    throw new Error("Eine Synchronisierung läuft. Bitte danach erneut speichern");
-  try {
+  withUserLock_("Eine Synchronisierung läuft. Bitte danach erneut speichern", function () {
     userPrp.setProperties(values, false);
     // The sync trigger interval follows saved preferences immediately.
-    if (
-      ScriptApp.getProjectTriggers().some(function (trigger) {
-        return trigger.getHandlerFunction() == "startSync";
-      })
-    )
-      install_();
-  } finally {
-    lock.releaseLock();
-  }
+    if (hasTrigger_("startSync")) install_();
+  });
   return getAppState();
 }
 
@@ -160,15 +148,10 @@ function stopSync() {
 
 function disconnectApp() {
   requireWebUser_();
-  var lock = LockService.getUserLock();
-  if (!lock.tryLock(0))
-    throw new Error("Eine Synchronisierung läuft. Bitte danach erneut versuchen");
-  try {
+  withUserLock_("Eine Synchronisierung läuft. Bitte danach erneut versuchen", function () {
     clearAnnualRosterCache_();
     userPrp.deleteAllProperties();
     deleteAllTriggers_();
-  } finally {
-    lock.releaseLock();
-  }
+  });
   return getAppState();
 }

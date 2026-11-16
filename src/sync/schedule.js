@@ -50,14 +50,7 @@ function deleteAllTriggers_() {
 
 function install() {
   requireWebUser_();
-  var lock = LockService.getUserLock();
-  if (!lock.tryLock(0))
-    throw new Error("Eine Synchronisierung läuft. Bitte danach erneut aktivieren");
-  try {
-    return install_();
-  } finally {
-    lock.releaseLock();
-  }
+  return withUserLock_("Eine Synchronisierung läuft. Bitte danach erneut aktivieren", install_);
 }
 
 function install_() {
@@ -71,8 +64,7 @@ function install_() {
     throw new Error(
       "Bitte zuerst die Zielkalender der übernommenen Quellen auswählen und speichern"
     );
-  if (!hasActiveSyncSources_())
-    throw new Error("Bitte zuerst einen Dienstplan verbinden oder ein Kalender-Abo hinzufügen.");
+  requireSyncSources_();
 
   // Apps Script only returns triggers belonging to the current user.
   deleteAllTriggers_();
@@ -97,7 +89,7 @@ function install_() {
     },
     false
   );
-  if (Session.getEffectiveUser().getEmail().toLowerCase() == scriptPrp.getProperty("appOwnerEmail"))
+  if (currentUserEmail_() == appOwnerEmail_())
     ScriptApp.newTrigger("checkForUpdates").timeBased().everyDays(1).create();
   return getAppState();
 }

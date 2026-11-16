@@ -87,10 +87,7 @@ function fetchRosterReportHolidays_(year, region) {
 
 /** Cache only the small time/vehicle dataset, not raw roster responses or remarks. */
 function loadAnnualRosterData_(year, timeZone, forceReload) {
-  var cache =
-    typeof CacheService != "undefined" && typeof CacheService.getUserCache == "function"
-      ? CacheService.getUserCache()
-      : null;
+  var cache = annualCache_();
   var identity = JSON.stringify([
     year,
     timeZone,
@@ -98,12 +95,7 @@ function loadAnnualRosterData_(year, timeZone, forceReload) {
     rosterUrl,
     rosterIgnoreList.slice().sort()
   ]);
-  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, identity)
-    .map(function (byte) {
-      return ("0" + (byte & 255).toString(16)).slice(-2);
-    })
-    .join("");
-  var key = "annual-roster:v3:" + digest,
+  var key = "annual-roster:v3:" + sha256Hex_(identity),
     raw = cache && !forceReload && cache.get(key),
     data;
   if (raw) {
@@ -117,19 +109,19 @@ function loadAnnualRosterData_(year, timeZone, forceReload) {
     !callWithBackoff_(function () {
       refreshRosterToken_();
       return true;
-    }, defaultMaxRetries)
+    })
   )
     throw new Error("Der Dienstplan-Zugang konnte nicht erneuert werden.");
   var body = rosterReportPayload_(year, timeZone);
   var response = callWithBackoff_(function () {
     return JSON.parse(rosterFetch_("rosters/preload", "POST", body));
-  }, defaultMaxRetries);
+  });
   if (!response) throw new Error("Die Jahresdaten konnten nicht vollständig geladen werden.");
   data = collectAnnualRosterEntries_(response, year, timeZone, rosterIgnoreList);
   data.sourceLoadedAt = new Date().toISOString();
   data.cacheHit = false;
   raw = JSON.stringify(data);
-  if (cache && Utilities.newBlob(raw).getBytes().length < 90000) {
+  if (cache && byteLength_(raw) < 90000) {
     var keys = JSON.parse(userPrp.getProperty("annualCacheKeys") || "[]").filter(function (item) {
       return item != key;
     });
@@ -143,8 +135,13 @@ function loadAnnualRosterData_(year, timeZone, forceReload) {
 }
 
 function clearAnnualRosterCache_() {
-  if (typeof CacheService != "undefined" && typeof CacheService.getUserCache == "function")
-    CacheService.getUserCache().removeAll(
-      JSON.parse(userPrp.getProperty("annualCacheKeys") || "[]")
-    );
+  var cache = annualCache_();
+  if (cache) cache.removeAll(JSON.parse(userPrp.getProperty("annualCacheKeys") || "[]"));
+}
+
+/** The per-account cache of Apps Script; absent only in a reduced test environment. */
+function annualCache_() {
+  return typeof CacheService != "undefined" && typeof CacheService.getUserCache == "function"
+    ? CacheService.getUserCache()
+    : null;
 }

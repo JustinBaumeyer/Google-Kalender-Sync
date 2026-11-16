@@ -42,8 +42,7 @@ function startSync(event) {
       });
     }
     loadUserPreferences_();
-    if (!hasActiveSyncSources_())
-      throw new Error("Bitte zuerst einen Dienstplan verbinden oder ein Kalender-Abo hinzufügen.");
+    requireSyncSources_();
     var migrationRemaining = runSync_() || 0;
     timedSyncStep_("Laufstatus speichern", function () {
       userPrp.setProperties(

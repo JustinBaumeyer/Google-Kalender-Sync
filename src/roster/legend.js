@@ -170,7 +170,7 @@ function buildLegendAssignments_(rosters) {
 
 /** Scheduled wall-clock times from the legend; valuation/break minutes are not event bounds. */
 function legendDutySpan_(entry, date) {
-  var timeZone = typeof rosterTimeZone == "undefined" ? "Europe/Berlin" : rosterTimeZone;
+  var timeZone = rosterZone_();
   var key = JSON.stringify([
     date,
     timeZone,

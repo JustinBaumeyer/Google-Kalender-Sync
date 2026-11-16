@@ -36,15 +36,9 @@ function importLegacyCopy(input) {
   var serialized = validatePreferences_(settings);
   if (String(payload.rosterUserId || "") && !/^\d+$/.test(String(payload.rosterUserId)))
     throw new Error("Im Umzugscode fehlt eine gültige Mitarbeiter-ID.");
-  if (
-    typeof payload.rosterUserToken != "string" ||
-    Utilities.newBlob(payload.rosterUserToken).getBytes().length > 9000
-  )
+  if (typeof payload.rosterUserToken != "string" || byteLength_(payload.rosterUserToken) > 9000)
     throw new Error("Im Umzugscode ist der Dienstplan-Token ungültig.");
-  var lock = LockService.getUserLock();
-  if (!lock.tryLock(0))
-    throw new Error("Eine Synchronisierung läuft. Bitte danach erneut importieren.");
-  try {
+  withUserLock_("Eine Synchronisierung läuft. Bitte danach erneut importieren.", function () {
     if (userPrp.getProperty("preferences") && input.replaceExisting !== true)
       throw new Error(
         "Es sind bereits Einstellungen gespeichert. Bitte das Ersetzen ausdrücklich bestätigen."
@@ -90,9 +84,7 @@ function importLegacyCopy(input) {
     ].forEach(function (key) {
       userPrp.deleteProperty(key);
     });
-  } finally {
-    lock.releaseLock();
-  }
+  });
   return getAppState();
 }
 

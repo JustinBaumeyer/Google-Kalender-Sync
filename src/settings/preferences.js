@@ -63,7 +63,7 @@ function loadUserPreferences_() {
   });
   rosterUserToken = properties.rosterUserToken;
   rosterUserId = properties.rosterUserId;
-  syncOwnerId = Session.getEffectiveUser().getEmail().trim().toLowerCase();
+  syncOwnerId = currentUserEmail_();
   return settings;
 }
 

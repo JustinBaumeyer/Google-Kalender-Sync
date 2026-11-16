@@ -106,9 +106,8 @@ async function action(method, text, saveFirst = false) {
   } catch (error) {
     syncRequestActive = false;
     clearTimeout(progressTimer);
-    if (method === "startSync")
-      showProgress({ phase: error.message || String(error), status: "failed" });
-    message(error.message || String(error), true);
+    if (method === "startSync") showProgress({ phase: errorText(error), status: "failed" });
+    message(errorText(error), true);
     if (method === "startSync") {
       try {
         const state = await call("getAppState");

@@ -3,7 +3,7 @@ function getRosterStartDate_() {
     var jsonResponse = JSON.parse(rosterFetch_("app/initial-preload", "POST"));
     var date = jsonResponse.contracts.data[0].eingestellt.split(".");
     return new Date(Date.UTC(Number(date[2]), Number(date[1]) - 1, Number(date[0])));
-  }, defaultMaxRetries);
+  });
 }
 
 /**
@@ -15,7 +15,7 @@ function getRosterStartDate_() {
  * @param {Date} [now] - Reference time (defaults to the current time).
  */
 function generateRosterPayload_(now, bounded) {
-  var timeZone = typeof rosterTimeZone !== "undefined" ? rosterTimeZone : "Europe/Berlin";
+  var timeZone = rosterZone_();
   var currentMonth = Utilities.formatDate(now || new Date(), timeZone, "yyyy-MM").split("-");
   var year = Number(currentMonth[0]);
   var month = Number(currentMonth[1]) - 1;
@@ -58,7 +58,7 @@ function getRosterICal_(skipTokenRefresh) {
       refreshRosterToken_();
       teamRosterTokenReady = true;
       return;
-    }, defaultMaxRetries);
+    });
   return callWithBackoff_(function () {
     var payload = generateRosterPayload_();
     var jsonResponse = JSON.parse(rosterFetch_("rosters/preload", "POST", payload));
@@ -169,5 +169,5 @@ function getRosterICal_(skipTokenRefresh) {
 
     icsContent += "END:VCALENDAR";
     return icsContent;
-  }, defaultMaxRetries);
+  });
 }

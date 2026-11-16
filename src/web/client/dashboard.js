@@ -187,14 +187,9 @@ function renderDiagnostics(state) {
   $("errorReportMessage").textContent = "";
 }
 async function copyErrorReport() {
-  try {
-    await navigator.clipboard.writeText($("errorReport").value);
-    $("errorReportMessage").textContent = "Fehlerbericht kopiert.";
-  } catch (_) {
-    $("errorReport").focus();
-    $("errorReport").select();
-    $("errorReportMessage").textContent = "Den markierten Bericht kopieren und weitergeben.";
-  }
+  $("errorReportMessage").textContent = (await copyText($("errorReport").value, $("errorReport")))
+    ? "Fehlerbericht kopiert."
+    : "Den markierten Bericht kopieren und weitergeben.";
 }
 function renderDashboard(state) {
   dashboardState = state;

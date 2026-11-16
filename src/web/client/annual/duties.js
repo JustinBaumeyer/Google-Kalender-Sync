@@ -71,8 +71,7 @@ function markAnnualStationChanges() {
 }
 async function saveAnnualStations() {
   if (!annualReport) return;
-  busy(true);
-  try {
+  await whileBusy(async () => {
     const saved = await call("saveAnnualStationSettings", {
       year: annualReport.year,
       firstStation: $("annualFirstStation").value.trim(),
@@ -80,11 +79,7 @@ async function saveAnnualStations() {
     });
     annualReport.stationSettings = saved;
     $("annualStationMessage").textContent = "Wachenzuordnung für " + saved.year + " gespeichert.";
-  } catch (error) {
-    $("annualStationMessage").textContent = error.message || String(error);
-  } finally {
-    busy(false);
-  }
+  }, showIn("annualStationMessage"));
 }
 
 function annualDutyMatchesFilter(row) {

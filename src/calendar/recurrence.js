@@ -93,10 +93,8 @@ function processEventInstance_(recEvent) {
       "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId
     ]
   });
-  if (eventInstanceToPatch === null)
-    throw new Error("Serientermine konnten nicht vollständig geladen werden.");
 
-  if (eventInstanceToPatch == null || eventInstanceToPatch.length == 0) {
+  if (eventInstanceToPatch.length == 0) {
     if (recEvent.recurringEventId.length == 10) {
       recEvent.recurringEventId += "T00:00:00Z";
     } else if (recEvent.recurringEventId.substr(-1) !== "Z") {
@@ -108,26 +106,22 @@ function processEventInstance_(recEvent) {
       timeMin: recEvent.recurringEventId,
       privateExtendedProperty: ["fromGAS=true", "id=" + recEvent.extendedProperties.private["id"]]
     });
-    if (eventInstanceToPatch === null)
-      throw new Error("Serientermine konnten nicht vollständig geladen werden.");
   }
 
   if (eventInstanceToPatch.length == 1) {
     if (modifyExistingEvents) {
       Logger.log("Updating existing event instance");
-      var updated = callWithBackoff_(function () {
+      calendarRequest_(function () {
         return Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
-      }, defaultMaxRetries);
-      if (updated == null) throw new Error("Ein Serientermin konnte nicht aktualisiert werden.");
+      }, "Ein Serientermin konnte nicht aktualisiert werden.");
       syncStats.updated++;
     }
   } else {
     if (addEventsToCalendar) {
       Logger.log("No Instance matched, adding as new event!");
-      var inserted = callWithBackoff_(function () {
+      calendarRequest_(function () {
         return Calendar.Events.insert(recEvent, targetCalendarId);
-      }, defaultMaxRetries);
-      if (inserted == null) throw new Error("Ein Serientermin konnte nicht gespeichert werden.");
+      }, "Ein Serientermin konnte nicht gespeichert werden.");
       syncStats.added++;
     }
   }
@@ -193,11 +187,9 @@ function restoreDeletedOccurrences_(components, calendarTz) {
       if (!restored) return;
       delete restored.recurringEventId;
       restored.status = "confirmed";
-      var saved = callWithBackoff_(function () {
+      calendarRequest_(function () {
         return Calendar.Events.patch(restored, targetCalendarId, cancelled.id);
-      }, defaultMaxRetries);
-      if (saved == null)
-        throw new Error("Ein gelöschter Serientermin konnte nicht wiederhergestellt werden.");
+      }, "Ein gelöschter Serientermin konnte nicht wiederhergestellt werden.");
       syncStats.added++;
       return;
     }
@@ -212,10 +204,9 @@ function findOwnedEventInstances_(options) {
   params.privateExtendedProperty = options.privateExtendedProperty.slice();
   if (!adoptLegacy) params.privateExtendedProperty.push("syncOwner=" + syncOwnerId);
   do {
-    var page = callWithBackoff_(function () {
+    var page = calendarRequest_(function () {
       return Calendar.Events.list(targetCalendarId, params);
-    }, defaultMaxRetries);
-    if (page == null) return null;
+    }, "Serientermine konnten nicht vollständig geladen werden.");
     var own = (page.items || []).filter(function (item) {
       return !!getOwnedSyncProperties_(item, adoptLegacy);
     });

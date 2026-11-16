@@ -2,9 +2,7 @@ function getAnnualRosterSummary(input) {
   requireWebUser_();
   if (
     !input ||
-    !Number.isInteger(input.year) ||
-    input.year < 2020 ||
-    input.year > 2099 ||
+    !isReportYear_(input.year) ||
     [
       "BW",
       "BY",
@@ -67,15 +65,17 @@ function getAnnualRosterSummary(input) {
 function saveAnnualStationSettings(input) {
   requireWebUser_();
   var settings = validateAnnualStationSettings_(input);
-  var lock = LockService.getUserLock();
-  if (!lock.tryLock(0))
-    throw new Error("Eine Prüfung oder Synchronisierung läuft. Bitte danach speichern.");
-  try {
-    userPrp.setProperty("annualStations:" + settings.year, JSON.stringify(settings));
-    return Object.assign(settings, { saved: true });
-  } finally {
-    lock.releaseLock();
-  }
+  return withUserLock_(
+    "Eine Prüfung oder Synchronisierung läuft. Bitte danach speichern.",
+    function () {
+      userPrp.setProperty("annualStations:" + settings.year, JSON.stringify(settings));
+      return Object.assign(settings, { saved: true });
+    }
+  );
+}
+
+function isReportYear_(year) {
+  return Number.isInteger(year) && year >= 2020 && year <= 2099;
 }
 
 function validateAnnualStationSettings_(input) {
@@ -84,9 +84,7 @@ function validateAnnualStationSettings_(input) {
   };
   if (
     !input ||
-    !Number.isInteger(input.year) ||
-    input.year < 2020 ||
-    input.year > 2099 ||
+    !isReportYear_(input.year) ||
     !text(input.firstStation, 120) ||
     !Array.isArray(input.vehicles) ||
     input.vehicles.length > 100
@@ -109,7 +107,7 @@ function validateAnnualStationSettings_(input) {
     return [row[0].trim(), row[1].trim()];
   });
   var result = { year: input.year, firstStation: input.firstStation.trim(), vehicles: vehicles };
-  if (Utilities.newBlob(JSON.stringify(result)).getBytes().length > 8500)
+  if (byteLength_(JSON.stringify(result)) > 8500)
     throw new Error("Die Wachenzuordnung ist zu groß. Bitte weniger eigene Zuordnungen speichern.");
   return result;
 }

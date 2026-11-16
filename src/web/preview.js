@@ -14,18 +14,25 @@ function previewEvents_(components, calendarName, calendarTimeZone) {
     if (event.isRecurrenceException() && parents.has(event.uid))
       parents.get(event.uid).relateException(event);
   });
-  function add(event, start, end) {
-    if (!start || !end || instant(end) < now) return;
-    function asString(time) {
-      if (time.isDate) return time.toString();
-      if (time.zone && time.zone.tzid == "floating")
-        return Utilities.parseDate(
+  // All-day and floating times have no zone of their own; they mean the calendar's wall clock.
+  function toDate(time) {
+    var floating = time.zone && time.zone.tzid == "floating";
+    return time.isDate || floating
+      ? Utilities.parseDate(
           time.toString(),
           calendarTimeZone || rosterTimeZone,
-          "yyyy-MM-dd'T'HH:mm:ss"
-        ).toISOString();
-      return time.toJSDate().toISOString();
-    }
+          time.isDate ? "yyyy-MM-dd" : "yyyy-MM-dd'T'HH:mm:ss"
+        )
+      : time.toJSDate();
+  }
+  function instant(time) {
+    return toDate(time).getTime();
+  }
+  function asString(time) {
+    return time.isDate ? time.toString() : toDate(time).toISOString();
+  }
+  function add(event, start, end) {
+    if (!start || !end || instant(end) < now) return;
     result.push({
       title: String(event.summary || "Ohne Titel"),
       start: asString(start),
@@ -33,21 +40,6 @@ function previewEvents_(components, calendarName, calendarTimeZone) {
       allDay: !!start.isDate,
       calendar: calendarName
     });
-  }
-  function instant(time) {
-    if (time.isDate)
-      return Utilities.parseDate(
-        time.toString(),
-        calendarTimeZone || rosterTimeZone,
-        "yyyy-MM-dd"
-      ).getTime();
-    if (time.zone && time.zone.tzid == "floating")
-      return Utilities.parseDate(
-        time.toString(),
-        calendarTimeZone || rosterTimeZone,
-        "yyyy-MM-dd'T'HH:mm:ss"
-      ).getTime();
-    return time.toJSDate().getTime();
   }
   events.forEach(function (event) {
     checkSyncBudget_();

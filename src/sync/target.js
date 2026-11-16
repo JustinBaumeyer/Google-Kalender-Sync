@@ -88,7 +88,7 @@ function syncTargetCalendar_(calendar, migration, calendarLookup) {
       targetCalendarTimeZone ||
       callWithBackoff_(function () {
         return Calendar.Settings.get("timezone").value;
-      }, defaultMaxRetries);
+      });
 
     vevents.forEach(function (e, index) {
       syncPhase = targetCalendarName + ": Termine verarbeiten";

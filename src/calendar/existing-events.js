@@ -16,7 +16,7 @@ function loadTargetCalendarEvents_(migration) {
     var eventList = timedSyncStep_(targetCalendarName + ": vorhandene Termine laden", function () {
       return callWithBackoff_(function () {
         return Calendar.Events.list(targetCalendarId, listParams);
-      }, defaultMaxRetries);
+      });
     });
     if (eventList == null) {
       listFailed = true;
@@ -50,7 +50,7 @@ function loadTargetCalendarEvents_(migration) {
             targetCalendarId,
             item.id
           );
-        }, defaultMaxRetries);
+        });
         if (claimed == null) {
           listFailed = true;
           break;
@@ -139,14 +139,10 @@ function processEventCleanup_() {
 }
 
 function removeManagedEvent_(id) {
-  var result = callWithBackoff_(function () {
+  calendarRequest_(function () {
     Calendar.Events.remove(targetCalendarId, id);
     // A successful DELETE has no response body. Only exhausted retries yield null.
     return true;
-  }, defaultMaxRetries);
-  if (result === null)
-    throw new Error(
-      "Ein Kalendertermin konnte nicht entfernt werden. Bitte später erneut synchronisieren."
-    );
+  }, "Ein Kalendertermin konnte nicht entfernt werden. Bitte später erneut synchronisieren.");
   syncStats.removed++;
 }

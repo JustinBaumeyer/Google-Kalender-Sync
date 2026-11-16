@@ -1,14 +1,12 @@
-async function initialize() {
-  busy(true);
-  try {
-    const [choices, state] = await Promise.all([call("getCalendarChoices"), call("getAppState")]);
-    calendarChoices = choices;
-    render(state);
-  } catch (error) {
-    message(error.message || String(error), true);
-  } finally {
-    busy(false);
-  }
+function initialize() {
+  return whileBusy(
+    async () => {
+      const [choices, state] = await Promise.all([call("getCalendarChoices"), call("getAppState")]);
+      calendarChoices = choices;
+      render(state);
+    },
+    (text) => message(text, true)
+  );
 }
 $("copyErrorReport").onclick = copyErrorReport;
 $("annualYear").value = new Date().getFullYear() - 1;

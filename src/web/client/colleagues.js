@@ -119,8 +119,7 @@ function teamRosterPicker(grid, raw) {
             ? found.length + " Treffer. Bitte die Person auswählen."
             : "Keine Person gefunden. Es werden nur Personen aus deiner Teamübersicht angezeigt.";
     } catch (error) {
-      if (requestEpoch === epoch && panel.isConnected)
-        status.textContent = error.message || String(error);
+      if (requestEpoch === epoch && panel.isConnected) status.textContent = errorText(error);
     } finally {
       search.disabled = false;
     }

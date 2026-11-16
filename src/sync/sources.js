@@ -18,6 +18,11 @@ function hasActiveSyncSources_() {
   });
 }
 
+function requireSyncSources_() {
+  if (!hasActiveSyncSources_())
+    throw new Error("Bitte zuerst einen Dienstplan verbinden oder ein Kalender-Abo hinzufügen.");
+}
+
 /** Failed sources prevent cleanup; inactive sources preserve their existing events. */
 function fetchSourceCalendars_(sourceCalendarURLs, fetchRoster) {
   var result = [];
@@ -102,5 +107,5 @@ function fetchSubscription_(url) {
       Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url);
     }
     return icsMatch[0];
-  }, defaultMaxRetries);
+  });
 }
