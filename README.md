@@ -33,7 +33,8 @@ werden beim nächsten Lauf auch auf bereits übernommene Termine angewendet.
 Ein Dienst wird an Kürzel und Beginn erkannt. Ändert sich nur sein Ende, etwa durch
 nachgetragene Überstunden, wird der vorhandene Kalendertermin angepasst und kein zweiter
 angelegt. Doppelte Einträge desselben Dienstes aus früheren Versionen entfernt der nächste
-Lauf, auch wenn der Dienst schon vorbei ist.
+Lauf, auch wenn der Dienst schon vorbei ist. Das gilt ebenso für Termine, die die Versionen
+20 bis 22 unter einer anderen Kennung gespeichert haben.
 
 ## Gemeinsame App einrichten
 

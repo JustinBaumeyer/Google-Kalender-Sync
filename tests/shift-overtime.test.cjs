@@ -118,3 +118,61 @@ test('subscription events with look-alike UIDs are never treated as changed shif
   c.startSync();
   assert.equal(inserted.length, 1);assert.deepEqual(removed, []);
 });
+
+// Versions 20 to 22 stored shifts as "roster-shift-<encoded code>-<start>".
+function storedByVersion22(event, googleId) {
+  const copy = JSON.parse(JSON.stringify(event));
+  const start = copy.start.dateTime.replace(/[-:]/g, '');
+  copy.id = googleId;
+  copy.extendedProperties.private.id = 'roster-shift-' + encodeURIComponent(copy.summary.split(' | ')[0]) + '-' + start;
+  copy.extendedProperties.private.MD5 = 'digest-of-version-22';
+  return copy;
+}
+
+test('events stored by versions 20 to 22 are continued, not added a second time', () => {
+  const {app, c, events, writes, state} = fixture('2026-11-10T09:00:00Z');
+  state.shifts = [shift('2026-11-05T17:30:00+01:00', '2026-11-05T08:00:00+01:00'),
+    shift('2026-11-20T17:30:00+01:00', '2026-11-20T08:00:00+01:00', 'N 1/2')];
+  c.startSync();
+  // Put the calendar into the state an installation of version 22 left behind.
+  events.splice(0, 2, storedByVersion22(events[0], 'v22-past'), storedByVersion22(events[1], 'v22-future'));
+  assert.equal(events[1].extendedProperties.private.id, 'roster-shift-N%201%2F2-20261120T070000Z');
+  writes.length = 0;
+  app.clock.now = Date.parse('2026-11-11T09:00:00Z');
+  const result = c.startSync();
+  assert.deepEqual(writes, ['update v22-past', 'update v22-future']);
+  assert.equal(events.length, 2);
+  assert.deepEqual([result.lastStats.added, result.lastStats.removed], [0, 0]);
+  c.startSync();
+  assert.equal(writes.length, 2, 'Afterwards the events are known under their current UID');
+});
+
+test('past shifts already duplicated across the two UID formats collapse to one event each', () => {
+  const {app, c, events, writes, state} = fixture('2026-11-10T09:00:00Z');
+  state.shifts = [shift('2026-11-03T17:30:00+01:00', '2026-11-03T08:00:00+01:00'),
+    shift('2026-11-05T17:30:00+01:00', '2026-11-05T08:00:00+01:00'),
+    shift('2026-11-20T17:30:00+01:00', '2026-11-20T08:00:00+01:00')];
+  c.startSync();
+  assert.equal(events.length, 3);
+  // What version 23/24 produced on such a calendar: the older copies of finished shifts stayed.
+  events.push(storedByVersion22(events[0], 'v22-a'), storedByVersion22(events[1], 'v22-b'));
+  events.push({id: 'unrelated', start: {dateTime: '2026-11-04T07:00:00Z'}, end: {dateTime: '2026-11-04T16:00:00Z'},
+    extendedProperties: {private: {id: 'roster-shift-GONE-20261104T070000Z', fromGAS: 'true', syncOwner: alice, MD5: 'x'}}});
+  writes.length = 0;
+  app.clock.now = Date.parse('2026-11-11T09:00:00Z');
+  const result = c.startSync();
+  assert.deepEqual(writes, ['remove v22-a', 'remove v22-b']);
+  assert.deepEqual(events.map(event => event.id), ['google-1', 'google-2', 'google-3', 'unrelated']);
+  assert.equal(result.lastStats.removed, 2);
+  c.startSync();
+  assert.equal(writes.length, 2);
+});
+
+test('identifiers that only resemble a stored shift are ignored', () => {
+  const c = load(shared(), alice);
+  assert.equal(c.storedShiftKey_('K9320261112T070000Z20261112T163000Z'), 'K9320261112T070000Z');
+  assert.equal(c.storedShiftKey_('roster-shift-K93-20261112T070000Z'), 'K9320261112T070000Z');
+  assert.equal(c.storedShiftKey_('roster-shift-N%201%2F2-20261120T070000Z'), 'N 1/220261120T070000Z');
+  for (const id of ['roster-shift-%E0%A4%A-20261112T070000Z', 'team-roster-456-2026-11-12-D', 'absence-17', '1-K93-20261112T000000Z', '', null])
+    assert.equal(c.storedShiftKey_(id), null, String(id));
+});

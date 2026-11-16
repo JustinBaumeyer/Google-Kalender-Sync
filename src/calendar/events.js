@@ -206,10 +206,23 @@ function createEvent_(event, calendarTz) {
   return newEvent;
 }
 
-/** The identity (code + start) inside the UID of a stored roster shift, or null for other events. */
+/**
+ * The identity (code + start) inside the UID of a stored roster shift, or null for
+ * other events. Calendars hold two formats: "<code><start><end>", and
+ * "roster-shift-<encoded code>-<start>" written by versions 20 to 22. Both mean the
+ * same shift, so events of either format are continued instead of added again.
+ */
 function storedShiftKey_(id) {
-  var match = /^(.+\d{8}T\d{6}Z)\d{8}T\d{6}Z$/.exec(String(id || ""));
-  return match ? match[1] : null;
+  id = String(id || "");
+  var match = /^(.+\d{8}T\d{6}Z)\d{8}T\d{6}Z$/.exec(id);
+  if (match) return match[1];
+  match = /^roster-shift-(.*)-(\d{8}T\d{6}Z)$/.exec(id);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]) + match[2];
+  } catch (err) {
+    return null;
+  }
 }
 
 /**
