@@ -104,6 +104,15 @@ function getOwnedSyncProperties_(event, allowLegacy) {
  */
 function processEventCleanup_() {
   var feedIds = new Set(icsEventsIds);
+  // Shifts the roster still reports. An older copy with another end time is a
+  // leftover of a changed shift, not history worth keeping.
+  var currentShifts = new Set(
+    icsEventsIds
+      .map(function (id) {
+        return rosterShiftKeys.get(id);
+      })
+      .filter(Boolean)
+  );
   var compareDate = new Date();
   var today = Utilities.formatDate(
     compareDate,
@@ -130,7 +139,7 @@ function processEventCleanup_() {
     } else if (
       !feedIds.has(currentID) && // Event is no longer in source
       calendarEvents[i].recurringEventId == null && // And it's not a recurring event
-      (removePastEventsFromCalendar || !isPast)
+      (removePastEventsFromCalendar || !isPast || currentShifts.has(storedShiftKey_(currentID)))
     ) {
       Logger.log("Deleting old event " + currentID);
       removeManagedEvent_(calendarEvents[i].id);

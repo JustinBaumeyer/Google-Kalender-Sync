@@ -20,6 +20,15 @@ function processEvent_(event, calendarTz) {
     return;
   }
 
+  if (index == -1 && modifyExistingEvents) {
+    index = findChangedShift_(eventId);
+    if (index > -1) {
+      // From here on the existing event belongs to the new UID, also for the cleanup.
+      calendarEventsIds[index] = eventId;
+      calendarEventsIndex.set(eventId, index);
+    }
+  }
+
   if (index > -1 && modifyExistingEvents) {
     Logger.log("Updating existing event " + eventId);
     calendarRequest_(function () {
@@ -195,6 +204,32 @@ function createEvent_(event, calendarTz) {
   }
 
   return newEvent;
+}
+
+/** The identity (code + start) inside the UID of a stored roster shift, or null for other events. */
+function storedShiftKey_(id) {
+  var match = /^(.+\d{8}T\d{6}Z)\d{8}T\d{6}Z$/.exec(String(id || ""));
+  return match ? match[1] : null;
+}
+
+/**
+ * The existing event of a roster shift whose end time changed, for example through
+ * overtime. Its UID differs, but it is the same shift and keeps its calendar event.
+ *
+ * @param {string} uid - UID of the shift as the roster reports it now
+ * @return {number} Position in calendarEvents, or -1
+ */
+function findChangedShift_(uid) {
+  var key = rosterShiftKeys.get(uid);
+  if (!key) return -1;
+  var current = new Set(icsEventsIds);
+  return calendarEvents.findIndex(function (event, i) {
+    return (
+      !current.has(calendarEventsIds[i]) &&
+      event.recurringEventId == null &&
+      storedShiftKey_(calendarEventsIds[i]) == key
+    );
+  });
 }
 
 /** Keeps only the matching values of a multi-value property and drops it once empty. */
