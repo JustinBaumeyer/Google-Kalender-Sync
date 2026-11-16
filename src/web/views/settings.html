@@ -1,10 +1,19 @@
 <form id="preferences" hidden novalidate>
-  <div class="section-head" style="margin-bottom: 1rem"
+  <div class="section-head page-head"
     ><h2>Einstellungen</h2
     ><button type="button" id="closeSettings" class="secondary">Zur Übersicht</button></div
   >
+  <nav id="sectionNav" class="section-nav" aria-label="Abschnitte der Einstellungen">
+    <button type="button" data-section="sectionConnection">Verbindung</button>
+    <button type="button" data-section="sectionSources">Quellen</button>
+    <button type="button" data-section="sectionSchedule">Zeitplan</button>
+    <button type="button" data-section="sectionContent">Inhalte</button>
+    <button type="button" data-section="sectionEvents">Termine</button>
+    <button type="button" data-section="sectionRules">Ausblenden</button>
+    <button type="button" data-section="advanced">Erweitert</button>
+  </nav>
   <fieldset id="settingsFields">
-    <section>
+    <section id="sectionConnection">
       <h2>Dienstplan verbinden</h2>
       <p class="muted"
         >Die App verwendet deine eigenen Dienstplan-Zugangsdaten. Ohne Mitarbeiter-ID und Token
@@ -43,7 +52,7 @@
         <button type="button" id="testConnection" class="secondary">Verbindung prüfen</button> </div
       ><p id="connectionResult" role="status"></p>
     </section>
-    <section>
+    <section id="sectionSources">
       <h2>Kalenderquellen</h2>
       <p class="muted"
         >Wähle für jede Quelle einen vorhandenen Kalender oder lege einen neuen an. Für eine andere
@@ -52,21 +61,21 @@
       <div id="sources"></div>
       <button type="button" id="addSource" class="secondary">Quelle hinzufügen</button>
     </section>
-    <section>
+    <section id="sectionSchedule">
       <h2>Synchronisierung</h2>
       <div class="grid" id="schedule"></div>
       <div class="grid" id="emailSettings"></div>
     </section>
-    <section>
+    <section id="sectionContent">
       <h2>Was soll übernommen werden?</h2>
       <div class="grid" id="rosterSettings"></div>
     </section>
-    <section>
+    <section id="sectionEvents">
       <h2>Termine & Verlauf</h2>
       <p class="muted">Vergangene Termine bleiben standardmäßig erhalten.</p>
       <div class="grid" id="eventSettings"></div>
     </section>
-    <section>
+    <section id="sectionRules">
       <h2>Termine ausblenden</h2>
       <p class="muted"
         >Eine Regel kann nach Titel, Wochentag oder Uhrzeit filtern. Alle ausgefüllten Felder einer
@@ -74,7 +83,7 @@
       >
       <div id="rules"></div>
       <button type="button" id="addRule" class="secondary">Regel hinzufügen</button>
-      <div id="shiftCodes" style="margin-top: 1.2rem"></div>
+      <div id="shiftCodes" class="spaced"></div>
     </section>
     <details class="panel" id="advanced"
       ><summary>Erweiterte Einstellungen</summary><div class="grid" id="advancedSettings"></div

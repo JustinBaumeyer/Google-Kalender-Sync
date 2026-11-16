@@ -111,7 +111,10 @@ async function action(method, text, saveFirst = false) {
     message(error.message || String(error), true);
     if (method === "startSync") {
       try {
-        renderDiagnostics(await call("getAppState"));
+        const state = await call("getAppState");
+        renderDashboard(state);
+        current.pending = state.pending;
+        current.enabled = state.enabled;
       } catch (_) {}
     }
   } finally {

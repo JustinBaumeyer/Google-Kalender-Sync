@@ -7,7 +7,9 @@ let current,
   progressEpoch = 0,
   syncRequestActive = false,
   calendarChoices = [],
-  invitations;
+  invitations,
+  dashboardState,
+  previewChecked = false;
 const readers = new Map(),
   sourceReaders = new Map(),
   ruleReaders = new Map();

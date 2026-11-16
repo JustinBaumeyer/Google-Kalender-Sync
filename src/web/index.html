@@ -6,19 +6,49 @@
     <!-- BUILD:styles -->
   </head>
   <body>
-    <header>
-      <div class="eyebrow">DIENSTPLAN SYNC</div>
-      <h1>Dienstplan-Sync</h1>
-      <p class="muted">Dienstpläne und Kalender-Abos mit Google Kalender synchronisieren.</p>
-      <div class="account-meta">
-        <span id="account" class="muted"></span>
-        <span id="appVersion" class="muted"></span>
+    <header class="app-bar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="3" y="5" width="26" height="24" rx="6" fill="currentColor" />
+          <path d="M3 12h26" stroke="var(--surface)" stroke-width="2" />
+          <path
+            d="m11 20 3.5 3.5L21.5 16"
+            fill="none"
+            stroke="var(--surface)"
+            stroke-width="2.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M10 3v5M22 3v5"
+            stroke="currentColor"
+            stroke-width="2.6"
+            stroke-linecap="round"
+          />
+        </svg>
+        <div>
+          <h1>Dienstplan Sync</h1>
+          <p class="muted tagline">Dienstpläne und Kalender-Abos im Google Kalender.</p>
+        </div>
       </div>
+      <span id="account" class="account-chip" title="Angemeldetes Google-Konto"></span>
     </header>
-    <div class="status" aria-live="polite"
-      ><div id="status">Einstellungen werden geladen …</div><div id="lastSync" class="muted"></div
-      ><div id="lastError"></div
+    <div id="statusCard" class="status" data-state="loading" aria-live="polite"
+      ><span class="status-dot" aria-hidden="true"></span
+      ><div class="status-text"
+        ><div id="status">Einstellungen werden geladen …</div><div id="lastSync" class="muted"></div
+        ><div id="lastError"></div></div
     ></div>
+    <div id="stalledNotice" class="notice warn" role="status" hidden>
+      <div>
+        <strong>Die automatische Synchronisierung scheint zu ruhen.</strong>
+        <p id="stalledText"></p>
+      </div>
+      <button type="button" id="repairTriggers" class="secondary">Auslöser neu einrichten</button>
+    </div>
+    <div id="updateNotice" class="notice info" role="status" hidden>
+      <div><strong id="updateTitle"></strong><p id="updateText"></p></div>
+    </div>
     <details id="errorDetails" class="panel" hidden>
       <summary>Fehlerdetails</summary>
       <p class="muted"
@@ -38,12 +68,16 @@
       ></progress>
       <small id="syncCount"></small>
     </div>
-    <p id="globalMessage" role="status" aria-live="polite"></p>
-    <p id="migrationEntry"
-      ><button type="button" id="migrationShortcut" class="secondary"
-        >Schon eine eigene Skriptkopie? Einstellungen übernehmen</button
-      ></p
-    >
+    <p id="globalMessage" class="flash" role="status" aria-live="polite"></p>
+    <section id="setupGuide" class="guide" aria-labelledby="setupGuideTitle" hidden>
+      <h2 id="setupGuideTitle">In vier Schritten eingerichtet</h2>
+      <ol id="setupSteps" class="guide-steps"></ol>
+      <p id="migrationEntry"
+        ><button type="button" id="migrationShortcut" class="link"
+          >Schon eine eigene Skriptkopie? Einstellungen übernehmen</button
+        ></p
+      >
+    </section>
     <section id="overview" hidden>
       <div class="section-head"
         ><h2>Übersicht</h2
@@ -51,19 +85,34 @@
           >Einstellungen bearbeiten</button
         ></div
       >
-      <p id="nextRun" class="muted"></p><p id="connectionBadge"></p>
-      <div id="metrics" class="metrics" hidden></div>
+      <dl class="facts">
+        <div><dt>Nächster Lauf</dt><dd id="nextRun"></dd></div>
+        <div><dt>Dienstplan</dt><dd id="connectionBadge"></dd></div>
+        <div><dt>Quellen</dt><dd id="sourceSummary"></dd></div>
+      </dl>
+      <div id="metrics" class="metrics" aria-label="Ergebnis des letzten Laufs" hidden></div>
       <div class="actions"
         ><button type="button" id="dashboardSync">Jetzt synchronisieren</button
         ><button type="button" id="dashboardPreview" class="secondary">Vorschau prüfen</button
+        ><button type="button" id="dashboardEnable" class="secondary" hidden
+          >Automatik aktivieren</button
         ><button type="button" id="dashboardPause" class="secondary">Pausieren</button></div
       >
-      <div class="actions"
-        ><button type="button" id="annualOpen" class="secondary">Jahresübersicht</button
-        ><button type="button" id="openMigration" class="secondary"
-          >Aus bisheriger Kopie umziehen</button
-        ><button type="button" id="manageAccess" class="secondary" hidden
-          >Zugriff verwalten</button
+      <details id="historyPanel" class="history" hidden>
+        <summary>Verlauf der letzten Läufe</summary>
+        <ol id="history" class="history-list"></ol>
+        <p class="muted">Aufeinanderfolgende Läufe mit gleichem Ergebnis werden zusammengefasst.</p>
+      </details>
+      <div class="tools">
+        <button type="button" id="annualOpen" class="tool"
+          ><strong>Jahresübersicht</strong
+          ><small>Stunden, Nacht- und Feiertagszeiten für die Steuerunterlagen</small></button
+        ><button type="button" id="openMigration" class="tool"
+          ><strong>Aus bisheriger Kopie umziehen</strong
+          ><small>Einstellungen einer eigenen Skriptkopie übernehmen</small></button
+        ><button type="button" id="manageAccess" class="tool" hidden
+          ><strong>Zugriff verwalten</strong
+          ><small>Google-Konten einladen oder entfernen</small></button
         ></div
       >
     </section>
@@ -136,6 +185,11 @@
       ><p id="migrationMessage" role="status"></p>
     </section>
     <p id="initialError" role="alert"></p>
+    <footer class="app-footer">
+      <a id="siteLink" target="_blank" rel="noopener">Über Dienstplan Sync</a>
+      <a id="privacyLink" target="_blank" rel="noopener">Datenschutz</a>
+      <span id="appVersion"></span>
+    </footer>
     <!-- BUILD:scripts -->
   </body>
 </html>

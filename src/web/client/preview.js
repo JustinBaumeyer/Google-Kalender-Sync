@@ -60,6 +60,8 @@ async function diagnostic(kind) {
     );
     if (kind === "preview") {
       $("previewPanel").hidden = false;
+      previewChecked = true;
+      if (dashboardState) renderSetupGuide(dashboardState);
       renderEventList($("previewEvents"), result.events);
       $("previewErrors").replaceChildren();
       result.errors.forEach((error) =>
