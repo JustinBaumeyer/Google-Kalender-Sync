@@ -9,6 +9,24 @@ unvollständige Zeitangaben werden als ganztägig angezeigt. Individuelle Änder
 am einzelnen Dienst sind aus der Legende nicht ersichtlich. Die Optionen für
 Teampartner und Ablösung gelten auch für ausgewählte Personen.
 
+## Übersicht im Webinterface
+
+Die Startansicht zeigt den Zustand der Synchronisierung auf einen Blick: aktiv, pausiert,
+laufend, fehlgeschlagen oder seit längerem ohne Lauf. Darunter stehen der nächste geplante
+Lauf, die Quellen und das Ergebnis des letzten Laufs. **Verlauf der letzten Läufe** fasst
+aufeinanderfolgende Läufe mit gleichem Ergebnis zusammen und behält höchstens zwölf Einträge
+je Konto. Die Oberfläche folgt dem hellen oder dunklen Farbschema des Geräts.
+
+Google deaktiviert Zeitauslöser gelegentlich ohne Rückmeldung, etwa nach einer abgelaufenen
+Berechtigung. Bleibt der Sync länger als drei Intervalle (mindestens zwei Stunden) aus, weist
+die Übersicht darauf hin und richtet die Auslöser über **Auslöser neu einrichten** wieder ein.
+Dem Inhaber wird dort außerdem eine neuere veröffentlichte Version angezeigt.
+
+Ein nicht erreichbares Kalender-Abo oder ein Fehler in einem einzelnen Zielkalender lässt nur
+diesen Kalender unverändert; alle anderen werden im selben Lauf weiter abgeglichen. Geänderte
+Einstellungen für Sichtbarkeit, Kalendername im Titel und die Erinnerung ganztägiger Termine
+werden beim nächsten Lauf auch auf bereits übernommene Termine angewendet.
+
 ## Gemeinsame App einrichten
 
 1. Den letzten erfolgreichen Build im Branch [release](https://github.com/JustinBaumeyer/Google-Kalender-Sync/tree/release) öffnen.
@@ -76,7 +94,8 @@ Die bisherigen Dateien und insbesondere `settings.gs` bleiben unverändert.
    **Aus bisheriger Kopie umziehen → Migrationshilfe kopieren** auswählen.
 2. Im Skripteditor der **eigenen alten Kopie** eine neue Skriptdatei anlegen und die
    Migrationshilfe vollständig einfügen. Nichts darin anpassen. Die Datei ist auch
-   unter [migration/Export.gs](migration/Export.gs) verfügbar.
+   unter [migration/Export.gs](migration/Export.gs) verfügbar. Die App liefert sie mit
+   dem installierten Programmstand aus und lädt dafür nichts aus dem Internet nach.
 3. `prepareSharedAppMigration` ausführen. Die Funktion liest die eigenen Einstellungen
    und Zugangsdaten, ermittelt vorhandene Zielkalender und pausiert die alten
    Sync-Auslöser. Andere eigene Auslöser bleiben bestehen.
@@ -177,13 +196,14 @@ Mit Node.js 22 oder neuer:
 ```sh
 npm ci
 npm run format
-npm test
+npm run check          # Formatierung, ESLint und Servertests
 npx playwright install chromium
 npm run test:browser
 ```
 
 Ein vorhandener Chromium kann über `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` ausgewählt
-werden. GitHub Actions führt beide Testsuiten aus. Tests verwenden die tatsächliche
+werden. Mit `UI_SCREENSHOT_DIR` legen die Browsertests ihre Bildschirmfotos in einem
+eigenen Ordner ab. GitHub Actions führt beide Testsuiten aus. Tests verwenden die tatsächliche
 Einstellungs- und Importlogik mit simulierten Google-Diensten; echte OAuth-Anmeldung,
 Dienstplan-Zugriff und die erste Bereitstellung mit zwei Konten separat prüfen.
 Ausführungsprotokolle enthalten Phasenlaufzeiten; lange Importe werden in kleinen
@@ -195,18 +215,27 @@ Die App besteht anschließend aus `Code.gs` und `Index.html`; der private
 Inhaber-Updater wird separat als `admin/Updates.gs` erzeugt. Die erzeugten Dateien
 sind in `main` nicht eingecheckt.
 
-GitHub Actions baut Pull Requests und prüft Formatierung, Servercode und
-Browseroberfläche. Die erzeugten Dateien stehen im jeweiligen Actions-Lauf als
-Artefakt `apps-script-build` zum Herunterladen bereit. Nach einem erfolgreichen Lauf auf `main` veröffentlicht es
+GitHub Actions prüft Pull Requests in drei parallelen Jobs: Formatierung, ESLint und
+Versionsvergleich, Servertests sowie Browsertests. Erst wenn alle bestanden sind, baut der
+Job `test` die Installationsdateien. Sie stehen im jeweiligen Actions-Lauf als
+Artefakt `apps-script-build` zum Herunterladen bereit, die Bildschirmfotos der
+Browsertests als `ui-screenshots`. Ein neuer Push ersetzt laufende Prüfungen desselben
+Pull Requests. Dependabot schlägt monatlich Aktualisierungen der Entwicklungswerkzeuge
+und Actions vor. Nach einem erfolgreichen Lauf auf `main` veröffentlicht es
 den geprüften Build automatisch im Branch `release`. Ein fehlgeschlagener oder
 inzwischen überholter Lauf ersetzt keinen veröffentlichten Build. Installation
 und Updater verwenden `release`; sie brauchen kein Node.js. Über **Actions →
 Build and test → Run workflow** lässt sich der Build auf `main` erneut starten.
-Für ein neues App-Update die Versionsnummer in `src/version.js` erhöhen.
+Für ein neues App-Update die Versionsnummer in `src/version.js` erhöhen. Der
+Versionsvergleich (`npm run version:check`) meldet im Actions-Lauf, wenn sich das
+Programm gegenüber `release` geändert hat, die Nummer aber nicht höher ist – bestehende
+Installationen würden eine solche Veröffentlichung nie erhalten. Die Nummer muss auch
+höher sein als jede früher veröffentlichte, selbst wenn `main` inzwischen zurückgesetzt
+wurde.
 
 | Verzeichnis | Inhalt |
 | --- | --- |
-| `src/sync/` | Ablauf, Fortsetzung, Zeitsteuerung und Verarbeitung eines Zielkalenders |
+| `src/sync/` | Ablauf, Fortsetzung, Zeitsteuerung, Laufverlauf und Verarbeitung eines Zielkalenders |
 | `src/calendar/` | Kalenderzuordnung, Laden und Abgleichen von Terminen, Serien und Löschungen |
 | `src/roster/` | Dienstplan-API, Token, Monatsabfragen, Teamdaten und iCal-Ausgabe |
 | `src/reports/` | Feiertagsabruf, Nutzer-Cache, Dienstaufbereitung und Jahresberechnung |
@@ -225,6 +254,13 @@ Lizenzhinweise bleiben erhalten. Standardeinstellungen stehen in
 `src/settings/defaults.js`, persönliche Werte in den User Properties. Eine
 vorhandene `settings.gs` wird nur für den Umzug älterer Installationen behalten.
 Die Apps-Script-Manifeste und `migration/Export.gs` werden direkt gepflegt.
+
+Weil alle Dateien eines Bündels denselben Namensraum teilen, sichern Prüfungen die
+Grenzen ab: ESLint (`eslint.config.mjs`) kennt die gemeinsamen Namen aus dem Manifest
+und meldet Tippfehler und unbekannte Bezeichner. `tests/architecture.test.cjs`
+verhindert doppelt vergebene Namen, Aufrufe nicht vorhandener oder privater
+Serverfunktionen aus dem Browser und fehlende Seitenelemente. Texte, die das Programm
+unverändert ausliefert, bindet der Build über den Abschnitt `text` des Manifests ein.
 
 Die Build-Prüfung erkennt unvollständige Dateilisten und ungültiges JavaScript.
 Vor der Veröffentlichung wird der geprüfte Build noch einmal mit dem zugehörigen

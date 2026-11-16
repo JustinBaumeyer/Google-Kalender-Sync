@@ -3,6 +3,7 @@
 /Index.html
 /admin/Updates.gs
 /build-output/
+/ui-screenshots/
 logs
 *.log
 npm-debug.log*
