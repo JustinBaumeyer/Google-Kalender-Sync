@@ -26,6 +26,7 @@ test('source changes are caught before stale installation files can be shipped',
   t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
   fs.cpSync(path.join(root, 'src'), path.join(directory, 'src'), {recursive: true});
   fs.cpSync(path.join(root, 'vendor'), path.join(directory, 'vendor'), {recursive: true});
+  fs.cpSync(path.join(root, 'migration'), path.join(directory, 'migration'), {recursive: true});
   for (const [name, source] of build()) {
     const file = path.join(directory, name);
     fs.mkdirSync(path.dirname(file), {recursive: true});

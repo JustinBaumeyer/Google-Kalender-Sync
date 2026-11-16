@@ -25,6 +25,18 @@ function build(directory = root) {
     let source = joinScripts(sources);
     const notice = "// Generated with npm run build. Edit the source files under src/.\n";
     source = name === "Code.gs" ? source.replace(/\n/, "\n" + notice) : notice + source;
+    // Text shipped with the program, so it always matches the installed version.
+    for (const [variable, file] of Object.entries((manifest.text || {})[name] || {})) {
+      if (!/^[A-Za-z]\w*_$/.test(variable)) throw new Error("Embedded text must be private");
+      source +=
+        "\n// Source: " +
+        file +
+        " (embedded as text)\nvar " +
+        variable +
+        " = " +
+        JSON.stringify(read(file)) +
+        ";\n";
+    }
     new vm.Script(source, { filename: name });
     outputs.set(name, source);
   }

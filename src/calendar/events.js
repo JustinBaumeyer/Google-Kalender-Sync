@@ -65,7 +65,7 @@ function createEvent_(event, calendarTz) {
 
   var digest = Utilities.computeDigest(
     Utilities.DigestAlgorithm.MD5,
-    icalEvent.toString()
+    icalEvent.toString() + eventRenderSignature_(icalEvent.startDate.isDate)
   ).toString();
   if (calendarEventsMD5Set.has(digest)) {
     showSkipMessage &&
@@ -206,6 +206,25 @@ function createEvent_(event, calendarTz) {
   }
 
   return newEvent;
+}
+
+/**
+ * Settings that change how an unchanged source event is written. Mixing them into
+ * the digest lets a changed setting reach events that were imported earlier.
+ * Program defaults add nothing, so digests stored by earlier versions stay valid.
+ *
+ * @param {boolean} allDay - Whether the event is an all-day event
+ * @return {string} Suffix for the change digest
+ */
+function eventRenderSignature_(allDay) {
+  var parts = [];
+  var visibility = String(overrideVisibility || "").toLowerCase();
+  if (["default", "public", "private", "confidential"].indexOf(visibility) != -1)
+    parts.push("visibility=" + visibility);
+  if (addCalToTitle) parts.push("calendarInTitle");
+  if (allDay && defaultAllDayReminder >= 0 && defaultAllDayReminder <= 40320)
+    parts.push("allDayReminder=" + defaultAllDayReminder);
+  return parts.length ? "\n#" + parts.join(";") : "";
 }
 
 /**

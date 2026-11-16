@@ -22,10 +22,12 @@ function notifyError_(message) {
   try {
     MailApp.sendEmail(
       recipient,
-      "Google-Kalender-Sync: sync failed",
-      "The calendar sync run failed with the following error:\n\n" +
+      "Dienstplan Sync: Synchronisierung fehlgeschlagen",
+      "Die automatische Synchronisierung ist mit dieser Meldung fehlgeschlagen:\n\n" +
         message +
-        "\n\nCheck the Apps Script execution log for details."
+        "\n\nDeine bestehenden Kalendertermine bleiben erhalten. Der nächste geplante Lauf versucht es erneut." +
+        "\nIn der App findest du unter „Fehlerdetails“ einen Bericht zur Weitergabe." +
+        "\n\nBei wiederholten Fehlern kommt höchstens eine E-Mail pro Stunde."
     );
     userPrp.setProperty("lastErrorNotification", new Date().getTime());
   } catch (e) {

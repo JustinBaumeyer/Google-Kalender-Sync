@@ -68,7 +68,10 @@ function startSync(event) {
         })
       )
         markRosterConnectionVerified_();
-      userPrp.setProperty("lastSyncStats", JSON.stringify(syncStats));
+      userPrp.setProperties(
+        { lastSyncStats: JSON.stringify(syncStats), syncHistory: recordSyncRun_() },
+        false
+      );
       publishSyncProgress_("Synchronisierung abgeschlossen", 1, 1, "complete");
     }
     if (!event || !event.triggerUid) return getAppState();
@@ -84,10 +87,16 @@ function startSync(event) {
       return;
     }
     var message = err.message || err;
-    userPrp.setProperty("lastSyncDiagnostic", buildSyncDiagnostic_(err));
     Logger.log("Sync failed: " + message);
-    userPrp.setProperty("lastSyncError", String(message));
-    userPrp.setProperty("syncPending", "false");
+    userPrp.setProperties(
+      {
+        lastSyncDiagnostic: buildSyncDiagnostic_(err),
+        lastSyncError: String(message),
+        syncPending: "false",
+        syncHistory: recordSyncRun_(message)
+      },
+      false
+    );
     publishSyncProgress_(String(message), undefined, undefined, "failed");
     notifyError_(message);
     throw err;
@@ -104,6 +113,7 @@ function runSync_() {
   var calendars = condenseCalendarMap_(sourceCalendars);
   var calendarLookup = {};
   var failedCalendars = [];
+  var firstFailure = null;
   var migration = {
     enabled: userPrp.getProperty("adoptLegacyEvents") == "true",
     adopted: 0,
@@ -115,12 +125,26 @@ function runSync_() {
     var calendarIndex = (resumeAt + position) % calendars.length;
     var calendar = calendars[calendarIndex];
     userPrp.setProperty("syncResumeCalendar", String(calendarIndex));
-    if (!syncTargetCalendar_(calendar, migration, calendarLookup))
-      failedCalendars.push(calendar[0]);
+    try {
+      if (!syncTargetCalendar_(calendar, migration, calendarLookup))
+        failedCalendars.push(calendar[0]);
+    } catch (err) {
+      if (err && err.syncPaused) throw err;
+      // Targets are independent. One broken source or calendar must not keep the
+      // others from syncing; the first error is still reported for this run.
+      Logger.log("Sync of " + calendar[0] + " failed: " + ((err && err.message) || err));
+      if (!firstFailure) firstFailure = { error: err, phase: syncPhase };
+    }
+  }
+  if (firstFailure || failedCalendars.length) userPrp.deleteProperty("syncResumeCalendar");
+  if (firstFailure) {
+    syncPhase = firstFailure.phase; // The error report names the step that failed.
+    throw firstFailure.error;
   }
   if (failedCalendars.length)
     throw new Error(
-      "Sync incomplete, could not fetch all sources for: " + failedCalendars.join(", ")
+      "Nicht alle Quellen konnten geladen werden. Unverändert bleiben: " +
+        failedCalendars.join(", ")
     );
   if (migration.enabled && !migration.remaining && !migration.deferred)
     userPrp.deleteProperty("adoptLegacyEvents");

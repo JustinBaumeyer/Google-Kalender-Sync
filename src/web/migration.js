@@ -96,18 +96,8 @@ function importLegacyCopy(input) {
   return getAppState();
 }
 
+/** The helper is embedded at build time and therefore matches the installed version. */
 function getMigrationSnippet() {
   requireWebUser_();
-  var response = UrlFetchApp.fetch(
-    "https://raw.githubusercontent.com/JustinBaumeyer/Google-Kalender-Sync/main/migration/Export.gs",
-    { muteHttpExceptions: true }
-  );
-  if (response.getResponseCode() != 200)
-    throw new Error(
-      "Die Migrationshilfe konnte nicht geladen werden. Bitte später erneut versuchen."
-    );
-  var source = response.getContentText();
-  if (source.indexOf("function prepareSharedAppMigration()") < 0)
-    throw new Error("Die Migrationshilfe hat ein unerwartetes Format.");
-  return source;
+  return migrationSnippetSource_;
 }

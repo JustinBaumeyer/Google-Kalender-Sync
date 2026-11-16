@@ -1,12 +1,63 @@
+var publicSiteUrl = "https://justinbaumeyer.github.io/Google-Kalender-Sync/";
+
+function escapeHtml_(value) {
+  return String(value == null ? "" : value).replace(/[&<>"']/g, function (character) {
+    return "&#" + character.charCodeAt(0) + ";";
+  });
+}
+
+/** Explains which account was refused, since most refusals are a wrong Google profile. */
+function accessDeniedPage_() {
+  var email = "",
+    configured = true;
+  try {
+    email = Session.getActiveUser().getEmail().trim().toLowerCase();
+    configured = !!scriptPrp.getProperty("appOwnerEmail");
+  } catch (err) {
+    // The generic explanation below still applies.
+  }
+  var reason = !configured
+    ? "Die App ist noch nicht eingerichtet. Der App-Inhaber muss zuerst die Einrichtung abschließen."
+    : email
+      ? "Das Konto <strong>" + escapeHtml_(email) + "</strong> ist für diese App nicht eingeladen."
+      : "Bitte melde dich mit deinem eingeladenen Google-Konto an.";
+  return (
+    '<!doctype html><html lang="de"><head><base target="_top"><style>' +
+    ":root{color-scheme:light dark;font:16px/1.55 system-ui,sans-serif}" +
+    "body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f3f6f3;color:#19392f;padding:1.25rem;box-sizing:border-box}" +
+    "main{max-width:30rem;background:#fff;border:1px solid #dce4dd;border-radius:16px;padding:1.75rem}" +
+    "h1{font-size:1.4rem;margin:0 0 .75rem}p{margin:.5rem 0}a{color:#146947}" +
+    ".muted{color:#5b6e64;font-size:.9rem}" +
+    "@media (prefers-color-scheme:dark){body{background:#0f1714;color:#e4ede7}main{background:#17221d;border-color:#2b3a33}a{color:#7fd0a6}.muted{color:#9db0a5}}" +
+    "</style></head><body><main><h1>Dienstplan Sync</h1><p>Kein Zugriff. " +
+    reason +
+    '</p><p class="muted">Bist du im Browser mit mehreren Google-Konten angemeldet? Dann öffne den Link in einem Fenster, in dem nur das eingeladene Konto angemeldet ist, oder bitte den App-Inhaber, dieses Konto freizuschalten.</p>' +
+    '<p class="muted"><a href="' +
+    publicSiteUrl +
+    '">Über Dienstplan Sync</a> · <a href="' +
+    publicSiteUrl +
+    'datenschutz.html">Datenschutz</a></p></main></body></html>'
+  );
+}
+
 function doGet() {
+  var output;
   try {
     requireWebUser_();
-    return HtmlService.createHtmlOutputFromFile("Index").setTitle("Dienstplan Sync");
+    output = HtmlService.createHtmlOutputFromFile("Index");
   } catch (err) {
-    return HtmlService.createHtmlOutput(
-      "<h1>Dienstplan Sync</h1><p>Kein Zugriff. Melde dich mit deinem eingeladenen Google-Konto an oder kontaktiere den App-Inhaber.</p>"
-    );
+    output = HtmlService.createHtmlOutput(accessDeniedPage_());
   }
+  output.setTitle("Dienstplan Sync");
+  // Apps Script drops viewport tags from the HTML file; without this call phones
+  // render the page at desktop width and the mobile layout never applies.
+  output.addMetaTag("viewport", "width=device-width, initial-scale=1");
+  try {
+    output.setFaviconUrl(publicSiteUrl + "favicon.png");
+  } catch (err) {
+    // The icon is decoration only.
+  }
+  return output;
 }
 
 function getAppState() {
@@ -16,6 +67,9 @@ function getAppState() {
   var enabled = ScriptApp.getProjectTriggers().some(function (trigger) {
     return trigger.getHandlerFunction() == "startSync";
   });
+  var progress = saved.syncProgress ? JSON.parse(saved.syncProgress) : null;
+  var isOwner = email == scriptPrp.getProperty("appOwnerEmail");
+  var availableVersion = Number(scriptPrp.getProperty("availableVersion")) || 0;
   return {
     version: version,
     email: email,
@@ -25,7 +79,7 @@ function getAppState() {
     rosterConfigured: hasRosterCredentials_(saved.rosterUserId, saved.rosterUserToken),
     enabled: enabled,
     hasSavedPreferences: !!saved.preferences,
-    isOwner: email == scriptPrp.getProperty("appOwnerEmail"),
+    isOwner: isOwner,
     nextRunAt: nextPlannedRun_(saved, enabled),
     lastStats: saved.lastSyncStats ? JSON.parse(saved.lastSyncStats) : null,
     connectionVerified:
@@ -40,7 +94,11 @@ function getAppState() {
     diagnostic: saved.lastSyncDiagnostic || "",
     pending: saved.syncPending == "true",
     migrationRemaining: Number(saved.migrationRemaining) || 0,
-    progress: saved.syncProgress ? JSON.parse(saved.syncProgress) : null
+    progress: progress,
+    history: readSyncHistory_(saved),
+    stalled: syncLooksStalled_(saved, enabled, progress, settings.howFrequent),
+    availableVersion: isOwner && availableVersion > version ? availableVersion : null,
+    links: { site: publicSiteUrl, privacy: publicSiteUrl + "datenschutz.html" }
   };
 }
 

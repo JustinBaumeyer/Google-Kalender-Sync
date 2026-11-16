@@ -8,6 +8,7 @@
       "src/runtime/user-context.js",
       "src/sync/scheduling.js",
       "src/sync/state.js",
+      "src/sync/history.js",
       "src/sync/run.js",
       "src/sync/target.js",
       "src/runtime/notifications.js",
@@ -58,6 +59,9 @@
       "src/updates/check.js"
     ],
     "admin/Updates.gs": ["src/updates/owner.js"]
+  },
+  "text": {
+    "Code.gs": { "migrationSnippetSource_": "migration/Export.gs" }
   },
   "page": {
     "template": "src/web/index.html",
