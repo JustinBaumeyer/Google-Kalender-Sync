@@ -76,7 +76,7 @@ test('an ongoing continuous duty is omitted from the completed report',()=>{
 test('annual endpoint reads only the current roster, preserves preferences and makes no calendar writes',()=>{
   const {app,c}=setup();app.logs=[];
   c.saveAppSettings({settings:{addYearSummary:true,summaryYear:'2024',rosterTimeZone:'UTC'},rosterUserId:'123',rosterUserToken:'private-token'});
-  const before=app.users.get(alice).get('preferences'),calls=services(c,[entry('2026-02-02T20:00+01:00','2026-02-03T06:00+01:00')]);
+  const before=app.users.get(alice).get('preferences'),savedCount=app.users.get(alice).size,calls=services(c,[entry('2026-02-02T20:00+01:00','2026-02-03T06:00+01:00')]);
   c.Calendar.Events={insert:()=>assert.fail('Report wrote to a calendar'),patch:()=>assert.fail('Report changed a calendar')};
   const r=c.getAnnualRosterSummary({year:2026,region:'NW',extraDates:[],includeFuture:false});
   assert.equal(r.totals.nightMinutes,600);assert.equal(r.timeZone,'Europe/Berlin');assert.equal(calls.length,3);
@@ -85,7 +85,7 @@ test('annual endpoint reads only the current roster, preserves preferences and m
   const holiday=calls.find(call=>call.url.includes('feiertage-api.de'));
   assert.equal(holiday.options.headers,undefined);assert.equal(holiday.options.payload,undefined);
   assert.equal(app.users.get(alice).get('preferences'),before);assert.equal(app.users.get(alice).get('rosterUserToken'),'renewed-report-token');
-  assert.equal(app.users.get(alice).size,3);assert.deepEqual(app.logs,[]);
+  assert.equal(app.users.get(alice).size,savedCount);assert.deepEqual(app.logs,[]);
   assert.throws(()=>load(app,'stranger@example.com').getAnnualRosterSummary({year:2026,region:'NW',includeFuture:false}),/nicht eingeladen/);
 });
 test('annual endpoint rejects invalid options and another active run before fetching private data',()=>{

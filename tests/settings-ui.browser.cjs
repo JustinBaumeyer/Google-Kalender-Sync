@@ -4,7 +4,7 @@ const path = require('node:path');
 const {test,before,after} = require('node:test');
 const {chromium} = require('playwright');
 const vm = require('node:vm');
-const {load,shared,alice} = require('./helpers/apps-script.cjs');
+const {load,shared,alice,bob} = require('./helpers/apps-script.cjs');
 const {entry:annualEntry,services:annualServices}=require('./helpers/annual-roster.cjs');
 const {setup:teamSetup,roster:teamRoster,day:teamDay}=require('./helpers/team-roster.cjs');
 let browser;
@@ -374,7 +374,7 @@ test('owner access panel adds and removes emails without JSON or sending message
 test('annual report merges identical night windows, groups stations and exports safe CSV',async()=>{
   const {page,server,app,calls,errors}=await open({addYearSummary:true,summaryYear:'2024'});
   try{
-    const preferences=app.users.get(alice).get('preferences');
+    const preferences=app.users.get(alice).get('preferences'),savedCount=app.users.get(alice).size;
     annualServices(server,[annualEntry('2026-02-02T20:00+01:00','2026-02-03T06:00+01:00'),annualEntry('2026-02-04T07:00+01:00','2026-02-04T19:30+01:00','Würselen 1 RTW 1'),annualEntry('2026-02-05T08:00+01:00','2026-02-05T16:00+01:00','=gefährlich')]);
     await page.locator('[data-preference="howFrequent"]').selectOption('30');
     await page.locator('#annualOpenSettings').click();await page.locator('#annualYear').fill('2026');await page.locator('#annualLoad').click();
@@ -412,7 +412,7 @@ test('annual report merges identical night windows, groups stations and exports 
     assert.ok(csv.includes('steuerfreie_Verpflegungserstattung_EUR'));assert.equal(csv.includes('saved-token'),false);
     assert.ok(csv.includes('Pause_im_Nachtfenster_min'));assert.ok(csv.includes('Abfahrt_Wohnung'));
     const lines=csv.split('\r\n');assert.ok(lines.every(line=>line.split(';').length===lines[0].split(';').length));
-    assert.equal(app.users.get(alice).get('preferences'),preferences);assert.equal(app.users.get(alice).size,3);
+    assert.equal(app.users.get(alice).get('preferences'),preferences);assert.equal(app.users.get(alice).size,savedCount);
     assert.equal(calls.includes('saveAppSettings'),false);assert.equal(calls.includes('startSync'),false);
     assert.equal(await page.locator('[data-preference="howFrequent"]').inputValue(),'30');
     await page.evaluate(()=>window.print=()=>{window.reportPrinted=Array.from(document.querySelectorAll('#annualResults details')).every(node=>node.open);});await page.locator('#annualPrint').click();assert.equal(await page.evaluate(()=>window.reportPrinted),true);
@@ -902,6 +902,30 @@ test('an expired roster access is shown once, with a direct way to enter a new t
     assert.equal(app.users.get(alice).get('rosterUserToken'),'new-token');
     assert.equal(await page.locator('#tokenNotice').isVisible(),false);
     assert.ok(calls.includes('saveAppSettings'));
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+test('the owner sees how every account is doing, and error emails are preselected',async()=>{
+  const app=shared();app.project.set('appOwnerEmail',alice);
+  app.project.set('allowedUserEmails',JSON.stringify([alice,bob,'carol@example.com']));
+  const now=Date.now();
+  app.project.set('health:'+bob,JSON.stringify({email:bob,enabled:true,interval:15,at:new Date(now-90*60000).toISOString(),ok:false,since:new Date(now-2*3600000).toISOString(),problem:'Dienstplan-Zugriff abgelehnt'}));
+  app.project.set('health:carol@example.com',JSON.stringify({email:'carol@example.com',enabled:true,interval:15,at:new Date(now-10*60000).toISOString(),ok:true}));
+  const {page,errors}=await open({}, {width:1120,height:950},0,app);
+  try{
+    assert.equal(await page.locator('#emailSettings select').inputValue(),'self');
+    assert.match(await page.locator('#emailSettings').textContent(),/höchstens alle drei Tage/);
+    await page.locator('#closeSettings').click();
+    await page.locator('#manageAccess').click();
+    await page.locator('#inviteList li').first().waitFor();
+    const rows=await page.locator('#inviteList li').allTextContents();
+    assert.ok(rows.some(row=>row.includes(bob)&&row.includes('Fehler seit')&&row.includes('Dienstplan-Zugriff abgelehnt')),rows.join('\n'));
+    assert.ok(rows.some(row=>row.includes('carol@example.com')&&row.includes('Läuft · letzter Lauf vor 10 Minuten')),rows.join('\n'));
+    assert.match(await page.locator('#ownerInfo').textContent(),/Noch keine Rückmeldung|Aktiviert|Läuft/);
+    assert.equal(await page.locator('#inviteList .account-state.problem').count(),1);
+    assert.deepEqual(await page.evaluate(lowContrastText,4.5),[]);
+    await page.locator('#adminPanel').screenshot({path:shot('access-health')});
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
 });

@@ -91,6 +91,12 @@ function install_() {
   );
   if (currentUserEmail_() == appOwnerEmail_())
     ScriptApp.newTrigger("checkForUpdates").timeBased().everyDays(1).create();
+  writeAccountHealth_({
+    enabled: true,
+    enabledAt: new Date().toISOString(),
+    interval: adjustedMinutes,
+    notify: alertRecipient_(errorNotificationEmail)
+  });
   return getAppState();
 }
 
@@ -99,8 +105,14 @@ function uninstall() {
 }
 
 /** Only the owner needs a daily release check for this shared installation. */
+/** The owner's daily check: account warnings first, then the release version. */
 function checkForUpdates() {
   requireAppOwner_();
+  try {
+    reviewAccountHealth_();
+  } catch (err) {
+    Logger.log("Account review failed: " + ((err && err.message) || err));
+  }
   var response = UrlFetchApp.fetch(
     "https://raw.githubusercontent.com/JustinBaumeyer/Google-Kalender-Sync/refs/heads/release/Code.gs",
     {

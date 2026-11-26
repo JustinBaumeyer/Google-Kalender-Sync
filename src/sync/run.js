@@ -58,8 +58,10 @@ function startSync(event) {
       );
       userPrp.deleteProperty("lastSyncDiagnostic");
     });
-    if (migrationRemaining) scheduleSyncContinuation_(migrationRemaining);
-    else {
+    if (migrationRemaining) {
+      scheduleSyncContinuation_(migrationRemaining);
+      noteRunActivity_();
+    } else {
       if (
         isRosterSourceActive_() &&
         sourceCalendars.some(function (row) {
@@ -73,6 +75,7 @@ function startSync(event) {
       );
       userPrp.deleteProperty("rosterAuthRejected");
       publishSyncProgress_("Synchronisierung abgeschlossen", 1, 1, "complete");
+      trackRunOutcome_(null, !!(event && event.triggerUid));
     }
     if (!event || !event.triggerUid) return getAppState();
   } catch (err) {
@@ -83,6 +86,7 @@ function startSync(event) {
         false
       );
       scheduleSyncContinuation_();
+      noteRunActivity_();
       if (!event || !event.triggerUid) return getAppState();
       return;
     }
@@ -102,7 +106,7 @@ function startSync(event) {
       false
     );
     publishSyncProgress_(String(message), undefined, undefined, "failed");
-    notifyError_(message);
+    trackRunOutcome_(err, !!(event && event.triggerUid));
     throw err;
   } finally {
     syncDeadline = 0;

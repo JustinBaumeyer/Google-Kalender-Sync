@@ -25,6 +25,18 @@ Berechtigung. Bleibt der Sync länger als drei Intervalle (mindestens zwei Stund
 die Übersicht darauf hin und richtet die Auslöser über **Auslöser neu einrichten** wieder ein.
 Dem Inhaber wird dort außerdem eine neuere veröffentlichte Version angezeigt.
 
+**E-Mail-Warnungen** sind für alle Konten voreingestellt und lassen sich unter
+Einstellungen → „E-Mail bei Fehlern“ abschalten oder an eine andere Adresse richten.
+Besteht ein Problem bei geplanten Läufen länger als eine Stunde, bekommt die Person eine
+Warnung, ein abgelaufener Dienstplan-Zugang wird sofort gemeldet. Danach folgt höchstens alle
+drei Tage eine Erinnerung und eine kurze Nachricht, sobald es wieder läuft. Von Hand gestartete
+Läufe senden keine E-Mail. Jedes Konto hinterlegt dafür einen kurzen Zustand (`health:<E-Mail>`)
+in den Skripteigenschaften. Die tägliche Update-Prüfung des Inhabers wertet ihn aus: Sie warnt
+Konten, bei denen keine Läufe mehr stattfinden, direkt und sendet dem Inhaber eine Zusammenfassung,
+sobald sich die Liste der Konten mit Problemen ändert, und höchstens alle drei Tage, solange sie
+gleich bleibt. Diese Prüfung läuft nur, solange die Synchronisierung des Inhabers selbst aktiv ist.
+Unter „Zugriff verwalten“ steht bei jedem Konto dessen aktueller Zustand.
+
 Ein nicht erreichbares Kalender-Abo oder ein Fehler in einem einzelnen Zielkalender lässt nur
 diesen Kalender unverändert; alle anderen werden im selben Lauf weiter abgeglichen. Geänderte
 Einstellungen für Sichtbarkeit, Kalendername im Titel und die Erinnerung ganztägiger Termine

@@ -11,7 +11,7 @@ var preferenceDefaults = {
   defaultAllDayReminder: -1,
   showSkipMessage: false,
   overrideVisibility: "",
-  errorNotificationEmail: false,
+  errorNotificationEmail: true,
   consolidateEvents: true,
   consolidateMaxGapMinutes: 0,
   ignoreEvents: [],
@@ -52,6 +52,11 @@ function readUserPreferences_(properties) {
   var saved = properties ? properties.preferences : userPrp.getProperty("preferences");
   var overrides = saved ? decodePreferences_(saved) : {};
   validatePreferences_(overrides);
+  // Error emails are on by default since version 27. Settings saved before then stored
+  // "off" only because it was preset, so it counts once the person saves it again.
+  var choice = properties ? properties.errorEmailChoice : userPrp.getProperty("errorEmailChoice");
+  if (overrides.errorNotificationEmail === false && !choice)
+    delete overrides.errorNotificationEmail;
   return Object.assign(decodePreferences_(encodePreferences_(preferenceDefaults)), overrides);
 }
 

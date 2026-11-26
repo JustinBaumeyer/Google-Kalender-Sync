@@ -856,6 +856,13 @@ details[open] > summary {
 #ownerInfo {
   overflow-wrap: anywhere;
 }
+.account-state {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.account-state.problem {
+  color: var(--danger);
+}
 #connectionFields > details {
   margin-top: 0.75rem;
 }

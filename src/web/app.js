@@ -112,7 +112,8 @@ function saveAppSettings(input) {
   if (!input || typeof input != "object") throw new Error("Die Einstellungen fehlen");
   var preferences = decodePreferences_(JSON.stringify(input.settings));
   var serialized = validatePreferences_(preferences);
-  var values = { preferences: serialized };
+  // A saved choice about error emails is kept, even "off" (see readUserPreferences_).
+  var values = { preferences: serialized, errorEmailChoice: "saved" };
   if (input.rosterUserId !== undefined) {
     if (input.rosterUserId !== "" && !/^\d+$/.test(String(input.rosterUserId)))
       throw new Error("Die Mitarbeiter-ID darf nur Ziffern enthalten");
@@ -138,6 +139,7 @@ function saveAppSettings(input) {
 function stopSync() {
   requireWebUser_();
   deleteAllTriggers_(); // Apps Script returns only the current user's triggers.
+  writeAccountHealth_({ enabled: false });
   userPrp.setProperty("syncPending", "false");
   publishSyncProgress_("Automatische Synchronisierung pausiert", undefined, undefined, "paused");
   userPrp.deleteProperty("initialSyncTriggerId");
@@ -154,6 +156,7 @@ function disconnectApp() {
     clearAnnualRosterCache_();
     userPrp.deleteAllProperties();
     deleteAllTriggers_();
+    deleteAccountHealth_();
   });
   return getAppState();
 }
