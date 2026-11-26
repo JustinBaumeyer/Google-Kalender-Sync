@@ -86,10 +86,31 @@ async function diagnostic(kind) {
   );
 }
 
+/** One line on how an account is doing, from the record its runs keep for the owner. */
+function accountState(state) {
+  const date = (value) =>
+    new Date(value).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+  if (!state) return ["Noch keine Rückmeldung – erscheint nach dem nächsten Lauf.", false];
+  if (state.kind === "failing")
+    return ["Fehler seit " + date(state.since) + ": " + state.problem, true];
+  if (state.kind === "stalled") return ["Kein automatischer Lauf seit " + date(state.since), true];
+  if (state.kind === "paused") return ["Synchronisierung pausiert", false];
+  return [
+    state.at ? "Läuft · letzter Lauf " + relativeTime(state.at) : "Aktiviert, noch kein Lauf",
+    false
+  ];
+}
+function stateLine(state) {
+  const [text, problem] = accountState(state);
+  return element("small", text, problem ? "account-state problem" : "account-state");
+}
 function renderInvitations(result) {
   invitations = result;
   $("adminPanel").hidden = false;
-  $("ownerInfo").textContent = "App-Inhaber: " + result.owner + " (Zugriff bleibt immer erhalten)";
+  $("ownerInfo").replaceChildren(
+    "App-Inhaber: " + result.owner + " (Zugriff bleibt immer erhalten)",
+    stateLine(result.health[result.owner])
+  );
   $("inviteList").replaceChildren();
   result.emails
     .filter((email) => email !== result.owner)
@@ -98,7 +119,9 @@ function renderInvitations(result) {
         remove = element("button", "Zugriff entziehen", "remove");
       remove.type = "button";
       remove.setAttribute("aria-label", "Zugriff für " + email + " entziehen");
-      row.append(element("span", email), remove);
+      const name = element("span");
+      name.append(element("span", email), stateLine(result.health[email]));
+      row.append(name, remove);
       $("inviteList").append(row);
       remove.onclick = () => updateInvitations(result.emails.filter((value) => value !== email));
     });

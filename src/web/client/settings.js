@@ -27,7 +27,7 @@ function renderFields() {
     select(
       [
         ["off", "Keine E-Mail"],
-        ["self", "An meine Google-Adresse"],
+        ["self", "An meine Google-Adresse (empfohlen)"],
         ["custom", "An eine andere Adresse"]
       ],
       current.settings.errorNotificationEmail === false
@@ -35,7 +35,8 @@ function renderFields() {
         : current.settings.errorNotificationEmail === true
           ? "self"
           : "custom"
-    )
+    ),
+    "Warnt, wenn die Synchronisierung länger als eine Stunde gestört ist, der Dienstplan-Zugang abläuft oder keine Läufe mehr stattfinden. Danach höchstens alle drei Tage eine Erinnerung und eine Nachricht, wenn es wieder läuft."
   );
   const email = field(
     $("emailSettings"),

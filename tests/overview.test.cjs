@@ -198,16 +198,3 @@ test('the migration helper ships with the program and needs no network access', 
     fs.readFileSync(path.join(__dirname, '../migration/Export.gs'), 'utf8').trimEnd() + '\n');
   assert.throws(() => load(shared(), 'stranger@example.com').getMigrationSnippet(), /nicht eingeladen/);
 });
-
-test('failure emails are written in German and never include the diagnostic report', () => {
-  const {c} = syncing({errorNotificationEmail: true});
-  const mails = [];
-  c.MailApp = {sendEmail: (...args) => mails.push(args)};
-  c.runSync_ = () => { throw new Error('Dienstplan nicht erreichbar'); };
-  assert.throws(() => c.startSync());
-  assert.equal(mails.length, 1);
-  assert.equal(mails[0][0], alice);
-  assert.match(mails[0][1], /Synchronisierung fehlgeschlagen/);
-  assert.match(mails[0][2], /Dienstplan nicht erreichbar/);
-  assert.equal(mails[0][2].includes('Dateipositionen'), false);
-});

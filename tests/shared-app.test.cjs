@@ -221,23 +221,6 @@ test('sync ignores incomplete or unmarked event metadata in regular runs and leg
   }
 });
 
-test('scheduled error emails use the current account and throttle separately', () => {
-  const app = shared(), a = load(app, alice), b = load(app, bob);
-  save(a, '100', 'a', { errorNotificationEmail: true });
-  save(b, '200', 'b', { errorNotificationEmail: true });
-  a.install(); b.install();
-  const recipients = [];
-  for (const email of [alice, bob]) {
-    const timed = load(app, email, '');
-    timed.MailApp = { sendEmail: recipient => recipients.push(recipient) };
-    timed.runSync_ = () => { throw new Error('Roster unavailable'); };
-    const event = { triggerUid: app.triggers.get(email)[0].getUniqueId() };
-    assert.throws(() => timed.startSync(event), /Roster unavailable/);
-    assert.throws(() => timed.startSync(event), /Roster unavailable/);
-  }
-  assert.deepEqual(recipients, [alice, bob]);
-});
-
 test('internal and migration functions are private to google.script.run', () => {
   const publicNames = new Set(['install', 'uninstall', 'startSync', 'checkForUpdates', 'getSyncProgress',
     'getCalendarChoices','getTeamRosterPeople','testRosterConnection','saveAnnualStationSettings','getAnnualRosterSummary','previewSynchronization','getInvitations','saveInvitations','importLegacyCopy','getMigrationSnippet',

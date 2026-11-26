@@ -74,7 +74,11 @@ function requireSyncUser_(event) {
 function getInvitations() {
   requireWebUser_();
   requireAppOwner_();
-  return { owner: appOwnerEmail_(), emails: invitedEmails_() };
+  return {
+    owner: appOwnerEmail_(),
+    emails: invitedEmails_(),
+    health: readAccountHealth_(Date.now())
+  };
 }
 
 function saveInvitations(emails) {

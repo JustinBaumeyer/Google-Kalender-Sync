@@ -6,6 +6,7 @@
       "vendor/tzid.js",
       "src/runtime/execution.js",
       "src/runtime/failures.js",
+      "src/runtime/alerts.js",
       "src/sync/schedule.js",
       "src/sync/run.js",
       "src/sync/target.js",
