@@ -9,7 +9,7 @@ function message(text, error = false) {
   $("message").textContent = $("preferences").hidden ? "" : text;
   $("globalMessage").textContent = $("preferences").hidden ? text : "";
   $("message").className = error ? "error" : "";
-  $("globalMessage").style.color = error ? "#a32225" : "";
+  $("globalMessage").className = error ? "flash error" : "flash";
   $("initialError").textContent = "";
 }
 function busy(value) {
@@ -17,16 +17,34 @@ function busy(value) {
     (id) => ($(id).disabled = value)
   );
   document
-    .querySelectorAll("#overview button, #closeSettings, #migrationShortcut")
+    .querySelectorAll("#overview button, #closeSettings, #migrationShortcut, #repairTriggers")
     .forEach((button) => (button.disabled = value));
 }
 function showSettings(show) {
   $("preferences").hidden = !show;
   $("overview").hidden = show;
 }
+/** A run that was cut off by Google never reports its end; do not wait for it forever. */
+function isActiveRun(progress) {
+  return (
+    !!progress &&
+    progress.status === "running" &&
+    (!progress.updatedAt || Date.now() - progress.updatedAt < 420000)
+  );
+}
 function showProgress(progress) {
   if (!progress) return;
-  if (progress.status === "paused") {
+  // Neither an interrupted run nor a result from an earlier visit is current progress.
+  const recent = !progress.updatedAt || Date.now() - progress.updatedAt < 600000;
+  if (
+    (progress.status === "running" && !isActiveRun(progress)) ||
+    (progress.status === "complete" && !recent)
+  ) {
+    $("syncPanel").hidden = true;
+    return;
+  }
+  if (progress.status === "paused" || progress.status === "failed") {
+    // A failed run is reported by the status card; the progress bar only shows live work.
     progressEpoch++;
     clearTimeout(progressTimer);
     $("syncPanel").hidden = true;
@@ -42,28 +60,27 @@ function showProgress(progress) {
         ? "Alle Schritte abgeschlossen."
         : progress.completed + " von " + progress.total + " im aktuellen Schritt";
   } else {
-    if (progress.status === "failed") {
-      $("syncProgress").max = 1;
-      $("syncProgress").value = 0;
-    } else $("syncProgress").removeAttribute("value");
+    $("syncProgress").removeAttribute("value");
     $("syncCount").textContent =
       progress.status === "pending"
         ? "Der nächste Lauf ist geplant. Du kannst die Seite schließen."
-        : progress.status === "failed"
-          ? "Der Lauf wurde unterbrochen."
-          : "Bitte warten …";
+        : "Bitte warten …";
   }
-  if (["complete", "failed", "paused"].includes(progress.status)) {
+  if (progress.status === "complete") {
     progressEpoch++;
     clearTimeout(progressTimer);
-    if (progress.status === "failed") message(progress.phase, true);
-    if (progress.status === "complete" && current) {
+    if (current) {
       current.pending = false;
-      $("status").textContent = current.enabled
-        ? "Automatische Synchronisierung aktiv"
-        : "Automatische Synchronisierung pausiert";
-      $("lastSync").textContent =
-        "Letzter vollständiger Lauf: " + new Date(progress.updatedAt).toLocaleString("de-DE");
+      // Show the result at once; the full state follows with the next server answer.
+      renderStatus(
+        Object.assign({}, dashboardState || current, {
+          pending: false,
+          progress: progress,
+          lastError: "",
+          stalled: false,
+          lastSync: new Date(progress.updatedAt || Date.now()).toISOString()
+        })
+      );
     }
   }
 }
@@ -75,7 +92,7 @@ function pollProgress(epoch = progressEpoch) {
       // A fresh request may still see the previous run before its handler starts.
       if (
         progress &&
-        (!syncRequestActive || progress.status === "running" || progress.status === "pending")
+        (!syncRequestActive || isActiveRun(progress) || progress.status === "pending")
       )
         showProgress(progress);
       if (!syncRequestActive && progress && ["complete", "failed"].includes(progress.status)) {
@@ -92,7 +109,7 @@ function pollProgress(epoch = progressEpoch) {
           })
           .catch(() => {});
       }
-      if (syncRequestActive || (progress && ["running", "pending"].includes(progress.status)))
+      if (syncRequestActive || isActiveRun(progress) || (progress && progress.status === "pending"))
         progressTimer = setTimeout(
           () => pollProgress(epoch),
           progress && progress.status === "pending" ? 10000 : 2000

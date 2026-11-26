@@ -48,7 +48,10 @@ function load({ enabled = true, remoteVersion = 7, locked = false } = {}) {
     } },
     PropertiesService: { getUserProperties: () => ({ getProperty: () => null }), getScriptProperties: () => ({
       getProperty: key => properties.get(key) ?? null,
-      setProperty: (key, value) => properties.set(key, value),
+      setProperty: (key, value) => {
+        if (typeof value !== 'string' && typeof value !== 'number') throw new Error('Invalid argument: value');
+        properties.set(key, String(value));
+      },
       deleteProperty: key => properties.delete(key),
     }) },
     LockService: { getScriptLock: () => ({

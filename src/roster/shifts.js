@@ -158,12 +158,13 @@ function shiftBlockToICal_(block) {
     .join(" · ");
   if (typeAndDuration) descLines.push(typeAndDuration);
   descLines = descLines.concat(block.extraLines);
-  return generateICalEntry_(
-    block.uid || block.shortName + start + end,
-    start,
-    end,
-    block.summary,
-    descLines.join("\n"),
-    { transparent: block.transparent, keepSeparate: !!block.keepSeparate }
-  );
+  // A shift is identified by its code and start. The UID also contains the end, as it
+  // always has in existing calendars, so the identity is remembered separately:
+  // overtime moves the end and must change the existing event, not add a second one.
+  var uid = block.uid || block.shortName + start + end;
+  if (!block.uid) rosterShiftKeys.set(uid, block.shortName + start);
+  return generateICalEntry_(uid, start, end, block.summary, descLines.join("\n"), {
+    transparent: block.transparent,
+    keepSeparate: !!block.keepSeparate
+  });
 }

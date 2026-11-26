@@ -1,7 +1,7 @@
 function teamDayKey_(value) {
   var instant = new Date(value);
   if (value == null || isNaN(instant.getTime())) return null;
-  var zone = typeof rosterTimeZone == "undefined" ? "Europe/Berlin" : rosterTimeZone;
+  var zone = rosterZone_();
   return Utilities.parseDate(
     Utilities.formatDate(instant, zone, "yyyy-MM-dd"),
     zone,

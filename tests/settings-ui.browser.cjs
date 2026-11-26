@@ -8,6 +8,10 @@ const {load,shared,alice} = require('./helpers/apps-script.cjs');
 const {entry:annualEntry,services:annualServices}=require('./helpers/annual-roster.cjs');
 const {setup:teamSetup,roster:teamRoster,day:teamDay}=require('./helpers/team-roster.cjs');
 let browser;
+// CI keeps these pictures as an artifact, so interface changes can be reviewed.
+const screenshots=process.env.UI_SCREENSHOT_DIR || require('node:os').tmpdir();
+fs.mkdirSync(screenshots,{recursive:true});
+const shot=name=>path.join(screenshots,'dienstplan-'+name+'.png');
 before(async()=>{
   browser=await chromium.launch({headless:true,
     ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? {executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH} : {}),
@@ -81,7 +85,7 @@ test('German page round-trips legacy settings and regex rules without JSON field
     assert.equal(server.getAppState().hasToken,true);
     assert.equal(await page.locator('#token').inputValue(),'');
     assert.deepEqual(errors,[]);
-    await page.screenshot({path:'/tmp/dienstplan-settings-desktop.png',fullPage:false});
+    await page.screenshot({path:shot('settings-desktop'),fullPage:false});
   }finally{await page.close();}
 });
 
@@ -263,7 +267,7 @@ test('mobile layout fits the viewport and expanded forms remain usable',async()=
     await page.locator('#addRule').click();
     await page.locator('#advanced summary').click();
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
-    await page.screenshot({path:process.env.SETTINGS_SCREENSHOT_PATH || '/tmp/dienstplan-settings-mobile.png',fullPage:true});
+    await page.screenshot({path:process.env.SETTINGS_SCREENSHOT_PATH || shot('settings-mobile'),fullPage:true});
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
 });
@@ -279,7 +283,7 @@ test('overview is compact, shows run results, and stores a calendar selection by
     assert.ok((await page.locator('#nextRun').textContent()).includes('ungefähr'));
     assert.equal(await page.locator('#metrics strong').first().textContent(),'5');
     assert.equal(await page.getByRole('heading',{name:'Kommende Termine',exact:true}).count(),0);
-    await page.screenshot({path:'/tmp/dienstplan-overview-desktop.png',fullPage:true});
+    await page.screenshot({path:shot('overview-desktop'),fullPage:true});
     await page.locator('#editSettings').click();
     assert.equal(await page.locator('#connectionFields').isVisible(),false);
     await page.locator('#editConnection').click();
@@ -413,7 +417,7 @@ test('annual report merges identical night windows, groups stations and exports 
     assert.equal(await page.locator('[data-preference="howFrequent"]').inputValue(),'30');
     await page.evaluate(()=>window.print=()=>{window.reportPrinted=Array.from(document.querySelectorAll('#annualResults details')).every(node=>node.open);});await page.locator('#annualPrint').click();assert.equal(await page.evaluate(()=>window.reportPrinted),true);
     await page.emulateMedia({media:'print'});assert.equal(await page.locator('#preferences').isVisible(),false);assert.equal(await page.locator('#annualResults').isVisible(),true);
-    await page.emulateMedia({media:'screen'});await page.locator('#annualNightStart').selectOption('20');assert.equal(await page.locator('#annualMonthDetails th:not([hidden])').count(),8);await page.locator('#annualStationDetails summary').click();await page.locator('#annualDutyDetails summary').click();await page.getByText('Weitere Optionen',{exact:true}).click();await page.locator('#annualPanel').screenshot({path:'/tmp/dienstplan-jahresuebersicht-desktop.png'});
+    await page.emulateMedia({media:'screen'});await page.locator('#annualNightStart').selectOption('20');assert.equal(await page.locator('#annualMonthDetails th:not([hidden])').count(),8);await page.locator('#annualStationDetails summary').click();await page.locator('#annualDutyDetails summary').click();await page.getByText('Weitere Optionen',{exact:true}).click();await page.locator('#annualPanel').screenshot({path:shot('jahresuebersicht-desktop')});
     await page.locator('#annualYear').fill('2025');await page.locator('#annualYear').blur();assert.equal(await page.locator('#annualDownload').isDisabled(),true);
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
@@ -426,7 +430,7 @@ test('annual report works on mobile and refuses missing holiday data instead of 
     await page.locator('#annualOpenSettings').click();await page.locator('#annualYear').fill('2026');await page.locator('#annualLoad').click();
     await page.locator('#annualResults').waitFor({state:'visible'});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-    await page.locator('#annualPanel').screenshot({path:'/tmp/dienstplan-jahresuebersicht-mobile.png'});
+    await page.locator('#annualPanel').screenshot({path:shot('jahresuebersicht-mobile')});
     server.UrlFetchApp={fetch:url=>{assert.ok(url.startsWith('https://feiertage-api.de/'));return {getResponseCode:()=>503,getContentText:()=>''};}};
     await page.locator('#annualYear').fill('2025');await page.locator('#annualLoad').click();
     await page.waitForFunction(()=>document.getElementById('annualMessage').textContent.includes('Feiertags-API'));
@@ -623,7 +627,7 @@ test('accent-insensitive colleague searches share a request across rows and fit 
     assert.equal(team.requests.length,6);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     for(const control of [query,row.getByLabel('Person auswählen',{exact:true}),row.getByRole('button',{name:'Suchen',exact:true})])assert.ok((await control.boundingBox()).height>=44);
-    await page.screenshot({path:'/tmp/dienstplan-colleague-mobile.png',fullPage:true});
+    await page.screenshot({path:shot('colleague-mobile'),fullPage:true});
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
 });
@@ -698,6 +702,206 @@ test('legend plan times keep consecutive colleague early duties separate with cr
     assert.equal(team.requests.filter(request=>request.url.endsWith('team-duty/preload')).length,9);
     assert.equal(team.requests.filter(request=>request.url.includes('team-duty/roster/')).length,4);
     assert.equal(await page.locator('[data-preference="addRelief"]').isChecked(),true);
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+test('overview reports a stalled schedule, repairs its triggers and lists grouped run history',async()=>{
+  const {page,app,server,calls,errors}=await open();
+  try{
+    const user=app.users.get(alice),now=Date.now(),ago=minutes=>new Date(now-minutes*60000).toISOString();
+    server.install();
+    user.set('lastSyncAt',ago(4320));user.delete('nextInitialAt');
+    user.set('syncProgress',JSON.stringify({phase:'Synchronisierung abgeschlossen',completed:1,total:1,status:'complete',updatedAt:now-4320*60000}));
+    user.set('syncHistory',JSON.stringify([
+      {at:ago(4320),since:ago(4500),ms:3100,ok:true,added:0,updated:0,removed:0,count:12},
+      {at:ago(4600),ms:2400,ok:false,error:'Dienstplan-Zugriff abgelehnt (HTTP 401).'},
+      {at:ago(4700),ms:12400,ok:true,added:12,updated:3,removed:1}]));
+    await page.evaluate(()=>action('getAppState',''));
+    await page.locator('#closeSettings').click();
+    assert.equal(await page.locator('#statusCard').getAttribute('data-state'),'stalled');
+    assert.equal(await page.locator('#status').textContent(),'Seit längerem kein Lauf');
+    assert.match(await page.locator('#lastSync').textContent(),/vor 3 Tagen/);
+    assert.equal(await page.locator('#stalledNotice').isVisible(),true);
+    assert.equal(await page.locator('#setupGuide').isVisible(),false);
+    await page.locator('#historyPanel summary').click();
+    assert.deepEqual(await page.locator('#history .what').allTextContents(),[
+      '12 Läufe ohne Änderungen','Fehler: Dienstplan-Zugriff abgelehnt (HTTP 401). · 2,4 s','12 neu · 3 geändert · 1 entfernt · 12 s']);
+    assert.equal(await page.locator('#history li.failed').count(),1);
+    assert.equal(await page.locator('#sourceSummary').textContent(),'1 Quelle → Dienstplan');
+    await page.screenshot({path:shot('overview-stalled'),fullPage:true});
+    await page.locator('#repairTriggers').click();
+    await page.getByText('Auslöser neu eingerichtet.',{exact:true}).waitFor();
+    assert.equal(calls.at(-1),'install');
+    assert.equal(await page.locator('#statusCard').getAttribute('data-state'),'active');
+    assert.equal(await page.locator('#stalledNotice').isVisible(),false);
+    assert.equal(await page.locator('#dashboardPause').isVisible(),true);
+    assert.equal(await page.locator('#dashboardEnable').isVisible(),false);
+    await page.locator('#dashboardPause').click();
+    await page.getByText('Automatischer Sync pausiert.',{exact:true}).waitFor();
+    assert.equal(await page.locator('#statusCard').getAttribute('data-state'),'paused');
+    assert.equal(await page.locator('#dashboardEnable').isVisible(),true);
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+test('a failed run turns the status red, keeps the history current and a later success clears it',async()=>{
+  const {page,server,errors}=await open();
+  try{
+    server.runSync_=()=>{throw new Error('Dienstplan nicht erreichbar');};
+    await page.locator('#closeSettings').click();
+    await page.locator('#dashboardSync').click();
+    await page.locator('#statusCard[data-state="error"]').waitFor();
+    assert.equal(await page.locator('#status').textContent(),'Letzter Lauf fehlgeschlagen');
+    assert.equal(await page.locator('#lastError').textContent(),'Letzte Meldung: Dienstplan nicht erreichbar');
+    assert.match(await page.locator('#history .what').first().textContent(),/^Fehler: Dienstplan nicht erreichbar/);
+    server.runSync_=()=>0;
+    await page.locator('#dashboardSync').click();
+    await page.locator('#statusCard[data-state="paused"]').waitFor();
+    assert.equal(await page.locator('#lastError').textContent(),'');
+    assert.equal(await page.locator('#history li').count(),2);
+    assert.match(await page.locator('#lastSync').textContent(),/gerade eben/);
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+test('new accounts get a setup guide, and the owner an update notice, on a phone in dark mode',async()=>{
+  const app=shared();app.project.set('appOwnerEmail',alice);
+  const {page,server,errors}=await open({}, {width:390,height:844},0,app);
+  try{
+    assert.equal(await page.locator('#setupGuide').isVisible(),true);
+    assert.equal(await page.locator('#setupSteps li').count(),4);
+    assert.deepEqual(await page.locator('#setupSteps li.done strong').allTextContents(),['Dienstplan verbinden','Quellen und Kalender wählen']);
+    server.getRosterICal_=()=>'BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR';
+    await page.locator('#preview').click();await page.getByText('Vorschau geladen. Im Kalender wurde nichts geändert.',{exact:true}).waitFor();
+    assert.equal(await page.locator('#setupSteps li.done').count(),3);
+    assert.equal(await page.locator('#updateNotice').isVisible(),false);
+    app.project.set('availableVersion',String(server.version+1));
+    await page.evaluate(()=>action('getAppState',''));
+    await page.locator('#closeSettings').click();
+    assert.equal(await page.locator('#updateTitle').textContent(),'Version '+(server.version+1)+' ist verfügbar');
+    assert.match(await page.locator('#privacyLink').getAttribute('href'),/datenschutz\.html$/);
+    const light=await page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor);
+    await page.emulateMedia({colorScheme:'dark'});
+    const dark=await page.evaluate(()=>({page:getComputedStyle(document.documentElement).backgroundColor,
+      text:getComputedStyle(document.body).color,card:getComputedStyle(document.getElementById('overview')).backgroundColor}));
+    const brightness=color=>color.match(/\d+/g).slice(0,3).reduce((sum,part)=>sum+Number(part),0);
+    assert.notEqual(dark.page,light);assert.ok(brightness(dark.page)<120);assert.ok(brightness(dark.card)<160);assert.ok(brightness(dark.text)>600);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
+    await page.waitForTimeout(250); // Let colour transitions finish before the picture.
+    await page.screenshot({path:shot('overview-mobile-dark'),fullPage:true});
+    await page.locator('#editSettings').click();
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
+    await page.locator('#sectionNav [data-section="advanced"]').click();
+    assert.equal(await page.locator('#advanced').getAttribute('open'),'');
+    await page.screenshot({path:shot('settings-mobile-dark'),fullPage:true});
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+// Runs inside the page: the contrast of every visible piece of text against what is painted behind it.
+function lowContrastText(minimum) {
+  const canvas=document.createElement('canvas').getContext('2d',{willReadFrequently:true});
+  const rgba=color=>{canvas.clearRect(0,0,1,1);canvas.fillStyle=color;canvas.fillRect(0,0,1,1);const d=canvas.getImageData(0,0,1,1).data;return [d[0],d[1],d[2],d[3]/255];};
+  const over=(top,under)=>[0,1,2].map(i=>top[i]*top[3]+under[i]*(1-top[3])).concat(1);
+  const luminance=color=>color.slice(0,3).map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4);}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+  const backdrop=element=>{
+    const layers=[];
+    for(let node=element;node;node=node.parentElement){const color=rgba(getComputedStyle(node).backgroundColor);if(color[3]>0)layers.push(color);if(color[3]===1)break;}
+    return layers.reverse().reduce((under,top)=>over(top,under),[255,255,255,1]);
+  };
+  const failures=[];
+  for(const element of document.querySelectorAll('body *')){
+    if(!element.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})||element.closest(':disabled'))continue;
+    const control=['INPUT','SELECT','TEXTAREA'].includes(element.tagName)&&element.type!=='checkbox';
+    if(!control&&!Array.from(element.childNodes).some(node=>node.nodeType===3&&node.textContent.trim()))continue;
+    const behind=backdrop(element),text=over(rgba(getComputedStyle(element).color),behind);
+    const light=Math.max(luminance(text),luminance(behind)),dark=Math.min(luminance(text),luminance(behind));
+    const ratio=(light+.05)/(dark+.05);
+    if(ratio<minimum)failures.push(ratio.toFixed(2)+' '+element.tagName.toLowerCase()+(element.id?'#'+element.id:'')+' "'+(element.textContent||element.value||'').trim().slice(0,30)+'"');
+  }
+  return failures;
+}
+const pageBrightness=page=>page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor.match(/\d+/g).slice(0,3).reduce((sum,part)=>sum+Number(part),0));
+
+test('all text stays readable in the light and dark scheme, automatic or chosen by hand',async()=>{
+  const app=shared();app.project.set('appOwnerEmail',alice);
+  const {page,server,errors}=await open({ignoreEvents:[{title:'Chemie',weekday:'Mo',start:'08:30',end:'10:00'}]},{width:1120,height:950},0,app);
+  try{
+    const user=app.users.get(alice);
+    user.set('lastSyncAt',new Date(Date.now()-600000).toISOString());user.set('lastSyncStats',JSON.stringify({added:12,updated:3,removed:1}));
+    user.set('lastSyncError','Dienstplan-Zugriff abgelehnt');user.set('lastSyncDiagnostic','Bericht');
+    user.set('syncHistory',JSON.stringify([{at:new Date().toISOString(),ms:2100,ok:false,error:'Dienstplan-Zugriff abgelehnt'},{at:new Date(Date.now()-9e5).toISOString(),ms:4200,ok:true,added:1,updated:0,removed:0}]));
+    app.project.set('availableVersion',String(server.version+1));
+    await page.evaluate(()=>action('getAppState',''));
+    await page.locator('#advanced summary').click();await page.locator('#editConnection').click();
+    // [device preference, choice in the app, expected result]
+    for(const [device,choice,dark] of [['light','auto',false],['dark','auto',true],['light','dark',true],['dark','light',false]]){
+      await page.emulateMedia({colorScheme:device});
+      await page.locator('#themeChoice').selectOption(choice);
+      await page.waitForTimeout(250); // Colour transitions end before measuring.
+      const label=device+' device, '+choice+' choice';
+      assert.equal(await pageBrightness(page)<150,dark,label);
+      assert.equal(await page.evaluate(()=>document.querySelector('meta[name="color-scheme"]').content),choice==='auto'?'light dark':'only '+choice);
+      for(const view of ['#closeSettings','#editSettings']){
+        assert.deepEqual(await page.evaluate(lowContrastText,4.5),[],label+' before '+view);
+        if(view==='#closeSettings'){await page.locator(view).click();await page.locator('#historyPanel:not([open]) summary').click({timeout:1000}).catch(()=>{});}
+        else await page.locator(view).click();
+      }
+      if(dark&&choice==='dark')await page.screenshot({path:shot('settings-chosen-dark'),fullPage:true});
+    }
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+test('the public pages and the access notice are readable in both schemes',async()=>{
+  const denied=load(shared(),'stranger@example.com').accessDeniedPage_();
+  for(const colorScheme of ['light','dark']){
+    const page=await browser.newPage({viewport:{width:900,height:900},colorScheme});
+    try{
+      for(const file of ['index.html','datenschutz.html']){
+        await page.goto('file://'+path.join(__dirname,'../docs',file));
+        assert.equal(await pageBrightness(page)<150,colorScheme==='dark',file);
+        assert.deepEqual(await page.evaluate(lowContrastText,4.5),[],file+' in '+colorScheme);
+      }
+      await page.screenshot({path:shot('website-'+colorScheme)});
+      await page.setContent(denied);
+      assert.deepEqual(await page.evaluate(lowContrastText,4.5),[],'access notice in '+colorScheme);
+    }finally{await page.close();}
+  }
+});
+
+test('an expired roster access is shown once, with a direct way to enter a new token',async()=>{
+  const {page,server,app,calls,errors,actualRunSync}=await open();
+  try{
+    server.runSync_=actualRunSync; // The real run, which renews the token first.
+    server.UrlFetchApp={fetch:url=>({getResponseCode:()=>200,getContentText:()=>JSON.stringify(url.endsWith('auth/refreshToken')?{data:null}:[])})};
+    await page.locator('#closeSettings').click();
+    await page.locator('#dashboardSync').click();
+    await page.locator('#statusCard[data-state="error"]').waitFor();
+    assert.match(await page.locator('#lastError').textContent(),/neuen Dienstplan-Token eintragen/);
+    // One report of the failure: the status card. No second copy in the progress bar or a banner.
+    assert.equal(await page.locator('#syncPanel').isVisible(),false);
+    assert.equal(await page.locator('#globalMessage').isVisible(),false);
+    assert.equal(await page.locator('#tokenNotice').isVisible(),true);
+    assert.equal(await page.locator('#connectionBadge').textContent(),'Zugangsdaten gespeichert – Verbindung noch prüfen');
+    assert.equal(app.users.get(alice).get('rosterUserToken'),'saved-token');
+    await page.screenshot({path:shot('token-expired'),fullPage:true});
+
+    // Reloading the page shows the same single report.
+    await page.evaluate(()=>initialize());
+    assert.equal(await page.locator('#syncPanel').isVisible(),false);
+    assert.equal(await page.locator('#globalMessage').isVisible(),false);
+
+    await page.locator('#enterToken').click();
+    assert.equal(await page.locator('#preferences').isVisible(),true);
+    assert.equal(await page.locator('#token').isVisible(),true);
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'token');
+    await page.locator('#token').fill('new-token');
+    await save(page);
+    assert.equal(app.users.get(alice).get('rosterUserToken'),'new-token');
+    assert.equal(await page.locator('#tokenNotice').isVisible(),false);
+    assert.ok(calls.includes('saveAppSettings'));
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
 });

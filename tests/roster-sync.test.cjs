@@ -50,14 +50,21 @@ function load(now = '2026-11-03T12:00:00Z') {
     Session: { getScriptTimeZone: () => 'Etc/GMT' },
     PropertiesService: { getUserProperties: () => ({
       getProperty: key => properties.get(key) ?? null,
-      setProperty: (key, value) => properties.set(key, value),
+      setProperty: (key, value) => {
+        if (typeof value !== 'string' && typeof value !== 'number') throw new Error('Invalid argument: value');
+        properties.set(key, String(value));
+      },
       deleteProperty: key => properties.delete(key),
     }), getScriptProperties: () => ({
       getProperty: key => properties.get(key) ?? null,
-      setProperty: (key, value) => properties.set(key, value),
+      setProperty: (key, value) => {
+        if (typeof value !== 'string' && typeof value !== 'number') throw new Error('Invalid argument: value');
+        properties.set(key, String(value));
+      },
     }) },
     Utilities: {
       formatDate, parseDate,
+      newBlob: value => ({ getBytes: () => Buffer.from(String(value)) }),
       DigestAlgorithm: { MD5: 'md5' },
       computeDigest: (_, value) => Array.from(createHash('md5').update(value).digest()),
     },

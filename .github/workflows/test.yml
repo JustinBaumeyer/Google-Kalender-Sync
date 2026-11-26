@@ -9,24 +9,93 @@ on:
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: 22
+
+# A newer push to a pull request replaces its running checks. Runs on main are
+# never cancelled, because each one may publish a release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
-  test:
-    # Playwright 1.58 does not support the Ubuntu 26.04 image.
-    runs-on: ubuntu-24.04
+  lint:
+    name: Format, lint and version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
       - run: npm run format:check
+      - run: npm run lint
+      - name: Compare the version with the published build
+        # Reports a changed program whose version was not increased. It never fails
+        # the run: documentation and test changes need no new version.
+        run: |
+          git fetch --no-tags --depth=1 origin +refs/heads/release:refs/remotes/origin/release || true
+          npm run --silent version:check
+
+  unit:
+    name: Server tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
       - run: npm test
+
+  browser:
+    name: Browser tests
+    # Playwright 1.58 does not support the Ubuntu 26.04 image.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      UI_SCREENSHOT_DIR: ${{ github.workspace }}/ui-screenshots
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      # Also installs the system libraries, which the cache does not contain.
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - name: Keep interface screenshots for review
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: ui-screenshots
+          path: ui-screenshots/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Keeps the name of the former single job, so existing required checks still apply.
+  test:
+    name: test
+    needs: [lint, unit, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
       - name: Package tested build
-        run: npm run build -- --output build-output
-      - uses: actions/upload-artifact@v4
+        run: node scripts/build.cjs --output build-output
+      - uses: actions/upload-artifact@v6
         with:
           name: apps-script-build
           path: build-output/
@@ -38,19 +107,20 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     concurrency:
       group: apps-script-release
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 22
-      - uses: actions/download-artifact@v4
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@v7
         with:
           name: apps-script-build
           path: .

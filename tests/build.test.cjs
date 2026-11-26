@@ -26,13 +26,14 @@ test('source changes are caught before stale installation files can be shipped',
   t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
   fs.cpSync(path.join(root, 'src'), path.join(directory, 'src'), {recursive: true});
   fs.cpSync(path.join(root, 'vendor'), path.join(directory, 'vendor'), {recursive: true});
+  fs.cpSync(path.join(root, 'migration'), path.join(directory, 'migration'), {recursive: true});
   for (const [name, source] of build()) {
     const file = path.join(directory, name);
     fs.mkdirSync(path.dirname(file), {recursive: true});
     fs.writeFileSync(file, source);
   }
   assert.deepEqual(check(directory), []);
-  const file = path.join(directory, 'src/settings/defaults.js');
+  const file = path.join(directory, 'src/settings/preferences.js');
   fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('howFrequent: 15', 'howFrequent: 30'));
   assert.deepEqual(check(directory), ['Code.gs']);
   const properties = {getProperty: () => null};

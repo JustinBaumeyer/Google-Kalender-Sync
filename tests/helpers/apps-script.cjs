@@ -5,12 +5,22 @@ const {createHash} = require('node:crypto');
 const root = path.join(__dirname, '../..');
 const owner = 'owner@example.com', alice = 'alice@example.com', bob = 'bob@example.com';
 
+// Like Apps Script, a property value must be a string or a number. Anything else is
+// rejected instead of being stored as the text "undefined".
+function propertyValue(value) {
+  if (typeof value !== 'string' && typeof value !== 'number') throw new Error('Invalid argument: value');
+  return String(value);
+}
+
 function store(map) {
   return {
     getProperty: key => map.get(key) ?? null,
     getProperties: () => Object.fromEntries(map),
-    setProperty: (key, value) => map.set(key, String(value)),
-    setProperties: values => Object.entries(values).forEach(([key, value]) => map.set(key, String(value))),
+    setProperty: (key, value) => map.set(key, propertyValue(value)),
+    setProperties: values => {
+      const checked = Object.entries(values).map(([key, value]) => [key, propertyValue(value)]);
+      checked.forEach(([key, value]) => map.set(key, value));
+    },
     deleteProperty: key => map.delete(key),
     deleteAllProperties: () => map.clear(),
   };

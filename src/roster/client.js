@@ -1,3 +1,18 @@
+/** Options shared by single and parallel roster requests. */
+function rosterRequestOptions_(method, payload) {
+  var options = {
+    validateHttpsCertificates: false,
+    muteHttpExceptions: true,
+    method: method,
+    headers: {
+      authorization: "Bearer " + rosterUserToken,
+      "content-type": "application/json"
+    }
+  };
+  if (payload != null) options.payload = payload;
+  return options;
+}
+
 /**
  * Performs an authenticated request against the roster API and returns the response body.
  * Throws on any non-200 status so callWithBackoff_ can retry.
@@ -9,18 +24,7 @@
  */
 function rosterFetch_(endpoint, method, payload) {
   checkSyncBudget_();
-  var options = {
-    validateHttpsCertificates: false,
-    muteHttpExceptions: true,
-    method: method,
-    headers: {
-      authorization: "Bearer " + rosterUserToken,
-      "content-type": "application/json"
-    }
-  };
-  if (payload != null) options.payload = payload;
-
-  var response = UrlFetchApp.fetch(rosterUrl + endpoint, options);
+  var response = UrlFetchApp.fetch(rosterUrl + endpoint, rosterRequestOptions_(method, payload));
   var status = response.getResponseCode();
   if (status == 401 || status == 403) {
     var error = new Error(
@@ -53,18 +57,10 @@ function rosterFetchAll_(calls, strict) {
   checkSyncBudget_();
   if (!calls.length) return [];
   var requests = calls.map(function (call) {
-    var request = {
-      url: rosterUrl + call.endpoint,
-      method: call.method,
-      validateHttpsCertificates: false,
-      muteHttpExceptions: true,
-      headers: {
-        authorization: "Bearer " + rosterUserToken,
-        "content-type": "application/json"
-      }
-    };
-    if (call.payload != null) request.payload = call.payload;
-    return request;
+    return Object.assign(
+      { url: rosterUrl + call.endpoint },
+      rosterRequestOptions_(call.method, call.payload)
+    );
   });
   return UrlFetchApp.fetchAll(requests).map(function (response, i) {
     if (response.getResponseCode() != 200) {
@@ -87,4 +83,28 @@ function rosterFetchAll_(calls, strict) {
     }
     return response.getContentText();
   });
+}
+
+/**
+ * Exchanges the saved roster token for a renewed one. The roster can accept the
+ * request and still send no token, for example once the session has expired. Such
+ * an answer must not replace the saved token; the person has to enter a new one.
+ */
+function refreshRosterToken_() {
+  var body = rosterFetch_("auth/refreshToken", "GET"),
+    renewed = null;
+  try {
+    renewed = JSON.parse(body).data;
+  } catch (err) {
+    // An unreadable answer is treated like a missing token below.
+  }
+  if (typeof renewed != "string" || !renewed.trim() || byteLength_(renewed.trim()) > 9000) {
+    var error = new Error(
+      "Der Dienstplan hat den Zugang nicht erneuert. Bitte in den Einstellungen unter „Zugangsdaten ändern“ einen neuen Dienstplan-Token eintragen."
+    );
+    error.rosterAuthRejected = true;
+    throw error;
+  }
+  rosterUserToken = renewed.trim();
+  userPrp.setProperty("rosterUserToken", rosterUserToken);
 }
