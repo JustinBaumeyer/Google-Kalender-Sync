@@ -23,20 +23,20 @@ function callWithBackoff_(func, maxRetries) {
       result = func();
       return result;
     } catch (err) {
-      if (err.syncPaused || err.rosterAuthRejected) throw err;
-      err = err.message || err;
+      if (err && (err.syncPaused || err.rosterAuthRejected)) throw err;
+      var text = String((err && err.message) || err);
       if (
-        err.includes("is not a function") ||
+        text.includes("is not a function") ||
         !backoffRecoverableErrors.some(function (e) {
-          return err.toLowerCase().includes(e);
+          return text.toLowerCase().includes(e);
         })
       ) {
-        throw err;
+        throw err; // The original error keeps its stack for the report.
       } else if (tries > maxRetries) {
-        Logger.log(`Error, giving up after trying ${maxRetries} times [${err}]`);
+        Logger.log(`Error, giving up after trying ${maxRetries} times [${text}]`);
         return null;
       } else {
-        Logger.log("Error, Retrying... [" + err + "]");
+        Logger.log("Error, Retrying... [" + text + "]");
         var delay = Math.min(Math.pow(2, tries - 1) * 1000, 8000) + Math.round(Math.random() * 100);
         if (syncDeadline && Date.now() + delay >= syncDeadline) {
           syncDeadline = Date.now();
@@ -85,10 +85,11 @@ function buildSyncDiagnostic_(error) {
     "Schritt: " + phase,
     "Fehlertyp: " + type
   ];
+  var message = String((error && error.message) || "");
   var missing =
     /Cannot read properties of (undefined|null) \(reading '(private|extendedProperties|id|data|length)'\)/.exec(
-      String((error && error.message) || "")
-    );
+      message
+    ) || /(?:Invalid argument|Ungültiges Argument|Argument too large): [A-Za-z]+/.exec(message);
   if (missing) lines.push("Fehler: " + missing[0]);
   var frames = [];
   String((error && error.stack) || "")

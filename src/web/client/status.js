@@ -43,7 +43,8 @@ function showProgress(progress) {
     $("syncPanel").hidden = true;
     return;
   }
-  if (progress.status === "paused") {
+  if (progress.status === "paused" || progress.status === "failed") {
+    // A failed run is reported by the status card; the progress bar only shows live work.
     progressEpoch++;
     clearTimeout(progressTimer);
     $("syncPanel").hidden = true;
@@ -59,22 +60,16 @@ function showProgress(progress) {
         ? "Alle Schritte abgeschlossen."
         : progress.completed + " von " + progress.total + " im aktuellen Schritt";
   } else {
-    if (progress.status === "failed") {
-      $("syncProgress").max = 1;
-      $("syncProgress").value = 0;
-    } else $("syncProgress").removeAttribute("value");
+    $("syncProgress").removeAttribute("value");
     $("syncCount").textContent =
       progress.status === "pending"
         ? "Der nächste Lauf ist geplant. Du kannst die Seite schließen."
-        : progress.status === "failed"
-          ? "Der Lauf wurde unterbrochen."
-          : "Bitte warten …";
+        : "Bitte warten …";
   }
-  if (["complete", "failed", "paused"].includes(progress.status)) {
+  if (progress.status === "complete") {
     progressEpoch++;
     clearTimeout(progressTimer);
-    if (progress.status === "failed") message(progress.phase, true);
-    if (progress.status === "complete" && current) {
+    if (current) {
       current.pending = false;
       // Show the result at once; the full state follows with the next server answer.
       renderStatus(

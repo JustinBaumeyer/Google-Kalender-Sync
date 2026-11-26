@@ -85,6 +85,7 @@ function getAppState() {
       saved.connectionKey ==
         rosterConnectionKey_(saved.rosterUserToken, saved.rosterUserId, settings.rosterUrl),
     connectionCheckedAt: saved.connectionCheckedAt,
+    credentialsRejected: saved.rosterAuthRejected == "true",
     migrationImportedAt: saved.migrationImportedAt,
     needsCalendarSelection: saved.migrationNeedsCalendarSelection == "true",
     lastSync: saved.lastSyncAt,
@@ -127,6 +128,7 @@ function saveAppSettings(input) {
   }
   withUserLock_("Eine Synchronisierung läuft. Bitte danach erneut speichern", function () {
     userPrp.setProperties(values, false);
+    if (values.rosterUserToken) userPrp.deleteProperty("rosterAuthRejected");
     // The sync trigger interval follows saved preferences immediately.
     if (hasTrigger_("startSync")) install_();
   });

@@ -86,6 +86,7 @@ function renderStatus(state) {
       ")"
     : "Kein automatischer Lauf geplant.";
   $("stalledNotice").hidden = kind !== "stalled";
+  $("tokenNotice").hidden = !state.credentialsRejected;
   $("stalledText").textContent =
     "Google deaktiviert Auslöser zum Beispiel, wenn eine Berechtigung abgelaufen ist. Richte sie neu ein; deine Einstellungen und Termine bleiben erhalten.";
 }
@@ -154,7 +155,7 @@ function renderSetupGuide(state) {
     [
       "Dienstplan verbinden",
       "Mitarbeiter-ID und Token eintragen – oder nur Kalender-Abos nutzen.",
-      state.rosterConfigured ||
+      (state.rosterConfigured && !state.credentialsRejected) ||
         (state.hasSavedPreferences &&
           state.settings.sourceCalendars.some((row) => /^(https?|webcal):/i.test(row[0])))
     ],

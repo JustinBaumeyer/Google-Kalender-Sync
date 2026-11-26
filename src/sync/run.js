@@ -71,6 +71,7 @@ function startSync(event) {
         { lastSyncStats: JSON.stringify(syncStats), syncHistory: recordSyncRun_() },
         false
       );
+      userPrp.deleteProperty("rosterAuthRejected");
       publishSyncProgress_("Synchronisierung abgeschlossen", 1, 1, "complete");
     }
     if (!event || !event.triggerUid) return getAppState();
@@ -87,6 +88,10 @@ function startSync(event) {
     }
     var message = err.message || err;
     Logger.log("Sync failed: " + message);
+    if (err.rosterAuthRejected) {
+      userPrp.setProperty("rosterAuthRejected", "true");
+      userPrp.deleteProperty("connectionKey"); // The overview no longer claims a working connection.
+    }
     userPrp.setProperties(
       {
         lastSyncDiagnostic: buildSyncDiagnostic_(err),

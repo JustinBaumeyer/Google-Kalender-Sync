@@ -10,6 +10,7 @@ function markRosterConnectionVerified_() {
     },
     false
   );
+  userPrp.deleteProperty("rosterAuthRejected");
 }
 
 function nextPlannedRun_(saved, enabled) {

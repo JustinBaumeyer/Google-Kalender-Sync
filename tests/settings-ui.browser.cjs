@@ -870,3 +870,38 @@ test('the public pages and the access notice are readable in both schemes',async
     }finally{await page.close();}
   }
 });
+
+test('an expired roster access is shown once, with a direct way to enter a new token',async()=>{
+  const {page,server,app,calls,errors,actualRunSync}=await open();
+  try{
+    server.runSync_=actualRunSync; // The real run, which renews the token first.
+    server.UrlFetchApp={fetch:url=>({getResponseCode:()=>200,getContentText:()=>JSON.stringify(url.endsWith('auth/refreshToken')?{data:null}:[])})};
+    await page.locator('#closeSettings').click();
+    await page.locator('#dashboardSync').click();
+    await page.locator('#statusCard[data-state="error"]').waitFor();
+    assert.match(await page.locator('#lastError').textContent(),/neuen Dienstplan-Token eintragen/);
+    // One report of the failure: the status card. No second copy in the progress bar or a banner.
+    assert.equal(await page.locator('#syncPanel').isVisible(),false);
+    assert.equal(await page.locator('#globalMessage').isVisible(),false);
+    assert.equal(await page.locator('#tokenNotice').isVisible(),true);
+    assert.equal(await page.locator('#connectionBadge').textContent(),'Zugangsdaten gespeichert – Verbindung noch prüfen');
+    assert.equal(app.users.get(alice).get('rosterUserToken'),'saved-token');
+    await page.screenshot({path:shot('token-expired'),fullPage:true});
+
+    // Reloading the page shows the same single report.
+    await page.evaluate(()=>initialize());
+    assert.equal(await page.locator('#syncPanel').isVisible(),false);
+    assert.equal(await page.locator('#globalMessage').isVisible(),false);
+
+    await page.locator('#enterToken').click();
+    assert.equal(await page.locator('#preferences').isVisible(),true);
+    assert.equal(await page.locator('#token').isVisible(),true);
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'token');
+    await page.locator('#token').fill('new-token');
+    await save(page);
+    assert.equal(app.users.get(alice).get('rosterUserToken'),'new-token');
+    assert.equal(await page.locator('#tokenNotice').isVisible(),false);
+    assert.ok(calls.includes('saveAppSettings'));
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});

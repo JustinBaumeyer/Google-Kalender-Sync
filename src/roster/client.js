@@ -85,7 +85,26 @@ function rosterFetchAll_(calls, strict) {
   });
 }
 
+/**
+ * Exchanges the saved roster token for a renewed one. The roster can accept the
+ * request and still send no token, for example once the session has expired. Such
+ * an answer must not replace the saved token; the person has to enter a new one.
+ */
 function refreshRosterToken_() {
-  rosterUserToken = JSON.parse(rosterFetch_("auth/refreshToken", "GET")).data;
+  var body = rosterFetch_("auth/refreshToken", "GET"),
+    renewed = null;
+  try {
+    renewed = JSON.parse(body).data;
+  } catch (err) {
+    // An unreadable answer is treated like a missing token below.
+  }
+  if (typeof renewed != "string" || !renewed.trim() || byteLength_(renewed.trim()) > 9000) {
+    var error = new Error(
+      "Der Dienstplan hat den Zugang nicht erneuert. Bitte in den Einstellungen unter „Zugangsdaten ändern“ einen neuen Dienstplan-Token eintragen."
+    );
+    error.rosterAuthRejected = true;
+    throw error;
+  }
+  rosterUserToken = renewed.trim();
   userPrp.setProperty("rosterUserToken", rosterUserToken);
 }

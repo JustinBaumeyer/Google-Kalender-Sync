@@ -106,8 +106,11 @@ async function action(method, text, saveFirst = false) {
   } catch (error) {
     syncRequestActive = false;
     clearTimeout(progressTimer);
-    if (method === "startSync") showProgress({ phase: errorText(error), status: "failed" });
-    message(errorText(error), true);
+    if (method === "startSync") {
+      showProgress({ status: "failed" });
+      // The status card shows the failure as soon as the state below arrives.
+      $("globalMessage").textContent = "";
+    } else message(errorText(error), true);
     if (method === "startSync") {
       try {
         const state = await call("getAppState");

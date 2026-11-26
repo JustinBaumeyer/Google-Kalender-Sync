@@ -54,11 +54,17 @@ $("addRule").onclick = () => {
 };
 $("editSettings").onclick = () => showSettings(true);
 $("closeSettings").onclick = () => showSettings(false);
-$("editConnection").onclick = () => {
+function editConnection(field = "employee") {
   $("connectionFields").hidden = false;
   $("connectionSummary").hidden = true;
   $("editConnection").hidden = true;
-  $("employee").focus();
+  $(field).focus();
+}
+$("editConnection").onclick = () => editConnection();
+$("enterToken").onclick = () => {
+  showSettings(true);
+  editConnection("token");
+  $("sectionConnection").scrollIntoView({ block: "start" });
 };
 $("testConnection").onclick = () => diagnostic("test");
 $("preview").onclick = () => diagnostic("preview");
