@@ -91,6 +91,8 @@ test('retry delays are capped and a roster shared by sources is fetched only onc
   c.loadUserPreferences_();
   c.rosterUserId='123';c.rosterUserToken='test-token';
   c.Utilities.sleep=value=>delays.push(value);
+  // The largest jitter, so the cap is checked on every run, not by chance.
+  require('node:vm').runInContext('Math.random=function(){return 0.9999;};',c);
   assert.equal(c.callWithBackoff_(()=>{throw new Error('internal error');},4),null);
   assert.equal(delays.length,4);assert.ok(delays.every(value=>value<8100));
   let fetched=0;c.getRosterICal_=()=>{fetched++;return 'test-calendar';};

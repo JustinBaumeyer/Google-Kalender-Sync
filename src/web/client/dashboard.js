@@ -91,7 +91,7 @@ function renderStatus(state) {
   // Without a link from Google, reloading the app shows the consent screen again.
   $("authLink").href = state.authorizationUrl || location.href;
   $("stalledText").textContent =
-    "Google schaltet automatische Läufe zum Beispiel ab, wenn eine Freigabe abgelaufen ist, und erneute Zustimmung schaltet sie nicht wieder ein. Richte sie neu ein; deine Einstellungen und Termine bleiben erhalten.";
+    "Richte die Auslöser neu ein; deine Einstellungen und Termine bleiben erhalten. Läuft danach weiterhin nichts automatisch, muss der App-Inhaber das Skriptprojekt für dein Konto freigeben.";
 }
 function renderHistory(rows) {
   const day = (value) => new Date(value).toLocaleDateString("de-DE"),

@@ -78,6 +78,11 @@ Lauf, auch wenn der Dienst schon vorbei ist. Das gilt ebenso für Termine, die d
    angemeldete Google-Konten bzw. die passende Workspace-Domain.
 5. Den `/exec`-Link öffnen. Als Inhaber unter **Zugriff verwalten** die
    Google-E-Mail-Adressen der Gruppe hinzufügen und den Link weitergeben.
+6. Das Apps-Script-Projekt über **Teilen** mit denselben Adressen als **Betrachter** teilen.
+   Nutzt das Skript ein eigenes Cloud-Projekt, lehnt Google automatische Läufe anderer
+   Konten sonst mit „Beim Lesen von Daten aus dem Speicher ist ein Fehler aufgetreten.
+   Fehlercode PERMISSION_DENIED.“ ab, noch bevor Programmcode startet; die Web-App selbst
+   funktioniert trotzdem. Betrachter sehen den Programmcode und die Projekteinstellungen.
 
 Jede Person autorisiert ihren eigenen Kalender. Falls das Cloud-Projekt noch im
 OAuth-Testmodus ist, müssen die Konten zusätzlich dort als Testnutzer eingetragen

@@ -93,7 +93,13 @@ function accountState(state) {
   if (!state) return ["Noch keine Rückmeldung – erscheint nach dem nächsten Lauf.", false];
   if (state.kind === "failing")
     return ["Fehler seit " + date(state.since) + ": " + state.problem, true];
-  if (state.kind === "stalled") return ["Kein automatischer Lauf seit " + date(state.since), true];
+  if (state.kind === "stalled")
+    return [
+      "Kein automatischer Lauf seit " +
+        date(state.since) +
+        " – Skriptprojekt als Betrachter geteilt?",
+      true
+    ];
   if (state.kind === "paused") return ["Synchronisierung pausiert", false];
   return [
     state.at ? "Läuft · letzter Lauf " + relativeTime(state.at) : "Aktiviert, noch kein Lauf",
@@ -107,6 +113,7 @@ function stateLine(state) {
 function renderInvitations(result) {
   invitations = result;
   $("adminPanel").hidden = false;
+  $("projectLink").href = result.projectUrl;
   $("ownerInfo").replaceChildren(
     "App-Inhaber: " + result.owner + " (Zugriff bleibt immer erhalten)",
     stateLine(result.health[result.owner])
@@ -127,10 +134,16 @@ function renderInvitations(result) {
     });
 }
 function updateInvitations(emails) {
+  const before = invitations ? invitations.emails.slice() : [];
   return whileBusy(async () => {
     renderInvitations(await call("saveInvitations", emails));
+    const added = emails.filter((email) => !before.includes(email));
     $("inviteEmail").value = "";
-    $("adminMessage").textContent = "Zugriff gespeichert. Den App-Link bitte selbst weitergeben.";
+    $("adminMessage").textContent = added.length
+      ? "Zugriff gespeichert. Teile jetzt das Skriptprojekt mit " +
+        added.join(", ") +
+        " als Betrachter und gib danach den App-Link weiter."
+      : "Zugriff gespeichert.";
   }, showIn("adminMessage"));
 }
 function openInvitations() {

@@ -965,3 +965,26 @@ test('missing Google permissions show a notice with a link to grant them',async(
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
 });
+
+test('inviting someone names the second step: sharing the script project as viewer',async()=>{
+  const app=shared();app.project.set('appOwnerEmail',alice);
+  app.project.set('allowedUserEmails',JSON.stringify([alice,bob]));
+  app.project.set('health:'+bob,JSON.stringify({email:bob,enabled:true,interval:15,enabledAt:new Date(Date.now()-5*3600000).toISOString()}));
+  const {page,errors}=await open({}, {width:1120,height:950},0,app);
+  try{
+    await page.locator('#closeSettings').click();
+    await page.locator('#manageAccess').click();
+    await page.locator('#inviteList li').first().waitFor();
+    assert.equal(await page.locator('#projectLink').getAttribute('href'),'https://script.google.com/home/projects/script-'+alice+'/edit');
+    assert.match(await page.locator('#adminPanel').textContent(),/Jede eingeladene Adresse braucht zwei Freigaben/);
+    assert.match(await page.locator('#inviteList').textContent(),/Kein automatischer Lauf seit .* – Skriptprojekt als Betrachter geteilt\?/);
+    await page.locator('#inviteEmail').fill('new@example.com');
+    await page.locator('#addInvite').click();
+    await page.getByText('Zugriff gespeichert. Teile jetzt das Skriptprojekt mit new@example.com als Betrachter und gib danach den App-Link weiter.',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Zugriff für new@example.com entziehen',exact:true}).click();
+    await page.getByText('Zugriff gespeichert.',{exact:true}).waitFor();
+    assert.deepEqual(await page.evaluate(lowContrastText,4.5),[]);
+    await page.locator('#adminPanel').screenshot({path:shot('access-sharing')});
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});

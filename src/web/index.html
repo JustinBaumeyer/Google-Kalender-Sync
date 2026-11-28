@@ -154,7 +154,20 @@
             ><input id="inviteEmail" type="email" autocomplete="email" /></label
           ><button type="button" id="addInvite">Zugriff erlauben</button></div
         ><ul id="inviteList" class="event-list"></ul></fieldset
-      ><p class="muted"
+      ><div class="notice info">
+        <div>
+          <strong>Jede eingeladene Adresse braucht zwei Freigaben.</strong>
+          <p
+            >Hier den Zugriff erlauben, und das Skriptprojekt in Apps Script über „Teilen“ mit
+            derselben Adresse als <strong>Betrachter</strong> teilen. Ohne die zweite Freigabe
+            öffnet sich die App, aber Google lehnt alle automatischen Läufe ab.</p
+          >
+        </div>
+        <a id="projectLink" class="button-link" target="_blank" rel="noopener"
+          >Skriptprojekt öffnen</a
+        >
+      </div>
+      <p class="muted"
         >Beim Einladen wird keine E-Mail verschickt. Teile den App-Link selbst mit der Person. Falls
         das Google-Projekt im Testmodus ist, muss das Konto dort zusätzlich als Testnutzer
         freigeschaltet sein. Konten mit Problemen meldet dir täglich eine E-Mail, solange deine
