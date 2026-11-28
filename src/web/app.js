@@ -41,9 +41,13 @@ function accessDeniedPage_() {
 }
 
 function doGet() {
+  // Outside the try: when permissions are missing, Google ends this execution and
+  // shows its consent screen, which must not be turned into the access notice below.
+  requireFullAuthorization_();
   var output;
   try {
     requireWebUser_();
+    repairStalledTriggers_();
     output = HtmlService.createHtmlOutputFromFile("Index");
   } catch (err) {
     output = HtmlService.createHtmlOutput(accessDeniedPage_());
@@ -86,6 +90,8 @@ function getAppState() {
         rosterConnectionKey_(saved.rosterUserToken, saved.rosterUserId, settings.rosterUrl),
     connectionCheckedAt: saved.connectionCheckedAt,
     credentialsRejected: saved.rosterAuthRejected == "true",
+    triggersRepairedAt: saved.triggersRepairedAt || null,
+    authorizationUrl: missingAuthorizationUrl_(),
     migrationImportedAt: saved.migrationImportedAt,
     needsCalendarSelection: saved.migrationNeedsCalendarSelection == "true",
     lastSync: saved.lastSyncAt,

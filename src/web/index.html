@@ -46,6 +46,19 @@
       </div>
       <button type="button" id="repairTriggers" class="secondary">Auslöser neu einrichten</button>
     </div>
+    <div id="authNotice" class="notice warn" role="status" hidden>
+      <div>
+        <strong>Für automatische Läufe fehlen Berechtigungen.</strong>
+        <p
+          >Google lässt beim Zustimmen einzelne Berechtigungen abwählen. Automatische Läufe brauchen
+          alle; ohne sie startet kein Lauf, auch wenn die App sonst funktioniert. Erteile die
+          fehlenden Berechtigungen und lade die App danach neu.</p
+        >
+      </div>
+      <a id="authLink" class="button-link" target="_blank" rel="noopener"
+        >Berechtigungen erteilen</a
+      >
+    </div>
     <div id="tokenNotice" class="notice warn" role="status" hidden>
       <div>
         <strong>Der Dienstplan-Zugang ist abgelaufen.</strong>

@@ -50,6 +50,11 @@ function deleteAllTriggers_() {
 
 function install() {
   requireWebUser_();
+  // Triggers created without every permission would fail on each run, unnoticed.
+  if (missingAuthorizationUrl_() !== null)
+    throw new Error(
+      "Für automatische Läufe fehlen Berechtigungen. Bitte über „Berechtigungen erteilen“ allen Berechtigungen zustimmen und danach die Automatik aktivieren."
+    );
   return withUserLock_("Eine Synchronisierung läuft. Bitte danach erneut aktivieren", install_);
 }
 
@@ -105,6 +110,56 @@ function uninstall() {
 }
 
 /** Only the owner needs a daily release check for this shared installation. */
+/**
+ * Automatic runs need every permission the app requests. Google lets people approve
+ * only some of them; the app still opens, but every automatic run then fails before
+ * any app code starts.
+ *
+ * @return {?string} Where to grant the missing permissions, or null when complete
+ */
+function missingAuthorizationUrl_() {
+  try {
+    if (typeof ScriptApp.getAuthorizationInfo != "function") return null;
+    var info = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL);
+    if (info.getAuthorizationStatus() != ScriptApp.AuthorizationStatus.REQUIRED) return null;
+    return info.getAuthorizationUrl() || "";
+  } catch (err) {
+    Logger.log("Could not read the authorization status: " + ((err && err.message) || err));
+    return null;
+  }
+}
+
+/** Opening the app asks Google again for permissions that were left out. */
+function requireFullAuthorization_() {
+  if (typeof ScriptApp.requireAllScopes == "function")
+    ScriptApp.requireAllScopes(ScriptApp.AuthMode.FULL);
+}
+
+/**
+ * Google switches off an account's time triggers when its authorization lapses, and
+ * approving again does not switch them back on. The triggers stay listed, so the only
+ * sign is that no run happens. Opening the app recreates them in that case.
+ *
+ * @return {boolean} Whether the triggers were recreated
+ */
+function repairStalledTriggers_() {
+  try {
+    if (!hasTrigger_("startSync") || missingAuthorizationUrl_() !== null) return false;
+    var saved = userPrp.getProperties();
+    var progress = readJson_(saved.syncProgress, null);
+    if (!syncLooksStalled_(saved, true, progress, readUserPreferences_(saved).howFrequent))
+      return false;
+    withUserLock_("Eine Synchronisierung läuft gerade", install_);
+    userPrp.setProperty("triggersRepairedAt", new Date().toISOString());
+    Logger.log("Recreated time triggers that had stopped running");
+    return true;
+  } catch (err) {
+    // The page still opens; the notice in the overview offers the same repair by hand.
+    Logger.log("Could not recreate the time triggers: " + ((err && err.message) || err));
+    return false;
+  }
+}
+
 /** The owner's daily check: account warnings first, then the release version. */
 function checkForUpdates() {
   requireAppOwner_();
