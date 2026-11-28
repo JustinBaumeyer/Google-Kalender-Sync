@@ -929,3 +929,39 @@ test('the owner sees how every account is doing, and error emails are preselecte
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
 });
+
+test('after triggers were recreated on opening, the overview says so once',async()=>{
+  const app=shared();
+  const {page,server,errors}=await open({}, {width:1120,height:950},0,app);
+  try{
+    app.users.get(alice).set('triggersRepairedAt',new Date().toISOString());
+    await page.evaluate(()=>initialize());
+    await page.getByText('Die automatische Synchronisierung lief seit einiger Zeit nicht mehr und wurde beim Öffnen neu eingerichtet.',{exact:true}).waitFor();
+    app.users.get(alice).set('triggersRepairedAt',new Date(Date.now()-3600000).toISOString());
+    await page.evaluate(()=>{document.getElementById('globalMessage').textContent='';document.getElementById('message').textContent='';});
+    await page.evaluate(()=>initialize());
+    assert.equal(await page.getByText('wurde beim Öffnen neu eingerichtet',{exact:false}).count(),0,'An older repair is not announced again');
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});
+
+test('missing Google permissions show a notice with a link to grant them',async()=>{
+  const {page,server,errors}=await open();
+  try{
+    server.ScriptApp.AuthMode={FULL:'FULL'};
+    server.ScriptApp.AuthorizationStatus={REQUIRED:'REQUIRED',NOT_REQUIRED:'NOT_REQUIRED'};
+    server.ScriptApp.getAuthorizationInfo=()=>({getAuthorizationStatus:()=>'REQUIRED',getAuthorizationUrl:()=>'https://script.google.com/authorize?x'});
+    await page.evaluate(()=>action('getAppState',''));
+    await page.locator('#closeSettings').click();
+    assert.equal(await page.locator('#authNotice').isVisible(),true);
+    assert.equal(await page.locator('#authLink').getAttribute('href'),'https://script.google.com/authorize?x');
+    await page.locator('#dashboardEnable').click();
+    await page.getByText('Für automatische Läufe fehlen Berechtigungen. Bitte über „Berechtigungen erteilen“ allen Berechtigungen zustimmen und danach die Automatik aktivieren.',{exact:true}).waitFor();
+    assert.deepEqual(await page.evaluate(lowContrastText,4.5),[]);
+    await page.screenshot({path:shot('permissions-missing'),fullPage:false});
+    server.ScriptApp.getAuthorizationInfo=()=>({getAuthorizationStatus:()=>'NOT_REQUIRED',getAuthorizationUrl:()=>null});
+    await page.evaluate(()=>action('getAppState',''));
+    assert.equal(await page.locator('#authNotice').isVisible(),false);
+    assert.deepEqual(errors,[]);
+  }finally{await page.close();}
+});

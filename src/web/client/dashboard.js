@@ -87,8 +87,11 @@ function renderStatus(state) {
     : "Kein automatischer Lauf geplant.";
   $("stalledNotice").hidden = kind !== "stalled";
   $("tokenNotice").hidden = !state.credentialsRejected;
+  $("authNotice").hidden = state.authorizationUrl === null || state.authorizationUrl === undefined;
+  // Without a link from Google, reloading the app shows the consent screen again.
+  $("authLink").href = state.authorizationUrl || location.href;
   $("stalledText").textContent =
-    "Google deaktiviert Auslöser zum Beispiel, wenn eine Berechtigung abgelaufen ist. Richte sie neu ein; deine Einstellungen und Termine bleiben erhalten.";
+    "Google schaltet automatische Läufe zum Beispiel ab, wenn eine Freigabe abgelaufen ist, und erneute Zustimmung schaltet sie nicht wieder ein. Richte sie neu ein; deine Einstellungen und Termine bleiben erhalten.";
 }
 function renderHistory(rows) {
   const day = (value) => new Date(value).toLocaleDateString("de-DE"),

@@ -37,6 +37,18 @@ sobald sich die Liste der Konten mit Problemen ändert, und höchstens alle drei
 gleich bleibt. Diese Prüfung läuft nur, solange die Synchronisierung des Inhabers selbst aktiv ist.
 Unter „Zugriff verwalten“ steht bei jedem Konto dessen aktueller Zustand.
 
+Läuft eine Freigabe ab, schaltet Google die Zeitauslöser des Kontos ab; erneute Zustimmung
+schaltet sie nicht wieder ein, und die Auslöser bleiben trotzdem gelistet. Öffnet die Person
+die App und hat seit drei Intervallen (mindestens zwei Stunden) kein Lauf stattgefunden, richtet
+die App die Auslöser deshalb selbst neu ein. Pausierte Konten bleiben pausiert.
+
+Beim Zustimmen lässt Google einzelne Berechtigungen abwählen. Die App öffnet sich dann trotzdem,
+aber automatische Läufe scheitern, bevor Programmcode startet (im Google-Cloud-Projekt als
+OAuth-Fehler sichtbar). Beim Öffnen fordert die App deshalb alle Berechtigungen an
+(`ScriptApp.requireAllScopes`). Fehlt danach noch eine, zeigt die Übersicht einen Hinweis mit
+„Berechtigungen erteilen“, und „Automatik aktivieren“ legt keine Auslöser an, die nur scheitern
+würden.
+
 Ein nicht erreichbares Kalender-Abo oder ein Fehler in einem einzelnen Zielkalender lässt nur
 diesen Kalender unverändert; alle anderen werden im selben Lauf weiter abgeglichen. Geänderte
 Einstellungen für Sichtbarkeit, Kalendername im Titel und die Erinnerung ganztägiger Termine

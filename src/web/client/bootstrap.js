@@ -4,6 +4,10 @@ function initialize() {
       const [choices, state] = await Promise.all([call("getCalendarChoices"), call("getAppState")]);
       calendarChoices = choices;
       render(state);
+      if (state.triggersRepairedAt && Date.now() - Date.parse(state.triggersRepairedAt) < 600000)
+        message(
+          "Die automatische Synchronisierung lief seit einiger Zeit nicht mehr und wurde beim Öffnen neu eingerichtet."
+        );
     },
     (text) => message(text, true)
   );

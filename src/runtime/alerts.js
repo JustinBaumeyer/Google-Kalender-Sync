@@ -230,7 +230,7 @@ function reviewAccountHealth_() {
         text:
           "kein automatischer Lauf seit " +
           alertTime_(state.since) +
-          " (Auslöser vermutlich von Google abgeschaltet)"
+          " (Google hat die automatischen Läufe vermutlich abgeschaltet; einmal die App öffnen behebt das)"
       });
       var warned = Date.parse(scriptPrp.getProperty(warnedKey) || "") || 0;
       if (state.notify && now - warned >= alertReminderMs) {
@@ -240,9 +240,9 @@ function reviewAccountHealth_() {
           "für dein Konto hat seit " +
             alertTime_(state.since) +
             " kein automatischer Lauf mehr stattgefunden.",
-          "Google schaltet die Auslöser zum Beispiel ab, wenn eine Berechtigung abgelaufen ist.",
+          "Google schaltet die automatischen Läufe zum Beispiel ab, wenn eine Freigabe abgelaufen ist, und erneute Zustimmung schaltet sie nicht wieder ein.",
           "",
-          "Bitte öffne die App und wähle „Auslöser neu einrichten“. Einstellungen und Termine bleiben erhalten.",
+          "Bitte öffne die App einmal. Dabei wird die automatische Synchronisierung neu eingerichtet; falls Google nach deiner Zustimmung fragt, bestätige sie. Einstellungen und Termine bleiben erhalten.",
           "",
           "Diese Nachricht kommt aus der täglichen Prüfung des App-Inhabers.",
           "Abschalten lassen sich diese E-Mails in der App unter Einstellungen → „E-Mail bei Fehlern“."

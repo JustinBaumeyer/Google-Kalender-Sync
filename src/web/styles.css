@@ -686,6 +686,21 @@ button.remove {
 button.remove:hover:not(:disabled) {
   background: var(--danger-soft);
 }
+a.button-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--accent-text);
+  font: 600 0.9rem system-ui;
+  text-decoration: none;
+}
+a.button-link:hover {
+  background: var(--surface-3);
+}
 button.link {
   min-height: 0;
   padding: 0;
@@ -1063,7 +1078,8 @@ th {
     grid-column: 2;
     text-align: left;
   }
-  .notice button {
+  .notice button,
+  .notice a.button-link {
     flex: 1 1 100%;
   }
 }

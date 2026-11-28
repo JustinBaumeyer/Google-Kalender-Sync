@@ -118,7 +118,7 @@ test('the owner hears once about failing and stalled accounts, and stalled peopl
   const summary = app.mails.find(mail => mail.to === owner).body;
   assert.match(summary, new RegExp(alice + ' – Fehler seit 26\\.11\\.2026 um 09:00 Uhr: Kaputt'));
   assert.match(summary, new RegExp(bob + ' – kein automatischer Lauf seit 26\\.11\\.2026 um 09:00 Uhr'));
-  assert.match(app.mails.find(mail => mail.to === bob).body, /„Auslöser neu einrichten“/);
+  assert.match(app.mails.find(mail => mail.to === bob).body, /Bitte öffne die App einmal\. Dabei wird die automatische Synchronisierung neu eingerichtet/);
 
   app.mails = [];
   later(app, day); scheduledRun(app, alice, broken); scheduledRun(app, owner); review();
@@ -178,4 +178,114 @@ test('the daily owner check reviews accounts even when the update check fails', 
   o.UrlFetchApp = {fetch: () => ({getResponseCode: () => 503, getContentText: () => ''})};
   assert.throws(() => o.checkForUpdates(), /Could not check for updates/);
   assert.deepEqual(subjects(app).sort(), [alice + ': Automatische Synchronisierung angehalten', owner + ': 1 Konto braucht Hilfe']);
+});
+
+/** Opens the page as the account would; doGet is where the repair happens. */
+function openApp(app, email) {
+  const c = load(app, email);
+  const output = {setTitle() { return this; }, addMetaTag() { return this; }, setFaviconUrl() { return this; }};
+  c.HtmlService = {createHtmlOutputFromFile: () => output, createHtmlOutput: () => output};
+  c.doGet();
+  return c;
+}
+const syncTriggerIds = (app, email) => app.triggers.get(email).filter(t => t.getHandlerFunction() === 'startSync').map(t => t.getUniqueId());
+
+test('opening the app recreates triggers that Google stopped, and only then', () => {
+  const app = world();
+  account(app, alice).install();
+  scheduledRun(app, alice);
+  const before = syncTriggerIds(app, alice);
+
+  later(app, hour);
+  openApp(app, alice);
+  assert.deepEqual(syncTriggerIds(app, alice), before, 'Working triggers are left alone');
+
+  later(app, 2 * hour); // No automatic run for three hours: Google switched them off.
+  const c = openApp(app, alice);
+  const after = syncTriggerIds(app, alice);
+  assert.equal(after.length, 2, 'One repeating trigger and one first run');
+  assert.equal(after.some(id => before.includes(id)), false, 'The stopped triggers were replaced');
+  const state = c.getAppState();
+  assert.equal(state.stalled, false);
+  assert.equal(state.enabled, true);
+  assert.equal(state.triggersRepairedAt, new Date(app.clock.now).toISOString());
+  assert.equal(JSON.parse(app.project.get('health:' + alice)).enabledAt, new Date(app.clock.now).toISOString(),
+    'The owner overview no longer reports the account as stalled');
+
+  openApp(app, alice);
+  assert.deepEqual(syncTriggerIds(app, alice), after, 'Opening again right away changes nothing');
+});
+
+test('paused accounts are not switched back on, and a failing repair still opens the page', () => {
+  const app = world();
+  const c = account(app, alice);
+  c.install(); c.stopSync();
+  later(app, 5 * hour);
+  openApp(app, alice);
+  assert.equal(app.triggers.get(alice).length, 0, 'A deliberate pause stays paused');
+
+  const broken = world();
+  const b = account(broken, bob);
+  b.install();
+  later(broken, 5 * hour);
+  broken.users.get(bob).set('preferences', JSON.stringify({sourceCalendars: []})); // install_ refuses without sources
+  const before = syncTriggerIds(broken, bob);
+  assert.doesNotThrow(() => openApp(broken, bob));
+  assert.deepEqual(syncTriggerIds(broken, bob), before);
+});
+
+/** Google's authorization state for one account, as ScriptApp reports it. */
+function permissions(c, missing) {
+  c.ScriptApp.AuthMode = {FULL: 'FULL'};
+  c.ScriptApp.AuthorizationStatus = {REQUIRED: 'REQUIRED', NOT_REQUIRED: 'NOT_REQUIRED'};
+  c.ScriptApp.getAuthorizationInfo = mode => {
+    assert.equal(mode, 'FULL');
+    return {getAuthorizationStatus: () => missing ? 'REQUIRED' : 'NOT_REQUIRED', getAuthorizationUrl: () => missing ? 'https://script.google.com/authorize?x' : null};
+  };
+  c.requiredAll = 0;
+  c.ScriptApp.requireAllScopes = mode => {
+    assert.equal(mode, 'FULL');
+    c.requiredAll++;
+    if (missing) throw new Error('Authorization required (Google shows its consent screen)');
+  };
+  return c;
+}
+
+test('missing permissions are reported and block activation instead of creating failing triggers', () => {
+  const app = world();
+  const c = permissions(account(app, alice), true);
+  assert.equal(c.getAppState().authorizationUrl, 'https://script.google.com/authorize?x');
+  assert.throws(() => c.install(), /fehlen Berechtigungen/);
+  assert.equal(app.triggers.get(alice).length, 0);
+
+  permissions(c, false);
+  assert.equal(c.getAppState().authorizationUrl, null);
+  c.install();
+  assert.equal(app.triggers.get(alice).filter(t => t.getHandlerFunction() === 'startSync').length, 2);
+  // Older Apps Script runtimes without these functions behave as before.
+  delete c.ScriptApp.getAuthorizationInfo;
+  assert.equal(c.getAppState().authorizationUrl, null);
+});
+
+test('opening the app asks Google for every permission before the page loads', () => {
+  const app = world();
+  account(app, alice).install();
+  const c = permissions(load(app, alice), true);
+  const output = {setTitle() { return this; }, addMetaTag() { return this; }, setFaviconUrl() { return this; }};
+  c.HtmlService = {createHtmlOutputFromFile: () => output, createHtmlOutput: () => assert.fail('No access notice instead of the consent screen')};
+  assert.throws(() => c.doGet(), /consent screen/);
+  assert.equal(c.requiredAll, 1);
+  permissions(c, false);
+  assert.equal(c.doGet(), output);
+});
+
+test('stopped triggers are not recreated while permissions are missing', () => {
+  const app = world();
+  account(app, alice).install();
+  scheduledRun(app, alice);
+  const before = syncTriggerIds(app, alice);
+  later(app, 5 * hour);
+  const c = permissions(load(app, alice), true);
+  assert.equal(c.repairStalledTriggers_(), false);
+  assert.deepEqual(syncTriggerIds(app, alice), before);
 });
