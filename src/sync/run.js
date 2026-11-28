@@ -98,7 +98,7 @@ function startSync(event) {
           "“ dauert länger, als ein Lauf erlaubt, auch nach einer Fortsetzung. Der nächste geplante Lauf versucht es erneut."
       );
     if (err.syncPaused) {
-      Logger.log(err.message);
+      log_(err.message);
       userPrp.setProperties(
         { lastSyncError: "", lastSyncPhase: syncPhase, syncStats: JSON.stringify(syncStats) },
         false
@@ -109,7 +109,7 @@ function startSync(event) {
       return;
     }
     var message = err.message || err;
-    Logger.log("Sync failed: " + message);
+    log_("Sync failed: " + message);
     if (err.rosterAuthRejected) {
       userPrp.setProperty("rosterAuthRejected", "true");
       userPrp.deleteProperty("connectionKey"); // The overview no longer claims a working connection.
@@ -158,7 +158,7 @@ function runSync_() {
       if (err && err.syncPaused) throw err;
       // Targets are independent. One broken source or calendar must not keep the
       // others from syncing; the first error is still reported for this run.
-      Logger.log("Sync of " + calendar[0] + " failed: " + ((err && err.message) || err));
+      log_("Sync of " + calendar[0] + " failed: " + ((err && err.message) || err));
       if (!firstFailure) firstFailure = { error: err, phase: syncPhase };
     }
   }
@@ -175,7 +175,15 @@ function runSync_() {
   if (migration.enabled && !migration.remaining && !migration.deferred)
     userPrp.deleteProperty("adoptLegacyEvents");
   userPrp.deleteProperty("syncResumeCalendar");
-  Logger.log("Sync finished!");
+  log_(
+    "Sync finished: " +
+      syncStats.added +
+      " added, " +
+      syncStats.updated +
+      " updated, " +
+      syncStats.removed +
+      " removed"
+  );
   return migration.remaining;
 }
 

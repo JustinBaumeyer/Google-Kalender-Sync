@@ -35,7 +35,7 @@ function sendAlertMail_(recipient, subject, lines) {
     );
     return true;
   } catch (err) {
-    Logger.log("Could not send warning email: " + ((err && err.message) || err));
+    log_("Could not send warning email: " + ((err && err.message) || err));
     return false;
   }
 }
@@ -99,7 +99,7 @@ function trackRunOutcome_(error, scheduled) {
       notify: recipient
     });
   } catch (err) {
-    Logger.log("Could not record the run outcome: " + ((err && err.message) || err));
+    log_("Could not record the run outcome: " + ((err && err.message) || err));
   }
 }
 
@@ -140,7 +140,7 @@ function writeAccountHealth_(patch) {
     var record = readJson_(scriptPrp.getProperty(key), {});
     scriptPrp.setProperty(key, JSON.stringify(Object.assign(record, patch, { email: email })));
   } catch (err) {
-    Logger.log("Could not update the account health: " + ((err && err.message) || err));
+    log_("Could not update the account health: " + ((err && err.message) || err));
   }
 }
 

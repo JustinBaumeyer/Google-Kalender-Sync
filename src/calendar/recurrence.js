@@ -82,10 +82,6 @@ function getUTCOffsetMillis_(tz) {
  * @param {Calendar.Event} recEvent - The event instance to process
  */
 function processEventInstance_(recEvent) {
-  Logger.log(
-    "ID: " + recEvent.extendedProperties.private["id"] + " | Date: " + recEvent.recurringEventId
-  );
-
   var eventInstanceToPatch = findOwnedEventInstances_({
     singleEvents: true,
     privateExtendedProperty: [
@@ -110,7 +106,6 @@ function processEventInstance_(recEvent) {
 
   if (eventInstanceToPatch.length == 1) {
     if (modifyExistingEvents) {
-      Logger.log("Updating existing event instance");
       calendarRequest_(function () {
         return Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
       }, "Ein Serientermin konnte nicht aktualisiert werden.");
@@ -118,7 +113,6 @@ function processEventInstance_(recEvent) {
     }
   } else {
     if (addEventsToCalendar) {
-      Logger.log("No Instance matched, adding as new event!");
       calendarRequest_(function () {
         return Calendar.Events.insert(recEvent, targetCalendarId);
       }, "Ein Serientermin konnte nicht gespeichert werden.");

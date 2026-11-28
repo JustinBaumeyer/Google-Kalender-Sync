@@ -70,7 +70,6 @@ function parseResponses_(responses) {
         : // Same fallback id as below, so events without UID are matched too.
           Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, event.toString()).toString();
       ignoredEventIds.add(uid);
-      Logger.log("Ignoring event '" + event.getFirstPropertyValue("summary") + "'");
       return false;
     });
   }

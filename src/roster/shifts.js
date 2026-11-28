@@ -117,15 +117,6 @@ function consolidateShiftBlocks_(blocks) {
     var key = block.shortName + "|" + block.transparent;
     var prev = lastByKey[key];
     if (prev && block.start.getTime() <= prev.end.getTime() + gapMillis) {
-      Logger.log(
-        "Consolidating shift '" +
-          block.summary +
-          "' (" +
-          block.start +
-          ") into '" +
-          prev.summary +
-          "'"
-      );
       if (block.end.getTime() > prev.end.getTime()) prev.end = block.end;
       if (
         block.summary != prev.summary &&

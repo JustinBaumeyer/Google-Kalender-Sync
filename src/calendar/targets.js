@@ -79,7 +79,7 @@ function setupTargetCalendar_(targetCalendarName, calendarId, lookup) {
   var targetCalendar = matches[0];
 
   if (targetCalendar == null) {
-    Logger.log("Creating Calendar: " + targetCalendarName);
+    log_("Creating Calendar: " + targetCalendarName);
     targetCalendar = Calendar.newCalendar();
     targetCalendar.summary = targetCalendarName;
     targetCalendar.timeZone = Calendar.Settings.get("timezone").value;

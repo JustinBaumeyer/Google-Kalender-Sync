@@ -67,11 +67,9 @@ function loadTargetCalendarEvents_(migration) {
 
   if (listFailed) return false;
 
-  Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
+  log_("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
   if (adoptLegacy)
-    Logger.log(
-      "Migration: " + migration.adopted + " zugeordnet, " + migration.remaining + " noch offen"
-    );
+    log_("Migration: " + migration.adopted + " zugeordnet, " + migration.remaining + " noch offen");
   for (var i = 0; i < calendarEvents.length; i++) {
     if (calendarEvents[i].extendedProperties != null) {
       calendarEventsIds[i] =
@@ -134,14 +132,12 @@ function processEventCleanup_() {
     var ignored = ignoredEventIds.has(currentID) && !feedIds.has(currentID);
     if (ignored) {
       // Explicitly ignored events are always removed, regardless of their date.
-      Logger.log("Deleting ignored event " + currentID);
       removeManagedEvent_(calendarEvents[i].id);
     } else if (
       !feedIds.has(currentID) && // Event is no longer in source
       calendarEvents[i].recurringEventId == null && // And it's not a recurring event
       (removePastEventsFromCalendar || !isPast || currentShifts.has(storedShiftKey_(currentID)))
     ) {
-      Logger.log("Deleting old event " + currentID);
       removeManagedEvent_(calendarEvents[i].id);
     }
   }

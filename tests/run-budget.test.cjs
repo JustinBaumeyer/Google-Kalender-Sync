@@ -99,5 +99,24 @@ test('the sync interval is only logged when it is actually adjusted', () => {
   assert.equal(c.getValidTriggerFrequency_(15), 15);
   assert.deepEqual(app.logs, []);
   assert.equal(c.getValidTriggerFrequency_(20), 30);
-  assert.deepEqual(app.logs, ['Intended frequency = 20, Adjusted frequency = 30']);
+  assert.deepEqual(app.logs, ['[alice] Intended frequency = 20, Adjusted frequency = 30']);
+});
+
+test('log lines of different accounts are told apart, also in runs without a visitor', () => {
+  const app = shared();app.logs = [];
+  load(app, alice).log_('Start');
+  load(app, 'bob@example.com', '').log_('Start'); // A trigger run: no active visitor.
+  const broken = load(app, alice);
+  broken.Session.getEffectiveUser = () => { throw new Error('No account'); };
+  broken.log_('Start');
+  assert.deepEqual(app.logs, ['[alice] Start', '[bob] Start', '[?] Start']);
+});
+
+test('a failing subscription is logged with its host only, never the private link', () => {
+  const app = shared();app.logs = [];
+  const c = load(app, alice);
+  c.UrlFetchApp = {fetch: () => ({getResponseCode: () => 404, getContentText: () => ''})};
+  assert.throws(() => c.fetchSubscription_('https://cal.example.com/feeds/secret-key-123/basic.ics'),
+    (err) => String(err) == 'HTTP 404 from https://cal.example.com');
+  assert.ok(app.logs.every((line) => !line.includes('secret-key-123')), app.logs.join('\n'));
 });

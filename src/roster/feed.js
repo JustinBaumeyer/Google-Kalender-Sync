@@ -78,7 +78,7 @@ function getRosterICal_(skipTokenRefresh) {
         teamIndex = getTeamDutyIndex_(request.monthParams, request.from, request.to);
       } catch (e) {
         if (e.syncPaused) throw e;
-        Logger.log("Could not build team-duty index: " + (e.message || e));
+        log_("Could not build team-duty index: " + (e.message || e));
       }
     }
 
@@ -166,7 +166,6 @@ function getRosterICal_(skipTokenRefresh) {
         "Dienstplan Update verfügbar",
         "Es ist ein Update für das Dienstplanprogramm verfügbar. Bitte den Updateanweisungen in der Gruppe folgen."
       );
-      Logger.log("update updateAvailable " + updateAvailable);
     }
 
     icsContent += "END:VCALENDAR";

@@ -110,7 +110,7 @@ function writeSharedTeamRoster_(cache, key, roster) {
         );
     if (byteLength_(value) <= 95000) cache.put(key, value, teamCacheSeconds);
   } catch (err) {
-    Logger.log("Could not cache a team view: " + ((err && err.message) || err));
+    log_("Could not cache a team view: " + ((err && err.message) || err));
   }
 }
 
@@ -203,12 +203,12 @@ function loadTeamRosters_(monthParams, from, to, strict) {
         if (e.syncPaused) throw e;
         if (strict) throw new Error("Die Teamübersicht konnte nicht vollständig geladen werden.");
         complete = false;
-        Logger.log("Team-duty preload failed for month " + months[i] + ": " + (e.message || e));
+        log_("Team-duty preload failed for month " + months[i] + ": " + (e.message || e));
       }
     });
   }
 
-  Logger.log("Team-duty planning groups: " + (groups.length ? groups.join(", ") : "(none)"));
+  log_("Team-duty planning groups: " + (groups.length ? groups.join(", ") : "(none)"));
 
   var writeCache = sharedTeamCache_();
   var byGroup = groups.map(function (groupId) {
@@ -219,9 +219,7 @@ function loadTeamRosters_(monthParams, from, to, strict) {
   var missing = groups.filter(function (groupId, i) {
     return !byGroup[i];
   });
-  Logger.log(
-    "Team-duty planning groups from the shared cache: " + (groups.length - missing.length)
-  );
+  log_("Team-duty planning groups from the shared cache: " + (groups.length - missing.length));
 
   // Annotations can use partial results. Calendar sources must stop on any failure
   // so missing groups never look like deleted duties.
@@ -261,7 +259,7 @@ function loadTeamRosters_(monthParams, from, to, strict) {
       if (e.syncPaused) throw e;
       if (strict) throw new Error("Die Teamübersicht konnte nicht vollständig geladen werden.");
       complete = false;
-      Logger.log(
+      log_(
         "Team-duty roster fetch failed for planning group " + missing[i] + ": " + (e.message || e)
       );
     }
