@@ -77,7 +77,9 @@ function getInvitations() {
   return {
     owner: appOwnerEmail_(),
     emails: invitedEmails_(),
-    health: readAccountHealth_(Date.now())
+    health: readAccountHealth_(Date.now()),
+    // Google runs other accounts' automatic runs only if they can read this project.
+    projectUrl: "https://script.google.com/home/projects/" + ScriptApp.getScriptId() + "/edit"
   };
 }
 

@@ -289,3 +289,17 @@ test('stopped triggers are not recreated while permissions are missing', () => {
   assert.equal(c.repairStalledTriggers_(), false);
   assert.deepEqual(syncTriggerIds(app, alice), before);
 });
+
+test('the owner is told that stalled accounts most likely lack read access to the script project', () => {
+  const app = world();
+  account(app, alice).install();
+  account(app, owner).install();
+  later(app, 3 * hour);
+  scheduledRun(app, owner);
+  const o = withMail(app, load(app, owner));
+  o.reviewAccountHealth_();
+  const summary = app.mails.find(mail => mail.to === owner).body;
+  assert.match(summary, /kein automatischer Lauf seit .* – ist das Skriptprojekt mit diesem Konto als Betrachter geteilt\?/);
+  assert.match(app.mails.find(mail => mail.to === alice).body, /muss der App-Inhaber das Skriptprojekt für dein Konto freigeben/);
+  assert.equal(o.getInvitations().projectUrl, 'https://script.google.com/home/projects/script-' + owner + '/edit');
+});

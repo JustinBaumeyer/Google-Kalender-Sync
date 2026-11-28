@@ -230,7 +230,7 @@ function reviewAccountHealth_() {
         text:
           "kein automatischer Lauf seit " +
           alertTime_(state.since) +
-          " (Google hat die automatischen Läufe vermutlich abgeschaltet; einmal die App öffnen behebt das)"
+          " – ist das Skriptprojekt mit diesem Konto als Betrachter geteilt? Ohne diese Freigabe lehnt Google automatische Läufe ab."
       });
       var warned = Date.parse(scriptPrp.getProperty(warnedKey) || "") || 0;
       if (state.notify && now - warned >= alertReminderMs) {
@@ -243,6 +243,7 @@ function reviewAccountHealth_() {
           "Google schaltet die automatischen Läufe zum Beispiel ab, wenn eine Freigabe abgelaufen ist, und erneute Zustimmung schaltet sie nicht wieder ein.",
           "",
           "Bitte öffne die App einmal. Dabei wird die automatische Synchronisierung neu eingerichtet; falls Google nach deiner Zustimmung fragt, bestätige sie. Einstellungen und Termine bleiben erhalten.",
+          "Hilft das nicht, muss der App-Inhaber das Skriptprojekt für dein Konto freigeben. Er erhält dazu ebenfalls eine Nachricht.",
           "",
           "Diese Nachricht kommt aus der täglichen Prüfung des App-Inhabers.",
           "Abschalten lassen sich diese E-Mails in der App unter Einstellungen → „E-Mail bei Fehlern“."
