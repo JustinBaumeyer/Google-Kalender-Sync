@@ -37,7 +37,8 @@ function callWithBackoff_(func, maxRetries) {
         return null;
       } else {
         Logger.log("Error, Retrying... [" + text + "]");
-        var delay = Math.min(Math.pow(2, tries - 1) * 1000, 8000) + Math.round(Math.random() * 100);
+        // Jitter of 0–99 ms keeps every delay below 8.1 s.
+        var delay = Math.min(Math.pow(2, tries - 1) * 1000, 8000) + Math.floor(Math.random() * 100);
         if (syncDeadline && Date.now() + delay >= syncDeadline) {
           syncDeadline = Date.now();
           checkSyncBudget_();
