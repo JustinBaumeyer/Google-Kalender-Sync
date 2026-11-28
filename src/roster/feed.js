@@ -61,7 +61,9 @@ function getRosterICal_(skipTokenRefresh) {
     });
   return callWithBackoff_(function () {
     var payload = generateRosterPayload_();
+    var fetchStarted = Date.now();
     var jsonResponse = JSON.parse(rosterFetch_("rosters/preload", "POST", payload));
+    logDuration_("Own roster fetched", fetchStarted);
     var icsContent =
       "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//GoogleKalenderSync/EN\nMETHOD:REQUEST\nNAME:Roster\nX-WR-CALNAME:Roster\n";
 

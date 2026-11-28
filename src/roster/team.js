@@ -225,6 +225,7 @@ function loadTeamRosters_(monthParams, from, to, strict) {
 
   // Annotations can use partial results. Calendar sources must stop on any failure
   // so missing groups never look like deleted duties.
+  var fetchStarted = Date.now();
   rosterFetchAll_(
     missing.map((groupId) => ({
       endpoint: "team-duty/roster/" + rosterUserId,
@@ -265,6 +266,10 @@ function loadTeamRosters_(monthParams, from, to, strict) {
       );
     }
   });
+  logDuration_(
+    "Team-duty rosters fetched (" + missing.length + " of " + groups.length + ")",
+    fetchStarted
+  );
   byGroup.forEach(function (roster) {
     if (roster) rosters.push(roster);
   });

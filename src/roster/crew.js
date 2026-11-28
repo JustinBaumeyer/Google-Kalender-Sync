@@ -12,6 +12,7 @@ function teamDayKey_(value) {
 /** Build once from the already fetched legend and team rows. */
 function buildTeamDutyIndex_(rosters) {
   if (teamCrewCache.has(rosters)) return teamCrewCache.get(rosters);
+  var started = Date.now();
   var index = {
     catalog: buildLegendAssignments_(rosters),
     duties: [],
@@ -89,6 +90,7 @@ function buildTeamDutyIndex_(rosters) {
     });
   });
   teamCrewCache.set(rosters, index);
+  logDuration_("Team index built (" + index.duties.length + " duties)", started);
   return index;
 }
 

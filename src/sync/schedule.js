@@ -27,7 +27,11 @@ function getValidTriggerFrequency_(origFrequency) {
   // Find the smallest acceptable value greater than or equal to the original frequency
   var roundedUpValue = acceptableValues.find((value) => value >= origFrequency);
 
-  Logger.log("Intended frequency = " + origFrequency + ", Adjusted frequency = " + roundedUpValue);
+  // Called on every page load and run; only an actual adjustment is worth a log line.
+  if (roundedUpValue != origFrequency)
+    Logger.log(
+      "Intended frequency = " + origFrequency + ", Adjusted frequency = " + roundedUpValue
+    );
   return roundedUpValue;
 }
 

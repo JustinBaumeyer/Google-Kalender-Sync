@@ -22,6 +22,11 @@ function appOwnerEmail_() {
   return scriptPrp.getProperty("appOwnerEmail");
 }
 
+/** One log line with the time since `started`, to see where a slow run spends it. */
+function logDuration_(label, started) {
+  Logger.log(label + ": " + ((Date.now() - started) / 1000).toFixed(1) + " s");
+}
+
 function hasTrigger_(handler) {
   return ScriptApp.getProjectTriggers().some(function (trigger) {
     return trigger.getHandlerFunction() == handler;
@@ -79,6 +84,7 @@ var teamRosterCache = {};
 var teamCrewCache = new WeakMap();
 
 var legendDutySpanCache = new Map();
+var zoneDayOffsetCache = new Map();
 
 var teamRosterTokenReady = false;
 
@@ -92,6 +98,7 @@ function resetRosterCaches_() {
   teamRosterCache = {};
   teamCrewCache = new WeakMap();
   legendDutySpanCache = new Map();
+  zoneDayOffsetCache = new Map();
   teamRosterTokenReady = false;
 }
 

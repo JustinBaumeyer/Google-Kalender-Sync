@@ -8,6 +8,10 @@ function startSync(event) {
     throw new Error("Für dein Konto läuft bereits eine Synchronisierung");
   }
 
+  // A continuation that stops at the same step without writing anything cannot finish
+  // that step either; it would repeat every minute and use up Google's daily limit.
+  var pausedBefore = null,
+    statsAtStart = "";
   try {
     syncStartedAt = Date.now();
     syncPhase = "Synchronisierung wird vorbereitet";
@@ -18,6 +22,9 @@ function startSync(event) {
       userPrp.getProperty("syncPending") == "true"
         ? JSON.parse(userPrp.getProperty("syncStats") || '{"added":0,"updated":0,"removed":0}')
         : { added: 0, updated: 0, removed: 0 };
+    if (userPrp.getProperty("syncPending") == "true")
+      pausedBefore = userPrp.getProperty("lastSyncPhase");
+    statsAtStart = JSON.stringify(syncStats);
     userPrp.deleteProperty("upcomingEvents"); // Remove the former dashboard preview cache.
     publishSyncProgress_("Synchronisierung wird vorbereitet", undefined, undefined, "running");
     if (event && event.triggerUid) {
@@ -79,6 +86,17 @@ function startSync(event) {
     }
     if (!event || !event.triggerUid) return getAppState();
   } catch (err) {
+    var noProgress =
+      err.syncPaused &&
+      pausedBefore == syncPhase &&
+      JSON.stringify(syncStats) == statsAtStart &&
+      !/alte Termine zuordnen$/.test(syncPhase);
+    if (noProgress)
+      err = new Error(
+        "„" +
+          syncPhase +
+          "“ dauert länger, als ein Lauf erlaubt, auch nach einer Fortsetzung. Der nächste geplante Lauf versucht es erneut."
+      );
     if (err.syncPaused) {
       Logger.log(err.message);
       userPrp.setProperties(

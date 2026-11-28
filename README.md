@@ -48,7 +48,12 @@ Minuten mit, statt ihn erneut abzurufen. Jedes Konto fragt dabei weiterhin mit d
 Token, welche Planungsgruppen es sehen darf; nur diese kommen aus dem gemeinsamen Speicher.
 Von Hand eingetragene Planungsgruppen werden immer selbst abgerufen. Gespeichert werden nur
 Namen, Personal-IDs, Tage, Dienstkürzel und die Dienstlegende, keine Bemerkungen oder Wünsche;
-große Übersichten werden komprimiert.
+große Übersichten werden komprimiert. Die Planzeiten der Dienstlegende werden je Tag mit einer
+einzigen Zeitzonen-Abfrage umgerechnet; nur an Tagen mit Zeitumstellung fragt die App jede Zeit
+einzeln ab. Das Ausführungsprotokoll nennt die Dauer der Dienstplan- und Teamabrufe und der
+Auswertung. Hält eine Fortsetzung am selben Schritt an, ohne Termine geschrieben zu haben,
+endet der Lauf mit einer Meldung statt sich jede Minute zu wiederholen; der nächste geplante
+Lauf versucht es erneut.
 
 Beim Zustimmen lässt Google einzelne Berechtigungen abwählen. Die App öffnet sich dann trotzdem,
 aber automatische Läufe scheitern, bevor Programmcode startet (im Google-Cloud-Projekt als
