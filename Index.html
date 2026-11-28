@@ -1,0 +1,3809 @@
+<!doctype html>
+<!-- Generated with npm run build. Edit src/web/. -->
+<html lang="de">
+  <head>
+    <base target="_top" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+/* Design tokens. Every colour is used through a variable, so the dark scheme only has
+   to replace this block. The page declares both schemes; browsers then leave the
+   colours alone instead of darkening the page on their own. */
+:root {
+  color-scheme: light dark;
+  --bg: #f2f5f2;
+  --surface: #ffffff;
+  --surface-2: #f6f9f6;
+  --surface-3: #ebf2ec;
+  --border: #dbe4dc;
+  --border-strong: #b7c8bc;
+  --text: #17352b;
+  --muted: #586b61;
+  --accent: #146947;
+  --accent-hover: #0f5639;
+  --on-accent: #ffffff;
+  --accent-soft: #e3f0e7;
+  --accent-border: #b3d0c0;
+  --accent-text: #1c5a3f;
+  --danger: #a32225;
+  --danger-soft: #fbecec;
+  --danger-border: #efcaca;
+  --warn: #7a5200;
+  --warn-soft: #fdf4de;
+  --warn-border: #ecd9a4;
+  --info: #1f5a86;
+  --info-soft: #e8f1f8;
+  --info-border: #c5dbec;
+  --neutral-dot: #8c9c93;
+  --focus: #7fbf99;
+  --knob: #ffffff;
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow: 0 1px 2px rgb(16 40 30 / 0.05), 0 10px 28px -16px rgb(16 40 30 / 0.18);
+  font:
+    16px/1.5 system-ui,
+    sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  accent-color: var(--accent);
+}
+/* The only place with dark colours. It follows the device by default; a manual
+   choice in the footer retargets this rule (applyTheme in client/core.js). */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1512;
+    --surface: #151e1a;
+    --surface-2: #1a2520;
+    --surface-3: #212f29;
+    --border: #29372f;
+    --border-strong: #3e5248;
+    --text: #e3ece6;
+    --muted: #9cafa4;
+    --accent: #3fae7c;
+    --accent-hover: #55c290;
+    --on-accent: #05140d;
+    --accent-soft: #1b3227;
+    --accent-border: #2e5542;
+    --accent-text: #82d6aa;
+    --danger: #ff938d;
+    --danger-soft: #371b1b;
+    --danger-border: #5c2c2c;
+    --warn: #f1c468;
+    --warn-soft: #30270f;
+    --warn-border: #574819;
+    --info: #8cc4ee;
+    --info-soft: #14283a;
+    --info-border: #24435e;
+    --neutral-dot: #6f8278;
+    --focus: #3fae7c;
+    --knob: #e3ece6;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px -16px rgb(0 0 0 / 0.7);
+  }
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-padding-block: 4.5rem 9rem;
+}
+body {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 1.75rem 1.25rem 3rem;
+}
+h1 {
+  font-size: 1.35rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+h2 {
+  font-size: 1.15rem;
+  line-height: 1.3;
+  margin: 0 0 0.35rem;
+}
+p {
+  margin: 0.35rem 0 0.9rem;
+}
+p:empty {
+  margin: 0;
+}
+a {
+  color: var(--accent-text);
+  text-underline-offset: 0.15em;
+}
+.muted,
+small {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+small {
+  display: block;
+  margin-top: 0.25rem;
+}
+.spaced {
+  margin-top: 1.2rem;
+}
+
+/* ---------- App bar ---------- */
+.app-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+}
+.brand-mark {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  color: var(--accent);
+  --surface: var(--bg);
+}
+.tagline {
+  margin: 0.1rem 0 0;
+}
+.account-chip {
+  max-width: 100%;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.account-chip:empty {
+  display: none;
+}
+.app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  justify-content: center;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.app-footer a:not([href]) {
+  display: none;
+}
+.theme-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.theme-choice select {
+  width: auto;
+  height: 32px;
+  padding: 0.1rem 0.4rem;
+  font-size: inherit;
+}
+
+/* ---------- Status ---------- */
+.status {
+  --state: var(--neutral-dot);
+  --state-soft: var(--surface);
+  --state-border: var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  background: var(--state-soft);
+  border: 1px solid var(--state-border);
+  padding: 1rem 1.15rem;
+  border-radius: var(--radius);
+  margin: 1rem 0;
+}
+.status[data-state="active"],
+.status[data-state="running"] {
+  --state: var(--accent);
+  --state-soft: var(--accent-soft);
+  --state-border: var(--accent-border);
+}
+.status[data-state="error"] {
+  --state: var(--danger);
+  --state-soft: var(--danger-soft);
+  --state-border: var(--danger-border);
+}
+.status[data-state="stalled"] {
+  --state: var(--warn);
+  --state-soft: var(--warn-soft);
+  --state-border: var(--warn-border);
+}
+.status-dot {
+  flex: none;
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-top: 0.38rem;
+  border-radius: 50%;
+  background: var(--state);
+  box-shadow: 0 0 0 4px var(--state-border);
+}
+.status[data-state="running"] .status-dot,
+.status[data-state="loading"] .status-dot {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+.status-text {
+  min-width: 0;
+}
+#status {
+  font-weight: 650;
+  font-size: 1.05rem;
+}
+#lastError {
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+#lastError:not(:empty) {
+  margin-top: 0.3rem;
+}
+
+/* ---------- Notices and messages ---------- */
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  padding: 0.9rem 1.15rem;
+  margin: 1rem 0;
+  border: 1px solid var(--info-border);
+  border-radius: var(--radius);
+  background: var(--info-soft);
+}
+.notice > div {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.notice p {
+  margin: 0.2rem 0 0;
+  font-size: 0.92rem;
+}
+.notice.warn {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+}
+.flash {
+  padding: 0.7rem 1rem;
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.flash:empty {
+  display: none;
+}
+.flash.error,
+#message.error,
+#initialError:not(:empty),
+#previewErrors p {
+  color: var(--danger);
+}
+.flash.error {
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+}
+
+/* ---------- Cards ---------- */
+section,
+details.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+}
+section section {
+  box-shadow: none;
+}
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+legend {
+  font-weight: 700;
+  padding: 0;
+}
+.section-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+  margin-bottom: 0.9rem;
+}
+.section-head h2 {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.page-head h2 {
+  font-size: 1.35rem;
+}
+
+/* ---------- Setup guide ---------- */
+.guide {
+  background: var(--surface-2);
+}
+.guide-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.9rem 0 0;
+  counter-reset: step;
+}
+.guide-steps li {
+  position: relative;
+  padding: 0.8rem 0.85rem 0.85rem 2.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.9rem;
+  counter-increment: step;
+}
+.guide-steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0.8rem;
+  top: 0.8rem;
+  display: grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.guide-steps li.done::before {
+  content: "✓";
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.guide-steps li.done strong {
+  color: var(--muted);
+}
+.guide-steps strong {
+  display: block;
+}
+#migrationEntry {
+  margin: 0.9rem 0 0;
+}
+
+/* ---------- Overview ---------- */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0 0 1rem;
+}
+.facts > div {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  min-width: 0;
+}
+.facts dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.facts dd {
+  margin: 0.2rem 0 0;
+  font-size: 0.93rem;
+  overflow-wrap: anywhere;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 1rem 0;
+}
+.metric {
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem 0.9rem;
+  min-width: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.metric strong {
+  display: block;
+  font-size: 1.6rem;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.history {
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.history-list li {
+  display: grid;
+  grid-template-columns: 1.4rem minmax(0, 1fr) auto;
+  gap: 0.2rem 0.6rem;
+  align-items: baseline;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.92rem;
+}
+.history-list li:last-child {
+  border-bottom: 0;
+}
+.history-list .mark {
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.history-list li.failed .mark,
+.history-list li.failed .what {
+  color: var(--danger);
+}
+.history-list .what {
+  overflow-wrap: anywhere;
+}
+.history-list .when {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.7rem;
+  margin-top: 1.1rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--border);
+}
+button.tool {
+  display: block;
+  height: 100%;
+  padding: 0.8rem 0.95rem;
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+button.tool:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+button.tool strong {
+  display: block;
+  font-size: 0.95rem;
+}
+button.tool small {
+  font-weight: 400;
+}
+
+/* ---------- Forms ---------- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.4rem;
+}
+.grid + .grid {
+  margin-top: 1rem;
+}
+label {
+  display: block;
+  min-width: 0;
+}
+label > span {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 650;
+  margin-bottom: 0.35rem;
+  overflow-wrap: anywhere;
+}
+input:not([type="checkbox"]),
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: inherit;
+}
+input:not([type="checkbox"]),
+select {
+  height: 44px;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  line-height: 1.25;
+}
+input:not([type="checkbox"]):hover,
+select:hover {
+  border-color: var(--muted);
+}
+input::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
+textarea {
+  min-height: 160px;
+  padding: 0.7rem;
+  font:
+    14px/1.4 ui-monospace,
+    monospace;
+}
+@supports (grid-template-rows: subgrid) {
+  .grid > label {
+    grid-row: span 3;
+  }
+  .grid > label:not(.toggle) {
+    display: grid;
+    grid-template-rows: subgrid;
+    row-gap: 0.35rem;
+  }
+  .grid > label:not(.toggle) > span {
+    align-self: end;
+    margin: 0;
+  }
+  .grid > label:not(.toggle) > small {
+    align-self: start;
+    margin: 0;
+  }
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.toggle {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.6rem 0;
+  cursor: pointer;
+}
+.toggle input {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 2.5rem;
+  height: 1.5rem;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.toggle input::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(1.5rem - 6px);
+  height: calc(1.5rem - 6px);
+  border-radius: 50%;
+  background: var(--knob);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  transition: transform 0.15s;
+}
+.toggle input:checked {
+  background: var(--accent);
+}
+.toggle input:checked::before {
+  transform: translateX(1rem);
+}
+.toggle input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+@media (forced-colors: active) {
+  .toggle input {
+    appearance: auto;
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-top: 0.15rem;
+  }
+  .toggle input::before {
+    content: none;
+  }
+}
+.toggle span {
+  margin: 0;
+  font-weight: 500;
+}
+.row {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  margin: 0.85rem 0;
+}
+.row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.7rem;
+}
+.row-head strong {
+  font-size: 0.9rem;
+}
+.rule-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* ---------- Buttons ---------- */
+button {
+  min-height: 44px;
+  padding: 0.6rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  font: 600 0.9rem system-ui;
+  line-height: 1.4;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s;
+}
+button:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+button.secondary {
+  background: var(--surface);
+  color: var(--accent-text);
+  border-color: var(--border-strong);
+}
+button.secondary:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+button.remove {
+  background: transparent;
+  color: var(--danger);
+  padding: 0.35rem 0.65rem;
+}
+button.remove:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+a.button-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--accent-text);
+  font: 600 0.9rem system-ui;
+  text-decoration: none;
+}
+a.button-link:hover {
+  background: var(--surface-3);
+}
+button.link {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font-weight: 600;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+button.link:hover:not(:disabled) {
+  background: none;
+  color: var(--accent);
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+.actions + .actions,
+.connection-actions,
+.settings-tools {
+  margin-top: 0.75rem;
+}
+.field-actions {
+  align-items: flex-end;
+}
+.field-actions > label {
+  flex: 1 1 14rem;
+  max-width: 30rem;
+}
+.field-actions > button {
+  flex: 0 0 auto;
+}
+
+/* ---------- Settings navigation and save bar ---------- */
+.section-nav {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 0.4rem;
+  margin: 0 -0.25rem 1rem;
+  padding: 0.5rem 0.25rem;
+  overflow-x: auto;
+  background: var(--bg);
+  scrollbar-width: none;
+}
+.section-nav button {
+  flex: none;
+  min-height: 36px;
+  padding: 0.3rem 0.85rem;
+  border-color: var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.section-nav button:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.savebar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.8rem 1rem;
+  margin-top: 1rem;
+}
+.savebar-status {
+  flex: 1;
+  min-width: 0;
+}
+.savebar .actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.savebar #dirtyHint {
+  margin: 0;
+}
+.savebar #message {
+  margin: 0 0 0.25rem;
+  max-height: 4.5rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+}
+#message {
+  white-space: pre-wrap;
+  margin: 0.5rem 0;
+}
+#message:empty {
+  display: none;
+}
+.progress-panel {
+  margin: 1rem 0;
+  padding: 0.9rem 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+progress {
+  display: block;
+  width: 100%;
+  height: 10px;
+  margin: 0.6rem 0;
+  accent-color: var(--accent);
+}
+summary {
+  font-weight: 650;
+  cursor: pointer;
+}
+details .grid {
+  margin-top: 1rem;
+}
+details[open] > summary {
+  margin-bottom: 0.75rem;
+}
+.danger {
+  margin-top: 1.3rem;
+}
+.danger button {
+  color: var(--danger);
+}
+[hidden] {
+  display: none !important;
+}
+
+/* ---------- Lists ---------- */
+.event-list {
+  list-style: none;
+  padding: 0;
+}
+.event-list li {
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.event-list li:last-child {
+  border: 0;
+}
+#inviteList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+#inviteList li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#inviteList button {
+  flex: 0 0 auto;
+}
+#ownerInfo {
+  overflow-wrap: anywhere;
+}
+.account-state {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.account-state.problem {
+  color: var(--danger);
+}
+#connectionFields > details {
+  margin-top: 0.75rem;
+}
+textarea + button {
+  margin-top: 0.75rem;
+}
+.team-roster-picker {
+  grid-column: 1 / -1;
+}
+.team-roster-picker > label {
+  margin-top: 1rem;
+}
+
+/* ---------- Annual report ---------- */
+.duty-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 1rem;
+  align-items: end;
+  margin-block: 1rem 0.5rem;
+}
+.duty-navigation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  max-width: 27rem;
+  justify-self: end;
+}
+#annualDutyPageStatus {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  margin-top: 0.75rem;
+}
+.annual-duty-table td:nth-child(3) {
+  min-width: 14rem;
+}
+.numeric,
+.annual-duty-table th:nth-child(n + 4),
+.annual-month-table th:not(:first-child),
+.annual-month-table td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+th,
+td {
+  padding: 0.65rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+th {
+  white-space: nowrap;
+  vertical-align: bottom;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.annual-absence {
+  min-width: 100px;
+  text-align: right;
+}
+.annual-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  padding: 1rem 0;
+  margin: 1rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.annual-summary h4 {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+}
+.annual-summary dl {
+  margin: 0;
+}
+.annual-summary .summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.2rem 0;
+  font-size: 0.88rem;
+}
+.annual-summary dt {
+  color: var(--muted);
+}
+.annual-summary dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
+}
+#annualResults > details {
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+#annualRows small {
+  white-space: nowrap;
+}
+#annualProgress {
+  margin: 1rem 0;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .annual-summary {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .guide-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .duty-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .duty-navigation {
+    max-width: none;
+  }
+}
+@media (max-width: 650px) {
+  body {
+    padding: 1.1rem 0.8rem 2rem;
+  }
+  section,
+  details.panel {
+    padding: 1rem;
+  }
+  .grid,
+  .rule-grid,
+  .facts,
+  .guide-steps {
+    grid-template-columns: 1fr;
+  }
+  .grid > label {
+    grid-row: auto;
+  }
+  .grid > label:not(.toggle) {
+    display: block;
+  }
+  .grid > label:not(.toggle) > span {
+    margin-bottom: 0.35rem;
+  }
+  .grid > label:not(.toggle) > small {
+    margin-top: 0.25rem;
+  }
+  .section-head {
+    align-items: start;
+  }
+  .section-head h2 {
+    padding-top: 0.4rem;
+  }
+  .section-nav {
+    position: static;
+  }
+  .savebar {
+    display: grid;
+    gap: 0.6rem;
+    bottom: 0.4rem;
+    padding: 0.7rem 0.8rem;
+  }
+  .savebar .actions,
+  .settings-tools {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .field-actions > label {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .duty-navigation button {
+    padding-inline: 0.7rem;
+  }
+  .actions button {
+    flex: 1 1 45%;
+  }
+  .metric {
+    padding: 0.6rem;
+  }
+  .history-list li {
+    grid-template-columns: 1.4rem minmax(0, 1fr);
+  }
+  .history-list .when {
+    grid-column: 2;
+    text-align: left;
+  }
+  .notice button,
+  .notice a.button-link {
+    flex: 1 1 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Print: the annual report on paper, always in light colours ---------- */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #ffffff;
+    --surface-3: #f2f2f2;
+    --border: #cfd6d1;
+    --text: #111111;
+    --muted: #444444;
+    --accent-text: #111111;
+  }
+  body {
+    max-width: none;
+    padding: 0;
+  }
+  body > :not(#annualPanel) {
+    display: none !important;
+  }
+  #annualPanel {
+    display: block !important;
+    border: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+  #annualPanel .annual-controls,
+  #annualPanel .annual-actions,
+  #annualPanel button {
+    display: none !important;
+  }
+  .table-scroll {
+    overflow: visible;
+  }
+  th,
+  td {
+    padding: 0.25rem;
+  }
+  th {
+    white-space: normal;
+  }
+  tr {
+    break-inside: avoid;
+  }
+}
+</style>
+  </head>
+  <body>
+    <header class="app-bar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="3" y="5" width="26" height="24" rx="6" fill="currentColor" />
+          <path d="M3 12h26" stroke="var(--surface)" stroke-width="2" />
+          <path
+            d="m11 20 3.5 3.5L21.5 16"
+            fill="none"
+            stroke="var(--surface)"
+            stroke-width="2.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M10 3v5M22 3v5"
+            stroke="currentColor"
+            stroke-width="2.6"
+            stroke-linecap="round"
+          />
+        </svg>
+        <div>
+          <h1>Dienstplan Sync</h1>
+          <p class="muted tagline">Dienstpläne und Kalender-Abos im Google Kalender.</p>
+        </div>
+      </div>
+      <span id="account" class="account-chip" title="Angemeldetes Google-Konto"></span>
+    </header>
+    <div id="statusCard" class="status" data-state="loading" aria-live="polite"
+      ><span class="status-dot" aria-hidden="true"></span
+      ><div class="status-text"
+        ><div id="status">Einstellungen werden geladen …</div><div id="lastSync" class="muted"></div
+        ><div id="lastError"></div></div
+    ></div>
+    <div id="stalledNotice" class="notice warn" role="status" hidden>
+      <div>
+        <strong>Die automatische Synchronisierung scheint zu ruhen.</strong>
+        <p id="stalledText"></p>
+      </div>
+      <button type="button" id="repairTriggers" class="secondary">Auslöser neu einrichten</button>
+    </div>
+    <div id="authNotice" class="notice warn" role="status" hidden>
+      <div>
+        <strong>Für automatische Läufe fehlen Berechtigungen.</strong>
+        <p
+          >Google lässt beim Zustimmen einzelne Berechtigungen abwählen. Automatische Läufe brauchen
+          alle; ohne sie startet kein Lauf, auch wenn die App sonst funktioniert. Erteile die
+          fehlenden Berechtigungen und lade die App danach neu.</p
+        >
+      </div>
+      <a id="authLink" class="button-link" target="_blank" rel="noopener"
+        >Berechtigungen erteilen</a
+      >
+    </div>
+    <div id="tokenNotice" class="notice warn" role="status" hidden>
+      <div>
+        <strong>Der Dienstplan-Zugang ist abgelaufen.</strong>
+        <p
+          >Trage einen neuen Dienstplan-Token ein. Bis dahin bleibt der Kalender unverändert, und es
+          werden keine Dienste übernommen.</p
+        >
+      </div>
+      <button type="button" id="enterToken" class="secondary">Neuen Token eintragen</button>
+    </div>
+    <div id="updateNotice" class="notice info" role="status" hidden>
+      <div><strong id="updateTitle"></strong><p id="updateText"></p></div>
+    </div>
+    <details id="errorDetails" class="panel" hidden>
+      <summary>Fehlerdetails</summary>
+      <p class="muted"
+        >Dieser Bericht enthält die Version, den fehlgeschlagenen Schritt und Dateipositionen.
+        Zugangsdaten und Kalenderinhalte werden nicht übernommen. Du kannst ihn zur Fehlersuche
+        weitergeben.</p
+      >
+      <textarea id="errorReport" readonly aria-label="Fehlerbericht"></textarea>
+      <button type="button" id="copyErrorReport" class="secondary">Fehlerbericht kopieren</button>
+      <p id="errorReportMessage" class="muted" role="status"></p>
+    </details>
+    <div id="syncPanel" class="progress-panel" hidden>
+      <strong id="syncPhase" role="status" aria-live="polite"></strong>
+      <progress
+        id="syncProgress"
+        aria-label="Fortschritt des aktuellen Synchronisierungsschritts"
+      ></progress>
+      <small id="syncCount"></small>
+    </div>
+    <p id="globalMessage" class="flash" role="status" aria-live="polite"></p>
+    <section id="setupGuide" class="guide" aria-labelledby="setupGuideTitle" hidden>
+      <h2 id="setupGuideTitle">In vier Schritten eingerichtet</h2>
+      <ol id="setupSteps" class="guide-steps"></ol>
+      <p id="migrationEntry"
+        ><button type="button" id="migrationShortcut" class="link"
+          >Schon eine eigene Skriptkopie? Einstellungen übernehmen</button
+        ></p
+      >
+    </section>
+    <section id="overview" hidden>
+      <div class="section-head"
+        ><h2>Übersicht</h2
+        ><button type="button" id="editSettings" class="secondary"
+          >Einstellungen bearbeiten</button
+        ></div
+      >
+      <dl class="facts">
+        <div><dt>Nächster Lauf</dt><dd id="nextRun"></dd></div>
+        <div><dt>Dienstplan</dt><dd id="connectionBadge"></dd></div>
+        <div><dt>Quellen</dt><dd id="sourceSummary"></dd></div>
+      </dl>
+      <div id="metrics" class="metrics" aria-label="Ergebnis des letzten Laufs" hidden></div>
+      <div class="actions"
+        ><button type="button" id="dashboardSync">Jetzt synchronisieren</button
+        ><button type="button" id="dashboardPreview" class="secondary">Vorschau prüfen</button
+        ><button type="button" id="dashboardEnable" class="secondary" hidden
+          >Automatik aktivieren</button
+        ><button type="button" id="dashboardPause" class="secondary">Pausieren</button></div
+      >
+      <details id="historyPanel" class="history" hidden>
+        <summary>Verlauf der letzten Läufe</summary>
+        <ol id="history" class="history-list"></ol>
+        <p class="muted">Aufeinanderfolgende Läufe mit gleichem Ergebnis werden zusammengefasst.</p>
+      </details>
+      <div class="tools">
+        <button type="button" id="annualOpen" class="tool"
+          ><strong>Jahresübersicht</strong
+          ><small>Stunden, Nacht- und Feiertagszeiten für die Steuerunterlagen</small></button
+        ><button type="button" id="openMigration" class="tool"
+          ><strong>Aus bisheriger Kopie umziehen</strong
+          ><small>Einstellungen einer eigenen Skriptkopie übernehmen</small></button
+        ><button type="button" id="manageAccess" class="tool" hidden
+          ><strong>Zugriff verwalten</strong
+          ><small>Google-Konten einladen oder entfernen</small></button
+        ></div
+      >
+    </section>
+    <form id="preferences" hidden novalidate>
+  <div class="section-head page-head"
+    ><h2>Einstellungen</h2
+    ><button type="button" id="closeSettings" class="secondary">Zur Übersicht</button></div
+  >
+  <nav id="sectionNav" class="section-nav" aria-label="Abschnitte der Einstellungen">
+    <button type="button" data-section="sectionConnection">Verbindung</button>
+    <button type="button" data-section="sectionSources">Quellen</button>
+    <button type="button" data-section="sectionSchedule">Zeitplan</button>
+    <button type="button" data-section="sectionContent">Inhalte</button>
+    <button type="button" data-section="sectionEvents">Termine</button>
+    <button type="button" data-section="sectionRules">Ausblenden</button>
+    <button type="button" data-section="advanced">Erweitert</button>
+  </nav>
+  <fieldset id="settingsFields">
+    <section id="sectionConnection">
+      <h2>Dienstplan verbinden</h2>
+      <p class="muted"
+        >Die App verwendet deine eigenen Dienstplan-Zugangsdaten. Ohne Mitarbeiter-ID und Token
+        bleibt die ROSTER-Quelle inaktiv. Kalender-Abos kannst du trotzdem verwenden.</p
+      >
+      <div id="connectionSummary" hidden><p id="connectionText"></p></div>
+      <div id="connectionFields"
+        ><div class="grid">
+          <label
+            ><span>Mitarbeiter-ID</span
+            ><input id="employee" inputmode="numeric" autocomplete="off" pattern="[0-9]+"
+          /></label>
+          <label
+            ><span id="tokenLabel">Dienstplan-Token</span
+            ><input
+              id="token"
+              type="password"
+              autocomplete="new-password"
+              aria-labelledby="tokenLabel"
+              aria-describedby="tokenHint" /><small id="tokenHint"></small
+          ></label>
+        </div>
+        <details
+          ><summary>Wo finde ich Mitarbeiter-ID und Token?</summary
+          ><p class="muted"
+            >Du brauchst die interne Mitarbeiter-ID des Dienstplans. In deiner alten Skriptkopie
+            findest du ID und Token unter Projekteinstellungen → Skripteigenschaften: „rosterUserId“
+            und „rosterUserToken“. Wenn du noch keinen Token hast, frag den App-Inhaber.</p
+          ></details
+        ></div
+      >
+      <div class="actions connection-actions">
+        <button type="button" id="editConnection" class="secondary" hidden
+          >Zugangsdaten ändern</button
+        >
+        <button type="button" id="testConnection" class="secondary">Verbindung prüfen</button> </div
+      ><p id="connectionResult" role="status"></p>
+    </section>
+    <section id="sectionSources">
+      <h2>Kalenderquellen</h2>
+      <p class="muted"
+        >Wähle für jede Quelle einen vorhandenen Kalender oder lege einen neuen an. Für eine andere
+        Person wähle „Dienstplan einer anderen Person“ und suche ihren Namen.</p
+      >
+      <div id="sources"></div>
+      <button type="button" id="addSource" class="secondary">Quelle hinzufügen</button>
+    </section>
+    <section id="sectionSchedule">
+      <h2>Synchronisierung</h2>
+      <div class="grid" id="schedule"></div>
+      <div class="grid" id="emailSettings"></div>
+    </section>
+    <section id="sectionContent">
+      <h2>Was soll übernommen werden?</h2>
+      <div class="grid" id="rosterSettings"></div>
+    </section>
+    <section id="sectionEvents">
+      <h2>Termine & Verlauf</h2>
+      <p class="muted">Vergangene Termine bleiben standardmäßig erhalten.</p>
+      <div class="grid" id="eventSettings"></div>
+    </section>
+    <section id="sectionRules">
+      <h2>Termine ausblenden</h2>
+      <p class="muted"
+        >Eine Regel kann nach Titel, Wochentag oder Uhrzeit filtern. Alle ausgefüllten Felder einer
+        Regel müssen passen.</p
+      >
+      <div id="rules"></div>
+      <button type="button" id="addRule" class="secondary">Regel hinzufügen</button>
+      <div id="shiftCodes" class="spaced"></div>
+    </section>
+    <details class="panel" id="advanced"
+      ><summary>Erweiterte Einstellungen</summary><div class="grid" id="advancedSettings"></div
+    ></details>
+    <div class="actions settings-tools">
+      <button type="button" id="sync" class="secondary">Jetzt synchronisieren</button>
+      <button type="button" id="preview" class="secondary">Vorschau prüfen</button>
+      <button type="button" id="annualOpenSettings" class="secondary">Jahresübersicht</button>
+      <button type="button" id="stop" class="secondary">Pausieren</button>
+    </div>
+    <div class="savebar">
+      <div class="savebar-status">
+        <div id="message" role="status" aria-live="polite"></div>
+        <p id="dirtyHint" class="muted">Alle Änderungen gespeichert.</p>
+      </div>
+      <div class="actions">
+        <button type="submit">Einstellungen speichern</button>
+        <button type="button" id="enable" class="secondary">Synchronisierung aktivieren</button>
+      </div>
+    </div>
+    <details class="danger"
+      ><summary class="muted">Verbindung entfernen</summary>
+      <p class="muted"
+        >Löscht deine gespeicherten Zugangsdaten und Einstellungen und stoppt den automatischen
+        Sync. Kalendereinträge bleiben erhalten.</p
+      >
+      <button type="button" id="disconnect" class="secondary"
+        >Meine gespeicherten Daten löschen</button
+      >
+    </details>
+  </fieldset>
+</form>
+
+    <section id="previewPanel" hidden
+      ><h2>Vorschau kommender Termine</h2><ul id="previewEvents" class="event-list"></ul
+      ><div id="previewErrors" role="alert"></div><p id="previewNote" class="muted"></p
+    ></section>
+    <section id="annualPanel" hidden>
+  <div class="section-head"
+    ><h2>Jahresübersicht für die Steuerunterlagen</h2
+    ><button type="button" id="annualClose" class="secondary">Schließen</button></div
+  >
+  <p class="muted"
+    >Nur ROSTER. Planzeiten bitte mit tatsächlich geleisteter Arbeit und Pausen abgleichen. Die
+    Übersicht ändert keine Kalendertermine oder Sync-Einstellungen.</p
+  >
+  <fieldset id="annualFields">
+    <div class="grid annual-controls">
+      <label
+        ><span>Jahr</span><input id="annualYear" type="number" min="2020" max="2099" step="1"
+      /></label>
+      <label
+        ><span>Bundesland des Arbeitsorts</span
+        ><select id="annualRegion"></select
+        ><small
+          >Feiertage werden von feiertage-api.de geladen. Örtlich beschränkte Feiertage bei Bedarf
+          unten bestätigen. Alle Diensttage zählen, auch Sonn- und Feiertage.</small
+        ></label
+      >
+    </div>
+    <details class="annual-controls"
+      ><summary>Weitere Optionen</summary>
+      <label
+        ><span>Tarifliches Nachtzeitfenster für den Abgleich</span
+        ><select id="annualNightStart"
+          ><option value="20">20–6 Uhr – aktuelle DRK-RTV-Fassung (§ 13 Abs. 6)</option
+          ><option value="21"
+            >21–6 Uhr – nur bei entsprechend älterer / abweichender Fassung</option
+          ></select
+        ><small
+          >Für frühere Jahre die damals geltende Fassung oder Lohnabrechnung prüfen. Das steuerliche
+          Fenster bleibt 20–6 Uhr.</small
+        ></label
+      >
+      <label class="toggle"
+        ><input id="annualFuture" type="checkbox" /><span
+          >Auch noch nicht abgeschlossene, geplante Dienste einbeziehen</span
+        ></label
+      >
+      <label class="toggle"
+        ><input id="annualRefresh" type="checkbox" /><span
+          >ROSTER neu abrufen (15-Minuten-Zwischenspeicher umgehen)</span
+        ></label
+      >
+      <div class="actions field-actions"
+        ><label
+          ><span>Zusätzlicher Feiertag am Arbeitsort</span
+          ><input id="annualHoliday" type="date" /></label
+        ><button type="button" id="annualAddHoliday" class="secondary"
+          >Feiertag ergänzen</button
+        ></div
+      ><ul id="annualHolidays"></ul>
+    </details>
+    <div class="actions annual-actions spaced"
+      ><button type="button" id="annualLoad">Jahresübersicht erstellen</button
+      ><button type="button" id="annualDownload" class="secondary" disabled
+        >CSV herunterladen</button
+      ><button type="button" id="annualPrint" class="secondary" disabled>Drucken / PDF</button></div
+    >
+    <div id="annualResults" hidden>
+      <h3 id="annualTitle"></h3><p id="annualProvenance" class="muted"></p
+      ><p id="annualWarnings" class="muted"></p> <p id="annualHeadline"></p
+      ><div id="annualMetrics" class="annual-summary"></div>
+      <label class="annual-controls">
+        <span>Deine erste Tätigkeitsstätte laut Arbeitgeber</span>
+        <input
+          id="annualFirstStation"
+          list="annualStationNames"
+          maxlength="120"
+          placeholder="z. B. Würselen 2"
+        />
+        <small>Gemeint ist die Rettungswache, nicht das einzelne Fahrzeug.</small>
+      </label>
+      <datalist id="annualStationNames"></datalist>
+      <p id="annualStationSummary" class="muted"></p>
+      <div class="actions annual-controls"
+        ><button type="button" id="annualSaveStations" class="secondary"
+          >Wachenzuordnung speichern</button
+        ><span id="annualStationMessage" class="muted" role="status"></span
+      ></div>
+      <details id="annualStationDetails">
+        <summary>Fahrzeuge den Rettungswachen zuordnen</summary>
+        <p class="muted"
+          >Die Wache wird aus der Fahrzeugkennung vorgeschlagen: Würselen 2 RTW 1 und Würselen 2 RTW
+          2 gehören zu Würselen 2. Würselen 1 ist eine andere Wache. Prüfe die Zuordnung und
+          korrigiere abweichende Schreibweisen. Einen abweichenden tatsächlichen Einsatzort kannst
+          du beim einzelnen Dienst eintragen.</p
+        >
+        <div id="annualVehicleStations" class="grid"></div>
+      </details>
+      <details id="annualMonthDetails"
+        ><summary>Monatswerte</summary
+        ><div class="table-scroll"
+          ><table class="annual-month-table"
+            ><thead
+              ><tr
+                ><th>Monat</th><th>Kalendertage mit Dienst</th><th>Blöcke</th><th>über 8 h</th
+                ><th>über 12 h</th><th>Dienstzeit h</th><th id="annualNightHeader">Nacht 20–6 h</th
+                ><th id="annualTariffHeader" hidden>Nacht 20–6 h (DRK-RTV)</th
+                ><th>davon 0–4 h¹</th></tr
+              ></thead
+            ><tbody id="annualMonths"></tbody></table></div
+      ></details>
+      <details id="annualDutyDetails"
+        ><summary>Dienste prüfen und ergänzen</summary
+        ><p class="muted"
+          >Abwesenheit nicht aus der Dienstdauer ableiten: Trage bei Bedarf die tatsächliche Dauer
+          einschließlich der relevanten Wege ein. Die Zähler zählen erfasste Abwesenheiten, keine
+          steuerlichen Pauschaltage.</p
+        >
+        <div class="duty-toolbar annual-controls">
+          <label
+            ><span>Dienste anzeigen</span
+            ><select id="annualDutyFilter">
+              <option value="all">Alle Dienste</option
+              ><option value="other">Andere Rettungswachen</option>
+              <option value="unclear">Unklare Wachenzuordnung</option
+              ><option value="edited">Mit eigenen Ergänzungen</option>
+            </select></label
+          >
+          <div class="duty-navigation">
+            <button type="button" id="annualDutyPrevious" class="secondary">Zurück</button>
+            <span id="annualDutyPageStatus" role="status" class="muted"></span>
+            <button type="button" id="annualDutyNext" class="secondary">Weiter</button>
+          </div>
+        </div>
+        <small class="annual-controls"
+          >20 Dienste pro Seite. CSV und Druck enthalten alle Dienste des Jahres.</small
+        >
+        <p id="annualAbsenceTotals" class="muted"></p
+        ><div class="table-scroll"
+          ><table class="annual-duty-table"
+            ><thead
+              ><tr
+                ><th>Beginn / Ende</th><th>Fahrzeuge / Kürzel</th><th>Rettungswache / Zuordnung</th
+                ><th>Blockdauer h</th><th>Zeit im Jahr h</th><th>Nacht h</th
+                ><th>Abwesenheit h<br />(eigene Angabe)</th></tr
+              ></thead
+            ><tbody id="annualRows"></tbody></table
+        ></div> </details
+      ><details id="annualTaxDetails"
+        ><summary>Steuerliche Einordnung und Quellen</summary>
+        <p class="muted"
+          >In Deutschland gelten bei erfüllten Voraussetzungen 14 € für eintägige Auswärtstätigkeit
+          über 8 Stunden und 28 € für volle 24-Stunden-Tage. Über 12 Stunden ist keine eigene
+          Pauschalstufe. Bei Arbeit über Mitternacht ohne Übernachtung kommt die Zuordnung zum Tag
+          mit der überwiegenden Abwesenheit hinzu. Erste Tätigkeitsstätte, Dreimonatsfrist,
+          gestellte Mahlzeiten und steuerfreie Erstattungen sind gesondert zu prüfen.</p
+        >
+        <p class="muted"
+          >Nacht-, Sonn- und Feiertagszeiten dienen dem Abgleich tatsächlich gezahlter
+          Arbeitgeberzuschläge, nicht einem zusätzlichen Stundenabzug in der Steuererklärung.
+          Steuerliches Nachtzeitfenster: 20–6 Uhr (§ 3b EStG). Die aktuelle DRK-RTV-Fassung (§ 13
+          Abs. 6) nennt ebenfalls 20–6 Uhr; für ältere oder abweichende Fassungen ist 21–6 Uhr
+          auswählbar. ¹Das Fenster 0–4 Uhr wird für den steuerlichen 40-%-Satz nur bei Arbeitsbeginn
+          vor Mitternacht gezählt. Sonn-/Feiertagsfenster überschneiden sich untereinander nicht;
+          Nachtstunden können zusätzlich darin liegen. Die steuerlichen Höchstsätze sind keine
+          tariflichen Auszahlungssätze. Es werden keine Zuschlagsbeträge berechnet.</p
+        >
+        <p class="muted"
+          >Arbeitszeit-Pausen, tatsächliche Wege, Mahlzeiten, Fahrtkilometer und Erstattungen sind
+          im Dienstplan nicht zuverlässig enthalten. Ergänzungsspalten dafür stehen im CSV.
+          Rufbereitschaft wird separat ausgewiesen. Überlappende Einträge werden für die Gesamtzeit
+          vereinigt; Lücken werden nicht als Arbeit aufgefüllt. Zeitwerte sind auf das gewählte Jahr
+          begrenzt, die Blockdauer zeigt den ganzen zusammenhängenden Dienst.</p
+        >
+        <p class="muted"
+          >Quellen:
+          <a href="https://www.gesetze-im-internet.de/estg/__9.html" target="_blank" rel="noopener"
+            >§ 9 EStG</a
+          >
+          ·
+          <a href="https://www.gesetze-im-internet.de/estg/__3b.html" target="_blank" rel="noopener"
+            >§ 3b EStG</a
+          >
+          ·
+          <a
+            href="https://www.drk.de/fileadmin/user_upload/PDFs/Das_DRK/Verbandsstruktur/DRK-RTV_idF_52.AETV_14.AETV-TVUE_durchgeschriebene_Fassung.pdf"
+            target="_blank"
+            rel="noopener"
+            >DRK-Reformtarifvertrag</a
+          >
+          · <a href="https://feiertage-api.de/" target="_blank" rel="noopener">Feiertags-API</a></p
+        ></details
+      >
+    </div>
+  </fieldset>
+  <progress id="annualProgress" aria-label="Jahresdaten werden geladen" hidden></progress
+  ><p id="annualMessage" role="status"></p>
+</section>
+
+    <section id="adminPanel" hidden
+      ><h2>Zugriff verwalten</h2><p id="ownerInfo" class="muted"></p
+      ><fieldset id="adminFields"
+        ><div class="actions field-actions"
+          ><label
+            ><span>Google-E-Mail-Adresse</span
+            ><input id="inviteEmail" type="email" autocomplete="email" /></label
+          ><button type="button" id="addInvite">Zugriff erlauben</button></div
+        ><ul id="inviteList" class="event-list"></ul></fieldset
+      ><div class="notice info">
+        <div>
+          <strong>Jede eingeladene Adresse braucht zwei Freigaben.</strong>
+          <p
+            >Hier den Zugriff erlauben, und das Skriptprojekt in Apps Script über „Teilen“ mit
+            derselben Adresse als <strong>Betrachter</strong> teilen. Ohne die zweite Freigabe
+            öffnet sich die App, aber Google lehnt alle automatischen Läufe ab.</p
+          >
+        </div>
+        <a id="projectLink" class="button-link" target="_blank" rel="noopener"
+          >Skriptprojekt öffnen</a
+        >
+      </div>
+      <p class="muted"
+        >Beim Einladen wird keine E-Mail verschickt. Teile den App-Link selbst mit der Person. Falls
+        das Google-Projekt im Testmodus ist, muss das Konto dort zusätzlich als Testnutzer
+        freigeschaltet sein. Konten mit Problemen meldet dir täglich eine E-Mail, solange deine
+        eigene Synchronisierung aktiv ist.</p
+      ><p id="adminMessage" role="status"></p
+    ></section>
+    <section id="migrationPanel" hidden>
+      <h2>Aus deiner bisherigen Kopie umziehen</h2>
+      <ol
+        ><li
+          >Öffne deine bisherige Kopie im Skripteditor. Lege eine neue Skriptdatei an und füge die
+          Migrationshilfe unverändert ein. Deine settings.gs bleibt unverändert.</li
+        ><li
+          >Wähle <strong>prepareSharedAppMigration</strong> neben „Ausführen“ und starte die
+          Funktion. Sie pausiert nur die alten Sync-Auslöser und speichert einen Umzugscode.</li
+        ><li
+          >Kopiere unter <strong>Projekteinstellungen → Skripteigenschaften</strong> den Wert
+          <strong>DienstplanMigration</strong> und füge ihn unten ein.</li
+        ></ol
+      >
+      <fieldset id="migrationFields"
+        ><button type="button" id="copyMigration" class="secondary">Migrationshilfe kopieren</button
+        ><textarea
+          id="migrationSnippet"
+          readonly
+          hidden
+          aria-label="Fertige Migrationshilfe zum Kopieren"
+        ></textarea>
+        <p class="muted"
+          >Der Code enthält deinen Token und gilt 24 Stunden. Gib ihn nur hier beim Import ein.
+          Danach die Eigenschaft und die Hilfsdatei in der alten Kopie löschen. Die alte Kopie
+          selbst kannst du als Backup behalten.</p
+        >
+        <label
+          ><span>Umzugscode einfügen</span
+          ><input
+            id="migrationCode"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="migrationCodeHint"
+          /><small id="migrationCodeHint"
+            >Den vollständigen Wert der Skripteigenschaft kopieren. Er beginnt mit DPSYNC1.</small
+          ></label
+        >
+        <label id="replaceMigrationLabel" class="toggle"
+          ><input id="replaceMigration" type="checkbox" /><span
+            >Meine bereits gespeicherten Einstellungen durch den Umzug ersetzen</span
+          ></label
+        >
+        <button type="button" id="importMigration">Einstellungen übernehmen</button></fieldset
+      ><p id="migrationMessage" role="status"></p>
+    </section>
+    <p id="initialError" role="alert"></p>
+    <footer class="app-footer">
+      <a id="siteLink" target="_blank" rel="noopener">Über Dienstplan Sync</a>
+      <a id="privacyLink" target="_blank" rel="noopener">Datenschutz</a>
+      <label class="theme-choice"
+        >Darstellung
+        <select id="themeChoice">
+          <option value="auto">Automatisch</option>
+          <option value="light">Hell</option>
+          <option value="dark">Dunkel</option>
+        </select></label
+      >
+      <span id="appVersion"></span>
+    </footer>
+    <script>
+// Source: src/web/client/core.js
+const $ = (id) => document.getElementById(id);
+const copy = (value) => JSON.parse(JSON.stringify(value));
+let current,
+  dirty = false,
+  fieldCounter = 0,
+  progressTimer,
+  progressEpoch = 0,
+  syncRequestActive = false,
+  calendarChoices = [],
+  invitations,
+  dashboardState,
+  previewChecked = false;
+const readers = new Map(),
+  sourceReaders = new Map(),
+  ruleReaders = new Map();
+let annualReport = null,
+  annualDutyPage = 0,
+  annualDutyFilter = "all",
+  annualPrinting = false;
+const annualRegions = [
+  ["NW", "Nordrhein-Westfalen"],
+  ["BW", "Baden-Württemberg"],
+  ["BY", "Bayern"],
+  ["BE", "Berlin"],
+  ["BB", "Brandenburg"],
+  ["HB", "Bremen"],
+  ["HH", "Hamburg"],
+  ["HE", "Hessen"],
+  ["MV", "Mecklenburg-Vorpommern"],
+  ["NI", "Niedersachsen"],
+  ["RP", "Rheinland-Pfalz"],
+  ["SL", "Saarland"],
+  ["SN", "Sachsen"],
+  ["ST", "Sachsen-Anhalt"],
+  ["SH", "Schleswig-Holstein"],
+  ["TH", "Thüringen"],
+  ["DE", "Nur bundeseinheitliche Feiertage"]
+];
+const annualAbsence = new Map(),
+  annualVehicleStations = new Map(),
+  annualDutyStations = new Map(),
+  annualExtraDates = new Set();
+const colors = [
+  ["", "Standardfarbe"],
+  ["1", "Lavendel"],
+  ["2", "Salbei"],
+  ["3", "Traube"],
+  ["4", "Flamingo"],
+  ["5", "Banane"],
+  ["6", "Mandarine"],
+  ["7", "Pfau"],
+  ["8", "Graphit"],
+  ["9", "Heidelbeere"],
+  ["10", "Basilikum"],
+  ["11", "Tomate"]
+];
+const weekdays = [
+  ["", "Jeder Wochentag"],
+  ["Mo", "Montag"],
+  ["Di", "Dienstag"],
+  ["Mi", "Mittwoch"],
+  ["Do", "Donnerstag"],
+  ["Fr", "Freitag"],
+  ["Sa", "Samstag"],
+  ["So", "Sonntag"]
+];
+
+/**
+ * Colour scheme. The stylesheet keeps the dark colours once, in a media rule that
+ * follows the device. A manual choice retargets that rule and declares a single
+ * scheme, which also keeps browsers from darkening or lightening the page themselves.
+ * The choice stays on this device.
+ */
+const themeRule = Array.from(document.styleSheets)
+  .flatMap((sheet) => Array.from(sheet.cssRules))
+  .find((rule) => rule.media && rule.media.mediaText.includes("prefers-color-scheme"));
+function savedTheme() {
+  try {
+    return localStorage.getItem("dienstplanTheme") || "auto";
+  } catch (_) {
+    return "auto"; // Storage can be blocked; the automatic scheme still works.
+  }
+}
+function applyTheme(choice) {
+  const fixed = choice === "dark" || choice === "light";
+  if (themeRule)
+    themeRule.media.mediaText =
+      choice === "dark" ? "all" : choice === "light" ? "not all" : "(prefers-color-scheme: dark)";
+  document.documentElement.style.colorScheme = fixed ? "only " + choice : "";
+  // Some browsers read the scheme from a meta tag, which Apps Script removes from the file.
+  let meta = document.querySelector('meta[name="color-scheme"]');
+  if (!meta) {
+    meta = document.head.appendChild(document.createElement("meta"));
+    meta.name = "color-scheme";
+  }
+  meta.content = fixed ? "only " + choice : "light dark";
+  try {
+    localStorage.setItem("dienstplanTheme", choice);
+  } catch (_) {}
+}
+applyTheme(savedTheme());
+const errorText = (error) => (error && error.message) || String(error);
+/** A reporter that writes into the status line of one panel. */
+const showIn = (id) => (text) => {
+  $(id).textContent = text;
+};
+/**
+ * Locks the page while `work` talks to the server. A failure reaches `report` as
+ * text, so each panel shows it next to its own controls.
+ */
+async function whileBusy(work, report) {
+  busy(true);
+  try {
+    return await work();
+  } catch (error) {
+    report(errorText(error));
+  } finally {
+    busy(false);
+  }
+}
+/** Copies to the clipboard; where the browser refuses, the text is selected in `field` instead. */
+async function copyText(text, field) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_) {
+    field.value = text;
+    field.hidden = false;
+    field.focus();
+    field.select();
+    return false;
+  }
+}
+function element(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+function input(type, value = "") {
+  const node = element("input");
+  node.type = type;
+  node.value = value;
+  return node;
+}
+function select(options, value) {
+  const node = element("select");
+  options.forEach(([key, text]) => node.add(new Option(text, key)));
+  if (!options.some(([key]) => String(key) === String(value)))
+    node.add(new Option("Gespeicherter Wert: " + value, value));
+  node.value = String(value);
+  return node;
+}
+function field(parent, title, control, help) {
+  const label = element("label"),
+    caption = element("span", title);
+  caption.id = "field-label-" + fieldCounter++;
+  control.setAttribute("aria-labelledby", caption.id);
+  label.append(caption, control);
+  if (help) {
+    const hint = element("small", help);
+    hint.id = caption.id + "-help";
+    control.setAttribute("aria-describedby", hint.id);
+    label.append(hint);
+  }
+  parent.append(label);
+  return control;
+}
+function toggle(parent, name, title, help) {
+  const label = element("label", undefined, "toggle"),
+    control = input("checkbox");
+  control.checked = current.settings[name];
+  control.dataset.preference = name;
+  const text = element("span", title);
+  if (help) text.append(element("small", help));
+  label.append(control, text);
+  parent.append(label);
+  readers.set(name, () => control.checked);
+}
+function simple(parent, name, title, type = "text", help, options) {
+  const initial = current.settings[name];
+  const control = options ? select(options, initial) : input(type, initial);
+  control.dataset.preference = name;
+  if (type === "number") {
+    control.step = "1";
+    if (name === "consolidateMaxGapMinutes") {
+      control.min = "0";
+      control.step = "any";
+    }
+  }
+  field(parent, title, control, help);
+  readers.set(name, () => (typeof initial === "number" ? Number(control.value) : control.value));
+  return control;
+}
+function invalid(control, text) {
+  for (let node = control.parentElement; node; node = node.parentElement)
+    if (node.tagName === "DETAILS") node.open = true;
+  control.setCustomValidity(text);
+  control.reportValidity();
+  control.focus();
+  throw new Error(text);
+}
+
+// Source: src/web/client/status.js
+function setDirty(value = true) {
+  dirty = value;
+  if (value && !$("message").classList.contains("error")) $("message").textContent = "";
+  $("dirtyHint").textContent = value
+    ? "Änderungen noch nicht gespeichert."
+    : "Alle Änderungen gespeichert.";
+}
+function message(text, error = false) {
+  $("message").textContent = $("preferences").hidden ? "" : text;
+  $("globalMessage").textContent = $("preferences").hidden ? text : "";
+  $("message").className = error ? "error" : "";
+  $("globalMessage").className = error ? "flash error" : "flash";
+  $("initialError").textContent = "";
+}
+function busy(value) {
+  ["settingsFields", "adminFields", "migrationFields", "annualFields"].forEach(
+    (id) => ($(id).disabled = value)
+  );
+  document
+    .querySelectorAll("#overview button, #closeSettings, #migrationShortcut, #repairTriggers")
+    .forEach((button) => (button.disabled = value));
+}
+function showSettings(show) {
+  $("preferences").hidden = !show;
+  $("overview").hidden = show;
+}
+/** A run that was cut off by Google never reports its end; do not wait for it forever. */
+function isActiveRun(progress) {
+  return (
+    !!progress &&
+    progress.status === "running" &&
+    (!progress.updatedAt || Date.now() - progress.updatedAt < 420000)
+  );
+}
+function showProgress(progress) {
+  if (!progress) return;
+  // Neither an interrupted run nor a result from an earlier visit is current progress.
+  const recent = !progress.updatedAt || Date.now() - progress.updatedAt < 600000;
+  if (
+    (progress.status === "running" && !isActiveRun(progress)) ||
+    (progress.status === "complete" && !recent)
+  ) {
+    $("syncPanel").hidden = true;
+    return;
+  }
+  if (progress.status === "paused" || progress.status === "failed") {
+    // A failed run is reported by the status card; the progress bar only shows live work.
+    progressEpoch++;
+    clearTimeout(progressTimer);
+    $("syncPanel").hidden = true;
+    return;
+  }
+  $("syncPanel").hidden = false;
+  $("syncPhase").textContent = progress.phase;
+  if (progress.total > 0 && Number.isFinite(progress.completed)) {
+    $("syncProgress").max = progress.total;
+    $("syncProgress").value = progress.completed;
+    $("syncCount").textContent =
+      progress.status === "complete"
+        ? "Alle Schritte abgeschlossen."
+        : progress.completed + " von " + progress.total + " im aktuellen Schritt";
+  } else {
+    $("syncProgress").removeAttribute("value");
+    $("syncCount").textContent =
+      progress.status === "pending"
+        ? "Der nächste Lauf ist geplant. Du kannst die Seite schließen."
+        : "Bitte warten …";
+  }
+  if (progress.status === "complete") {
+    progressEpoch++;
+    clearTimeout(progressTimer);
+    if (current) {
+      current.pending = false;
+      // Show the result at once; the full state follows with the next server answer.
+      renderStatus(
+        Object.assign({}, dashboardState || current, {
+          pending: false,
+          progress: progress,
+          lastError: "",
+          stalled: false,
+          lastSync: new Date(progress.updatedAt || Date.now()).toISOString()
+        })
+      );
+    }
+  }
+}
+function pollProgress(epoch = progressEpoch) {
+  clearTimeout(progressTimer);
+  call("getSyncProgress")
+    .then((progress) => {
+      if (epoch !== progressEpoch) return;
+      // A fresh request may still see the previous run before its handler starts.
+      if (
+        progress &&
+        (!syncRequestActive || isActiveRun(progress) || progress.status === "pending")
+      )
+        showProgress(progress);
+      if (!syncRequestActive && progress && ["complete", "failed"].includes(progress.status)) {
+        const finishedEpoch = progressEpoch;
+        call("getAppState")
+          .then((state) => {
+            if (finishedEpoch !== progressEpoch) return;
+            if (!dirty) render(state);
+            else {
+              renderDashboard(state);
+              current.pending = state.pending;
+              current.enabled = state.enabled;
+            }
+          })
+          .catch(() => {});
+      }
+      if (syncRequestActive || isActiveRun(progress) || (progress && progress.status === "pending"))
+        progressTimer = setTimeout(
+          () => pollProgress(epoch),
+          progress && progress.status === "pending" ? 10000 : 2000
+        );
+    })
+    .catch(() => {
+      if (epoch === progressEpoch && (syncRequestActive || (current && current.pending)))
+        progressTimer = setTimeout(() => pollProgress(epoch), 3000);
+    });
+}
+
+// Source: src/web/client/colleagues.js
+let teamPeopleRequest;
+
+function teamPeopleForForm() {
+  const payload = Object.assign(
+    {
+      settings: {
+        rosterUrl: readers.get("rosterUrl")(),
+        rosterTimeZone: readers.get("rosterTimeZone")(),
+        rosterPlanningGroups: readers.get("rosterPlanningGroups")()
+      }
+    },
+    collectRosterCredentials(true)
+  );
+  const key = JSON.stringify(payload);
+  if (!teamPeopleRequest || teamPeopleRequest.key !== key) {
+    const request = { key };
+    request.promise = call("getTeamRosterPeople", payload).catch((error) => {
+      if (teamPeopleRequest === request) teamPeopleRequest = undefined;
+      throw error;
+    });
+    teamPeopleRequest = request;
+  }
+  return teamPeopleRequest.promise;
+}
+
+function teamRosterPicker(grid, raw) {
+  const panel = element("div", undefined, "team-roster-picker");
+  const searchLine = element("div", undefined, "actions field-actions");
+  const savedId = /^TEAM_ROSTER:([1-9][0-9]*)$/.exec(raw[0]);
+  let selectedPerson = savedId
+    ? { id: savedId[1], name: raw[4] || "Gespeicherte Person (" + savedId[1] + ")" }
+    : null;
+  const query = field(
+    searchLine,
+    "Name der Person",
+    input("text", selectedPerson ? selectedPerson.name : "")
+  );
+  query.autocomplete = "off";
+  const search = element("button", "Suchen", "secondary");
+  search.type = "button";
+  searchLine.append(search);
+  const matches = field(
+    panel,
+    "Person auswählen",
+    select(
+      selectedPerson ? [[selectedPerson.id, selectedPerson.name]] : [["", "Bitte zuerst suchen"]],
+      selectedPerson ? selectedPerson.id : ""
+    )
+  );
+  const status = element(
+    "p",
+    "Suche in der Teamübersicht deines eigenen Dienstplan-Kontos.",
+    "muted"
+  );
+  status.setAttribute("role", "status");
+  panel.prepend(searchLine);
+  panel.append(
+    status,
+    element(
+      "small",
+      "Übernimmt die Planzeiten aus der Dienstlegende. Flexible oder unvollständige Zeiten erscheinen ganztägig. Jeder Dienst bleibt einzeln und als „Verfügbar“. Zeitraum: letzter Monat bis zwei Monate voraus. Teampartner und Ablösung lassen sich unten einschalten. Prüfe die Kalenderfreigaben."
+    )
+  );
+  grid.append(panel);
+  let people = [],
+    epoch = 0;
+  query.oninput = () => {
+    epoch++;
+    status.textContent = "Bitte suchen und eine Person auswählen.";
+    selectedPerson = null;
+    matches.replaceChildren(new Option("Bitte erneut suchen und auswählen", ""));
+    matches.setCustomValidity("");
+  };
+  matches.onchange = () => {
+    selectedPerson = people.find((person) => person.id === matches.value) || null;
+    matches.setCustomValidity("");
+  };
+  search.onclick = async () => {
+    if (query.value.trim().length < 2) {
+      try {
+        invalid(query, "Bitte mindestens zwei Buchstaben eingeben.");
+      } catch (_) {}
+      return;
+    }
+    const requestEpoch = ++epoch,
+      text = query.value.trim();
+    search.disabled = true;
+    status.textContent = "Teamübersicht wird geladen …";
+    try {
+      const all = await teamPeopleForForm();
+      if (requestEpoch !== epoch || !panel.isConnected || panel.hidden) return;
+      const normalize = (value) =>
+        value
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLocaleLowerCase("de");
+      const words = normalize(text).split(/\s+/);
+      const found = all.filter((person) =>
+        words.every((word) => normalize(person.name).includes(word))
+      );
+      people = found.slice(0, 50);
+      selectedPerson = null;
+      matches.replaceChildren(new Option("Bitte auswählen", ""));
+      people.forEach((person) =>
+        matches.add(
+          new Option(
+            person.name +
+              (all.filter((other) => other.name === person.name).length > 1
+                ? " · ID " + person.id
+                : ""),
+            person.id
+          )
+        )
+      );
+      status.textContent =
+        found.length > 50
+          ? "Mehr als 50 Treffer. Bitte den Namen genauer eingeben."
+          : found.length
+            ? found.length + " Treffer. Bitte die Person auswählen."
+            : "Keine Person gefunden. Es werden nur Personen aus deiner Teamübersicht angezeigt.";
+    } catch (error) {
+      if (requestEpoch === epoch && panel.isConnected) status.textContent = errorText(error);
+    } finally {
+      search.disabled = false;
+    }
+  };
+  query.onkeydown = (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (!search.disabled) search.click();
+    }
+  };
+  return {
+    panel,
+    read: () => {
+      if (!selectedPerson)
+        invalid(matches, "Bitte eine Person suchen und aus der Liste auswählen.");
+      return selectedPerson;
+    }
+  };
+}
+
+// Source: src/web/client/source-editor.js
+function editorRow(container, title, map) {
+  const row = element("div", undefined, "row"),
+    head = element("div", undefined, "row-head"),
+    remove = element("button", "Entfernen", "remove");
+  remove.type = "button";
+  remove.setAttribute("aria-label", title + " entfernen");
+  head.append(element("strong", title), remove);
+  const grid = element("div", undefined, "grid");
+  row.append(head, grid);
+  container.append(row);
+  remove.onclick = () => {
+    map.delete(row);
+    row.remove();
+    setDirty();
+  };
+  return { row, grid };
+}
+function addSource(raw) {
+  const { row, grid } = editorRow($("sources"), "Kalenderquelle", sourceReaders);
+  row.dataset.sourceRow = "";
+  const kind = field(
+    grid,
+    "Quelle",
+    select(
+      [
+        ["ROSTER", "Eigener DRK-Dienstplan"],
+        ["TEAM_ROSTER", "Dienstplan einer anderen Person"],
+        ["ICS", "Kalender-Abo (ICS)"]
+      ],
+      raw[0] === "ROSTER" ? "ROSTER" : raw[0].startsWith("TEAM_ROSTER:") ? "TEAM_ROSTER" : "ICS"
+    )
+  );
+  const url = field(
+    grid,
+    "Adresse des Kalender-Abos",
+    input("text", /^(ROSTER$|TEAM_ROSTER:)/.test(raw[0]) ? "" : raw[0]),
+    "https://… oder webcal://…"
+  );
+  url.inputMode = "url";
+  const colleague = teamRosterPicker(grid, raw);
+  const matching = calendarChoices.filter((cal) => cal.name === raw[1]);
+  const selectedId = raw[3] || (matching.length === 1 ? matching[0].id : "__new");
+  const options = calendarChoices.map((cal) => [
+    cal.id,
+    cal.name +
+      (cal.primary ? " (Hauptkalender)" : "") +
+      (calendarChoices.filter((other) => other.name === cal.name).length > 1
+        ? " · " + cal.id.slice(0, 8) + "…"
+        : "")
+  ]);
+  options.push(["__new", "Neuen Kalender anlegen"]);
+  if (raw[3] && !calendarChoices.some((cal) => cal.id === raw[3]))
+    options.unshift([raw[3], raw[1] + " (gespeicherter Kalender)"]);
+  const target = field(grid, "Zielkalender", select(options, selectedId));
+  const newName = field(grid, "Name des neuen Kalenders", input("text", raw[1]));
+  const targetVisibility = () => {
+    newName.parentElement.hidden = target.value !== "__new";
+  };
+  target.onchange = targetVisibility;
+  targetVisibility();
+  const color = field(grid, "Terminfarbe", select(colors, raw[2] == null ? "" : raw[2]));
+  const updateKind = () => {
+    url.parentElement.hidden = kind.value !== "ICS";
+    colleague.panel.hidden = kind.value !== "TEAM_ROSTER";
+  };
+  kind.onchange = updateKind;
+  updateKind();
+  sourceReaders.set(row, () => {
+    const person = kind.value === "TEAM_ROSTER" ? colleague.read() : null;
+    const source = person
+      ? "TEAM_ROSTER:" + person.id
+      : kind.value === "ROSTER"
+        ? "ROSTER"
+        : url.value.trim();
+    if (!source || (kind.value === "ICS" && !/^(https?|webcal):\/\//i.test(source)))
+      invalid(url, "Bitte eine gültige Kalender-Adresse eingeben.");
+    if (target.value === "__new" && !newName.value.trim())
+      invalid(newName, "Bitte einen Namen für den neuen Kalender eingeben.");
+    if (
+      target.value === "__new" &&
+      calendarChoices.some((cal) => cal.name === newName.value.trim())
+    )
+      invalid(
+        newName,
+        "Dieser Kalendername existiert bereits. Bitte den vorhandenen Kalender auswählen."
+      );
+    const selected = calendarChoices.find((cal) => cal.id === target.value);
+    const name =
+      target.value === "__new" ? newName.value.trim() : selected ? selected.name : raw[1];
+    const id = target.value === "__new" ? "" : target.value;
+    const selectedColor =
+      color.value === String(raw[2] == null ? "" : raw[2])
+        ? raw[2] === undefined
+          ? null
+          : raw[2]
+        : color.value === ""
+          ? null
+          : /^\d+$/.test(color.value)
+            ? Number(color.value)
+            : color.value;
+    return person
+      ? [source, name, selectedColor, id, person.name]
+      : [source, name, selectedColor, id];
+  });
+}
+function normalizedDay(value) {
+  if (typeof value === "number")
+    return ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][value - 1] || String(value);
+  const names = {
+    mo: "Mo",
+    mon: "Mo",
+    monday: "Mo",
+    montag: "Mo",
+    di: "Di",
+    tue: "Di",
+    tuesday: "Di",
+    dienstag: "Di",
+    mi: "Mi",
+    wed: "Mi",
+    wednesday: "Mi",
+    mittwoch: "Mi",
+    do: "Do",
+    thu: "Do",
+    thursday: "Do",
+    donnerstag: "Do",
+    fr: "Fr",
+    fri: "Fr",
+    friday: "Fr",
+    freitag: "Fr",
+    sa: "Sa",
+    sat: "Sa",
+    saturday: "Sa",
+    samstag: "Sa",
+    so: "So",
+    sun: "So",
+    sunday: "So",
+    sonntag: "So"
+  };
+  return value == null ? "" : names[String(value).trim().toLowerCase()] || String(value);
+}
+function normalizedTime(value) {
+  return value == null ? "" : String(value).replace(/^(\d):/, "0$1:");
+}
+function addRule(raw = "") {
+  if (raw == null) raw = "";
+  const { row, grid } = editorRow($("rules"), "Ausblendregel", ruleReaders);
+  row.dataset.ruleRow = "";
+  const original = typeof raw === "string" || raw.$regex !== undefined ? { title: raw } : raw;
+  const pattern = original.title && typeof original.title === "object" ? original.title : null;
+  const mode = field(
+    grid,
+    "Titelsuche",
+    select(
+      [
+        ["text", "Titel enthält"],
+        ["regex", "Regulärer Ausdruck (erweitert)"]
+      ],
+      pattern ? "regex" : "text"
+    )
+  );
+  const title = field(
+    grid,
+    "Titel oder Suchmuster",
+    input("text", pattern ? pattern.$regex : original.title || ""),
+    "Leer lassen, wenn nur Tag oder Uhrzeit zählen sollen."
+  );
+  const flags = field(
+    grid,
+    "Suchoptionen",
+    input("text", pattern ? pattern.$flags : "i"),
+    "i ignoriert Groß- und Kleinschreibung."
+  );
+  const day = field(grid, "Wochentag", select(weekdays, normalizedDay(original.weekday)));
+  const start = field(grid, "Beginn um", input("time", normalizedTime(original.start)));
+  const end = field(grid, "Ende um", input("time", normalizedTime(original.end)));
+  const updateMode = () => {
+    flags.parentElement.hidden = mode.value !== "regex";
+  };
+  mode.onchange = updateMode;
+  updateMode();
+  const view = () => [mode.value, title.value, flags.value, day.value, start.value, end.value];
+  const initial = JSON.stringify(view());
+  ruleReaders.set(row, () => {
+    if (!title.value.trim() && !day.value && !start.value && !end.value)
+      invalid(title, "Bitte mindestens einen Titel, Wochentag oder eine Uhrzeit angeben.");
+    let match = title.value;
+    if (mode.value === "regex" && match) {
+      try {
+        new RegExp(match, flags.value);
+      } catch (_) {
+        invalid(title, "Der reguläre Ausdruck oder seine Suchoptionen sind ungültig.");
+      }
+      match = { $regex: match, $flags: flags.value };
+    }
+    if (JSON.stringify(view()) === initial) return copy(raw);
+    const result = {};
+    if (title.value) result.title = match;
+    if (day.value) result.weekday = day.value;
+    if (start.value) result.start = start.value;
+    if (end.value) result.end = end.value;
+    return Object.keys(result).length === 1 && result.title !== undefined ? result.title : result;
+  });
+}
+function renderLists() {
+  sourceReaders.clear();
+  ruleReaders.clear();
+  $("sources").replaceChildren();
+  $("rules").replaceChildren();
+  current.settings.sourceCalendars.forEach(addSource);
+  current.settings.ignoreEvents.forEach(addRule);
+  const codes = input("text", current.settings.rosterIgnoreList.join(", "));
+  codes.dataset.preference = "rosterIgnoreList";
+  field(
+    $("shiftCodes"),
+    "Ignorierte Dienstkürzel",
+    codes,
+    "Mehrere Kürzel mit Komma trennen, zum Beispiel: -, UL. Groß- und Kleinschreibung beachten."
+  );
+  const codeText = codes.value;
+  readers.set("rosterIgnoreList", () =>
+    codes.value === codeText
+      ? copy(current.settings.rosterIgnoreList)
+      : codes.value
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean)
+  );
+  readers.set("sourceCalendars", () => Array.from(sourceReaders.values(), (read) => read()));
+  readers.set("ignoreEvents", () => Array.from(ruleReaders.values(), (read) => read()));
+}
+
+// Source: src/web/client/settings.js
+function renderFields() {
+  const schedule = $("schedule"),
+    roster = $("rosterSettings"),
+    events = $("eventSettings"),
+    advanced = $("advancedSettings");
+  const frequencies = [5, 10, 15, 30].concat(Array.from({ length: 24 }, (_, i) => (i + 1) * 60));
+  simple(
+    schedule,
+    "howFrequent",
+    "Automatisch synchronisieren",
+    "number",
+    "Bei eigenen bisherigen Intervallen wird auf den nächsten unterstützten Wert aufgerundet.",
+    frequencies.map((v) => [
+      String(v),
+      v < 60 ? "Alle " + v + " Minuten" : v === 60 ? "Stündlich" : "Alle " + v / 60 + " Stunden"
+    ])
+  );
+  simple(schedule, "rosterTimeZone", "Zeitzone des Dienstplans", "text", undefined, [
+    ["Europe/Berlin", "Deutschland · Europe/Berlin"],
+    ["Europe/Vienna", "Österreich · Europe/Vienna"],
+    ["Europe/Zurich", "Schweiz · Europe/Zurich"],
+    ["UTC", "UTC"]
+  ]);
+  const emailMode = field(
+    $("emailSettings"),
+    "E-Mail bei Fehlern",
+    select(
+      [
+        ["off", "Keine E-Mail"],
+        ["self", "An meine Google-Adresse (empfohlen)"],
+        ["custom", "An eine andere Adresse"]
+      ],
+      current.settings.errorNotificationEmail === false
+        ? "off"
+        : current.settings.errorNotificationEmail === true
+          ? "self"
+          : "custom"
+    ),
+    "Warnt, wenn die Synchronisierung länger als eine Stunde gestört ist, der Dienstplan-Zugang abläuft oder keine Läufe mehr stattfinden. Danach höchstens alle drei Tage eine Erinnerung und eine Nachricht, wenn es wieder läuft."
+  );
+  const email = field(
+    $("emailSettings"),
+    "E-Mail-Adresse",
+    input(
+      "email",
+      typeof current.settings.errorNotificationEmail === "string"
+        ? current.settings.errorNotificationEmail
+        : ""
+    )
+  );
+  const emailVisibility = () => {
+    email.parentElement.hidden = emailMode.value !== "custom";
+  };
+  emailMode.onchange = emailVisibility;
+  emailVisibility();
+  readers.set("errorNotificationEmail", () =>
+    emailMode.value === "off" ? false : emailMode.value === "self" ? true : email.value.trim()
+  );
+  [
+    ["addRosterToCal", "Eigenen Dienstplan übernehmen"],
+    ["addRosterRequests", "Einsatzwünsche anzeigen"],
+    ["addAbsences", "Abwesenheiten anzeigen"],
+    ["oncallAsFree", "Rufbereitschaft als verfügbar markieren"],
+    [
+      "addTeamPartner",
+      "Teampartner anzeigen",
+      "Für eigene und ausgewählte Dienstpläne. Verwendet die Teamübersicht."
+    ],
+    [
+      "addRelief",
+      "Ablösung anzeigen",
+      "Zeigt sichtbare Dienste derselben Zuordnung, die laut Planzeiten zum Dienstende beginnen. Ohne eindeutige Uhrzeiten wird keine Ablösung abgeleitet."
+    ]
+  ].forEach((args) => toggle(roster, ...args));
+  [
+    ["addEventsToCalendar", "Neue Termine hinzufügen"],
+    ["modifyExistingEvents", "Geänderte Termine aktualisieren"],
+    [
+      "removeEventsFromCalendar",
+      "Nicht mehr vorhandene Termine entfernen",
+      "Betrifft nur Termine, die diese App für dich angelegt hat."
+    ],
+    [
+      "removePastEventsFromCalendar",
+      "Auch vergangene Termine entfernen",
+      "Nur aktivieren, wenn du abgeschlossene Termine nicht behalten möchtest."
+    ],
+    ["onlyFutureEvents", "Nur zukünftige Termine importieren"],
+    ["consolidateEvents", "Zusammenhängende Termine zusammenfassen"]
+  ].forEach((args) => toggle(events, ...args));
+  simple(
+    events,
+    "consolidateMaxGapMinutes",
+    "Erlaubte Lücke beim Zusammenfassen (Minuten)",
+    "number",
+    "0 verbindet nur direkt angrenzende oder überlappende Termine."
+  );
+  toggle(
+    advanced,
+    "addRosterSinceStart",
+    "Gesamte Dienstplan-Historie importieren",
+    "Der erste Import kann länger dauern. Zum Nachtragen alter Dienste vorübergehend aktivieren."
+  );
+  toggle(advanced, "addCalToTitle", "Quellkalender im Termintitel nennen");
+  simple(advanced, "overrideVisibility", "Sichtbarkeit der Termine", "text", undefined, [
+    ["", "Wie in der Quelle"],
+    ["default", "Kalender-Standard"],
+    ["public", "Öffentlich"],
+    ["private", "Privat"],
+    ["confidential", "Vertraulich"]
+  ]);
+  simple(
+    advanced,
+    "defaultAllDayReminder",
+    "Erinnerung für ganztägige Termine",
+    "number",
+    undefined,
+    [
+      [-1, "Keine Erinnerung"],
+      [0, "Zu Tagesbeginn"],
+      [30, "30 Minuten vorher"],
+      [60, "1 Stunde vorher"],
+      [1440, "1 Tag vorher"],
+      [2880, "2 Tage vorher"],
+      [10080, "1 Woche vorher"]
+    ]
+  );
+  const groups = field(
+    advanced,
+    "Planungsgruppen",
+    input("text", current.settings.rosterPlanningGroups.join(", ")),
+    "Leer lassen: automatisch ermitteln. Mehrere Nummern mit Komma trennen."
+  );
+  groups.dataset.preference = "rosterPlanningGroups";
+  const groupText = groups.value;
+  readers.set("rosterPlanningGroups", () => {
+    if (groups.value === groupText) return copy(current.settings.rosterPlanningGroups);
+    const values = groups.value
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (!values.every((v) => /^\d+$/.test(v)))
+      invalid(groups, "Planungsgruppen müssen Nummern sein, getrennt durch Kommas.");
+    return values.map(Number);
+  });
+  simple(advanced, "rosterUrl", "Adresse des Dienstplan-Servers", "url");
+  toggle(advanced, "showSkipMessage", "Unveränderte Termine im Protokoll anzeigen");
+}
+
+// Source: src/web/client/dashboard.js
+function render(state) {
+  teamPeopleRequest = undefined;
+  const wasEditing = current && !$("preferences").hidden;
+  current = copy(state);
+  readers.clear();
+  [
+    "schedule",
+    "emailSettings",
+    "rosterSettings",
+    "eventSettings",
+    "advancedSettings",
+    "shiftCodes"
+  ].forEach((id) => $(id).replaceChildren());
+  $("account").textContent = state.email;
+  $("employee").value = state.rosterUserId;
+  $("token").value = "";
+  $("tokenHint").textContent = state.hasToken
+    ? "Ein Token ist gespeichert. Leer lassen, um ihn beizubehalten."
+    : "Gib den Token aus deinem Dienstplan-Konto ein.";
+  $("connectionSummary").hidden = !state.hasToken;
+  $("editConnection").hidden = !state.hasToken;
+  $("connectionFields").hidden = state.hasToken;
+  $("connectionText").textContent = state.connectionVerified
+    ? "Dienstplan verbunden."
+    : "Zugangsdaten gespeichert. Verbindung noch nicht geprüft.";
+  $("manageAccess").hidden = !state.isOwner;
+  $("adminPanel").hidden = !state.isOwner || $("adminPanel").hidden;
+  $("replaceMigrationLabel").hidden = !state.hasSavedPreferences;
+  $("migrationEntry").hidden = !!state.hasSavedPreferences || !!state.migrationImportedAt;
+  renderFields();
+  renderLists();
+  renderDashboard(state);
+  setDirty(false);
+  showSettings(!state.hasSavedPreferences || !!wasEditing);
+  if (state.progress) showProgress(state.progress);
+  if ((state.pending || isActiveRun(state.progress)) && !syncRequestActive) pollProgress();
+}
+function relativeTime(value) {
+  const difference = new Date(value).getTime() - Date.now(),
+    distance = Math.abs(difference),
+    format = new Intl.RelativeTimeFormat("de", { numeric: "auto" });
+  if (distance < 45000) return difference > 0 ? "in Kürze" : "gerade eben";
+  if (distance < 3600000) return format.format(Math.round(difference / 60000), "minute");
+  if (distance < 86400000) return format.format(Math.round(difference / 3600000), "hour");
+  return format.format(Math.round(difference / 86400000), "day");
+}
+function statusKind(state) {
+  if (!state.hasSavedPreferences) return "setup";
+  if (state.pending || isActiveRun(state.progress)) return "running";
+  if (state.lastError) return "error";
+  if (state.stalled) return "stalled";
+  return state.enabled ? "active" : "paused";
+}
+/** The status card and every relative time; repeated once a minute while the page is open. */
+function renderStatus(state) {
+  const kind = statusKind(state),
+    automatic = state.enabled ? "Automatik aktiv" : "Automatik pausiert";
+  $("statusCard").dataset.state = kind;
+  $("status").textContent = {
+    setup: "Noch nicht eingerichtet",
+    running: state.pending ? "Synchronisierung wird fortgesetzt" : "Synchronisierung läuft",
+    error: "Letzter Lauf fehlgeschlagen",
+    stalled: "Seit längerem kein Lauf",
+    active: "Automatische Synchronisierung aktiv",
+    paused: "Automatische Synchronisierung pausiert"
+  }[kind];
+  $("lastSync").textContent =
+    kind === "setup"
+      ? "Speichere deine Einstellungen und aktiviere danach die Synchronisierung."
+      : (state.lastSync
+          ? "Letzter vollständiger Lauf: " +
+            relativeTime(state.lastSync) +
+            " · " +
+            new Date(state.lastSync).toLocaleString("de-DE")
+          : "Noch kein vollständiger Lauf.") +
+        (kind === "error" || kind === "stalled" ? " · " + automatic : "");
+  $("lastError").textContent = state.lastError ? "Letzte Meldung: " + state.lastError : "";
+  $("nextRun").textContent = state.nextRunAt
+    ? "ungefähr " +
+      new Date(state.nextRunAt).toLocaleString("de-DE", {
+        dateStyle: "short",
+        timeStyle: "short"
+      }) +
+      " (" +
+      relativeTime(state.nextRunAt) +
+      ")"
+    : "Kein automatischer Lauf geplant.";
+  $("stalledNotice").hidden = kind !== "stalled";
+  $("tokenNotice").hidden = !state.credentialsRejected;
+  $("authNotice").hidden = state.authorizationUrl === null || state.authorizationUrl === undefined;
+  // Without a link from Google, reloading the app shows the consent screen again.
+  $("authLink").href = state.authorizationUrl || location.href;
+  $("stalledText").textContent =
+    "Richte die Auslöser neu ein; deine Einstellungen und Termine bleiben erhalten. Läuft danach weiterhin nichts automatisch, muss der App-Inhaber das Skriptprojekt für dein Konto freigeben.";
+}
+function renderHistory(rows) {
+  const day = (value) => new Date(value).toLocaleDateString("de-DE"),
+    clock = (value) =>
+      new Date(value).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }),
+    moment = (value) =>
+      (day(value) === day(Date.now())
+        ? ""
+        : new Date(value).toLocaleDateString("de-DE", {
+            weekday: "short",
+            day: "2-digit",
+            month: "2-digit"
+          }) + ", ") + clock(value);
+  $("historyPanel").hidden = !rows || !rows.length;
+  $("history").replaceChildren();
+  (rows || []).forEach((row) => {
+    const item = element("li", undefined, row.ok ? "" : "failed"),
+      changes = [
+        ["added", "neu"],
+        ["updated", "geändert"],
+        ["removed", "entfernt"]
+      ]
+        .filter(([key]) => row[key])
+        .map(([key, text]) => row[key] + " " + text);
+    const mark = element("span", row.ok ? "✓" : "✕", "mark");
+    mark.setAttribute("aria-hidden", "true");
+    item.append(
+      mark,
+      element(
+        "span",
+        (row.ok
+          ? changes.length
+            ? changes.join(" · ")
+            : row.count > 1
+              ? row.count + " Läufe ohne Änderungen"
+              : "Keine Änderungen"
+          : "Fehler: " + row.error + (row.count > 1 ? " (" + row.count + "×)" : "")) +
+          (row.count > 1 || !Number.isFinite(row.ms)
+            ? ""
+            : " · " +
+              (row.ms / 1000).toLocaleString("de-DE", {
+                maximumFractionDigits: row.ms < 10000 ? 1 : 0
+              }) +
+              " s"),
+        "what"
+      ),
+      element(
+        "span",
+        row.since
+          ? moment(row.since) +
+              " – " +
+              (day(row.since) === day(row.at) ? clock(row.at) : moment(row.at))
+          : moment(row.at),
+        "when"
+      )
+    );
+    $("history").append(item);
+  });
+}
+function renderSetupGuide(state) {
+  $("setupGuide").hidden = !!state.lastSync;
+  $("setupSteps").replaceChildren();
+  [
+    [
+      "Dienstplan verbinden",
+      "Mitarbeiter-ID und Token eintragen – oder nur Kalender-Abos nutzen.",
+      (state.rosterConfigured && !state.credentialsRejected) ||
+        (state.hasSavedPreferences &&
+          state.settings.sourceCalendars.some((row) => /^(https?|webcal):/i.test(row[0])))
+    ],
+    [
+      "Quellen und Kalender wählen",
+      "Festlegen, was in welchen Google Kalender übernommen wird, und speichern.",
+      state.hasSavedPreferences
+    ],
+    [
+      "Vorschau prüfen",
+      "Zeigt kommende Termine, ohne etwas in den Kalender zu schreiben.",
+      previewChecked || state.connectionVerified
+    ],
+    [
+      "Synchronisierung aktivieren",
+      "Danach gleicht die App regelmäßig von selbst ab.",
+      state.enabled
+    ]
+  ].forEach(([title, text, done]) => {
+    const step = element("li", undefined, done ? "done" : "");
+    step.append(element("strong", title), element("span", text, "muted"));
+    if (done) step.setAttribute("aria-label", title + " – erledigt");
+    $("setupSteps").append(step);
+  });
+}
+function renderDiagnostics(state) {
+  $("appVersion").textContent = "Version " + state.version;
+  $("errorDetails").hidden = !state.diagnostic;
+  $("errorReport").value = state.diagnostic || "";
+  $("errorReportMessage").textContent = "";
+}
+async function copyErrorReport() {
+  $("errorReportMessage").textContent = (await copyText($("errorReport").value, $("errorReport")))
+    ? "Fehlerbericht kopiert."
+    : "Den markierten Bericht kopieren und weitergeben.";
+}
+function renderDashboard(state) {
+  dashboardState = state;
+  renderDiagnostics(state);
+  renderStatus(state);
+  renderHistory(state.history);
+  renderSetupGuide(state);
+  $("dashboardEnable").hidden = state.enabled;
+  $("dashboardPause").hidden = !state.enabled;
+  $("updateNotice").hidden = !state.availableVersion;
+  $("updateTitle").textContent = "Version " + state.availableVersion + " ist verfügbar";
+  $("updateText").textContent =
+    "Installiert ist Version " +
+    state.version +
+    ". Mit eingerichtetem Inhaber-Updater wird sie automatisch übernommen; sonst die Dateien aus dem Branch „release“ in das Skriptprojekt kopieren.";
+  if (state.links) {
+    $("siteLink").href = state.links.site;
+    $("privacyLink").href = state.links.privacy;
+  }
+  const sources = state.settings.sourceCalendars,
+    targets = Array.from(new Set(sources.map((row) => row[1])));
+  $("sourceSummary").textContent = sources.length
+    ? (sources.length === 1 ? "1 Quelle" : sources.length + " Quellen") + " → " + targets.join(", ")
+    : "Noch keine Quelle eingerichtet.";
+  $("connectionBadge").textContent = !state.settings.addRosterToCal
+    ? "Dienstplan deaktiviert"
+    : state.rosterConfigured
+      ? state.connectionVerified
+        ? "Dienstplan verbunden"
+        : "Zugangsdaten gespeichert – Verbindung noch prüfen"
+      : "Dienstplan nicht eingerichtet. ROSTER wird übersprungen; Kalender-Abos können verwendet werden.";
+  $("metrics").replaceChildren();
+  $("metrics").hidden = !state.lastStats;
+  if (state.lastStats)
+    [
+      ["added", "Hinzugefügt"],
+      ["updated", "Aktualisiert"],
+      ["removed", "Entfernt"]
+    ].forEach(([key, title]) => {
+      const metric = element("div", undefined, "metric");
+      metric.append(element("strong", String(state.lastStats[key] || 0)), element("small", title));
+      $("metrics").append(metric);
+    });
+}
+
+// Source: src/web/client/actions.js
+function collectRosterCredentials(required) {
+  if ($("connectionFields").hidden) return {};
+  const employee = $("employee");
+  employee.setCustomValidity("");
+  employee.value = employee.value.trim();
+  employee.required = required;
+  if (employee.value.startsWith("DPSYNC1."))
+    invalid(
+      employee,
+      "Das ist ein Umzugscode. Bitte unter „Aus deiner bisherigen Kopie umziehen“ in „Umzugscode einfügen“ verwenden."
+    );
+  if (required && !employee.value) invalid(employee, "Bitte die Mitarbeiter-ID eingeben.");
+  if (employee.value && !/^[0-9]+$/.test(employee.value))
+    invalid(employee, "Die Mitarbeiter-ID darf nur Ziffern enthalten.");
+  return { rosterUserId: employee.value, rosterUserToken: $("token").value };
+}
+function collect() {
+  document
+    .querySelectorAll("#preferences input")
+    .forEach((control) => control.setCustomValidity(""));
+  const settings = copy(current.settings);
+  readers.forEach((read, name) => {
+    settings[name] = read();
+  });
+  const credentials = collectRosterCredentials(
+    settings.sourceCalendars.some(
+      (row) => (settings.addRosterToCal && row[0] === "ROSTER") || row[0].startsWith("TEAM_ROSTER:")
+    ) && !!(current.hasToken || $("token").value.trim())
+  );
+  document.querySelectorAll("#preferences input").forEach((control) => {
+    if (!control.disabled && !control.closest("[hidden]") && !control.checkValidity())
+      invalid(control, control.validationMessage);
+  });
+  if (settings.errorNotificationEmail === "")
+    invalid($("emailSettings").querySelector("input"), "Bitte eine E-Mail-Adresse eingeben.");
+  return Object.assign({ settings }, credentials);
+}
+function call(method, argument) {
+  return new Promise((resolve, reject) => {
+    const runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+    if (argument === undefined) runner[method]();
+    else runner[method](argument);
+  });
+}
+async function action(method, text, saveFirst = false) {
+  let payload;
+  const shouldSave = saveFirst && (dirty || current.needsCalendarSelection);
+  try {
+    if (method === "saveAppSettings" || shouldSave) payload = collect();
+  } catch (error) {
+    message(error.message, true);
+    return;
+  }
+  busy(true);
+  message("Wird ausgeführt …");
+  if (["startSync", "stopSync", "disconnectApp"].includes(method)) {
+    progressEpoch++;
+    clearTimeout(progressTimer);
+  }
+  try {
+    if (shouldSave) {
+      await call("saveAppSettings", payload);
+      setDirty(false);
+    }
+    if (method === "startSync") {
+      syncRequestActive = true;
+      showProgress({ phase: "Synchronisierung startet …", status: "running" });
+      pollProgress();
+    }
+    const state = await call(method, method === "saveAppSettings" ? payload : undefined);
+    syncRequestActive = false;
+    if (state) render(state);
+    if (method === "disconnectApp") {
+      clearTimeout(progressTimer);
+      $("syncPanel").hidden = true;
+      annualReport = null;
+      annualDutyPage = 0;
+      annualDutyFilter = "all";
+      annualPrinting = false;
+      $("annualDutyFilter").value = "all";
+      annualAbsence.clear();
+      annualVehicleStations.clear();
+      annualDutyStations.clear();
+      $("annualFirstStation").value = "";
+      [
+        "annualRows",
+        "annualMonths",
+        "annualVehicleStations",
+        "annualStationNames",
+        "annualMetrics"
+      ].forEach((id) => $(id).replaceChildren());
+      ["annualStationSummary", "annualStationMessage", "annualAbsenceTotals"].forEach(
+        (id) => ($(id).textContent = "")
+      );
+      $("annualPanel").hidden = true;
+      $("annualResults").hidden = true;
+    }
+    message(
+      state && state.pending
+        ? "Der Sync wird automatisch fortgesetzt." +
+            (state.migrationRemaining
+              ? " Noch " + state.migrationRemaining + " alte Termine zu prüfen."
+              : "")
+        : text
+    );
+  } catch (error) {
+    syncRequestActive = false;
+    clearTimeout(progressTimer);
+    if (method === "startSync") {
+      showProgress({ status: "failed" });
+      // The status card shows the failure as soon as the state below arrives.
+      $("globalMessage").textContent = "";
+    } else message(errorText(error), true);
+    if (method === "startSync") {
+      try {
+        const state = await call("getAppState");
+        renderDashboard(state);
+        current.pending = state.pending;
+        current.enabled = state.enabled;
+      } catch (_) {}
+    }
+  } finally {
+    busy(false);
+  }
+}
+
+// Source: src/web/client/panels.js
+function renderEventList(container, events) {
+  container.replaceChildren();
+  if (!events.length) {
+    container.append(element("li", "Keine kommenden Termine in der Vorschau.", "muted"));
+    return;
+  }
+  events.forEach((event) => {
+    const row = element("li"),
+      start = event.allDay ? new Date(event.start + "T12:00:00") : new Date(event.start);
+    let when;
+    if (event.allDay) {
+      const lastDay = new Date(Date.parse(event.end + "T00:00:00Z") - 86400000).toLocaleDateString(
+        "de-DE",
+        { timeZone: "UTC" }
+      );
+      const firstDay = start.toLocaleDateString("de-DE");
+      when = firstDay + (lastDay !== firstDay ? " – " + lastDay : "") + " · ganztägig";
+    } else {
+      const end = new Date(event.end),
+        timeZone = current.settings.rosterTimeZone;
+      const sameDay =
+        start.toLocaleDateString("de-DE", { timeZone }) ===
+        end.toLocaleDateString("de-DE", { timeZone });
+      when =
+        start.toLocaleString("de-DE", { timeZone }) +
+        " – " +
+        (sameDay
+          ? end.toLocaleTimeString("de-DE", { timeZone, hour: "2-digit", minute: "2-digit" })
+          : end.toLocaleString("de-DE", { timeZone }));
+    }
+    row.append(element("strong", event.title), element("small", when + " · " + event.calendar));
+    container.append(row);
+  });
+}
+async function diagnostic(kind) {
+  let payload;
+  try {
+    payload =
+      kind === "preview"
+        ? collect()
+        : Object.assign(
+            {
+              settings: {
+                rosterUrl: readers.get("rosterUrl")(),
+                addRosterToCal: readers.get("addRosterToCal")()
+              }
+            },
+            collectRosterCredentials(readers.get("addRosterToCal")())
+          );
+  } catch (error) {
+    message(error.message, true);
+    return;
+  }
+  message(kind === "preview" ? "Vorschau wird geladen …" : "Verbindung wird geprüft …");
+  await whileBusy(
+    async () => {
+      const result = await call(
+        kind === "preview" ? "previewSynchronization" : "testRosterConnection",
+        payload
+      );
+      if (kind === "preview") {
+        $("previewPanel").hidden = false;
+        previewChecked = true;
+        if (dashboardState) renderSetupGuide(dashboardState);
+        renderEventList($("previewEvents"), result.events);
+        $("previewErrors").replaceChildren();
+        result.errors.forEach((error) =>
+          $("previewErrors").append(element("p", error.calendar + ": " + error.message))
+        );
+        $("previewNote").textContent = result.note;
+        message(
+          result.errors.length
+            ? "Einige Quellen konnten nicht geladen werden."
+            : "Vorschau geladen. Im Kalender wurde nichts geändert."
+        );
+      } else {
+        if (!dirty) render(await call("getAppState"));
+        $("connectionResult").textContent = result.message;
+        message(result.message);
+      }
+    },
+    (text) => {
+      message(text, true);
+      if (kind === "test") $("connectionResult").textContent = text;
+    }
+  );
+}
+
+/** One line on how an account is doing, from the record its runs keep for the owner. */
+function accountState(state) {
+  const date = (value) =>
+    new Date(value).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+  if (!state) return ["Noch keine Rückmeldung – erscheint nach dem nächsten Lauf.", false];
+  if (state.kind === "failing")
+    return ["Fehler seit " + date(state.since) + ": " + state.problem, true];
+  if (state.kind === "stalled")
+    return [
+      "Kein automatischer Lauf seit " +
+        date(state.since) +
+        " – Skriptprojekt als Betrachter geteilt?",
+      true
+    ];
+  if (state.kind === "paused") return ["Synchronisierung pausiert", false];
+  return [
+    state.at ? "Läuft · letzter Lauf " + relativeTime(state.at) : "Aktiviert, noch kein Lauf",
+    false
+  ];
+}
+function stateLine(state) {
+  const [text, problem] = accountState(state);
+  return element("small", text, problem ? "account-state problem" : "account-state");
+}
+function renderInvitations(result) {
+  invitations = result;
+  $("adminPanel").hidden = false;
+  $("projectLink").href = result.projectUrl;
+  $("ownerInfo").replaceChildren(
+    "App-Inhaber: " + result.owner + " (Zugriff bleibt immer erhalten)",
+    stateLine(result.health[result.owner])
+  );
+  $("inviteList").replaceChildren();
+  result.emails
+    .filter((email) => email !== result.owner)
+    .forEach((email) => {
+      const row = element("li"),
+        remove = element("button", "Zugriff entziehen", "remove");
+      remove.type = "button";
+      remove.setAttribute("aria-label", "Zugriff für " + email + " entziehen");
+      const name = element("span");
+      name.append(element("span", email), stateLine(result.health[email]));
+      row.append(name, remove);
+      $("inviteList").append(row);
+      remove.onclick = () => updateInvitations(result.emails.filter((value) => value !== email));
+    });
+}
+function updateInvitations(emails) {
+  const before = invitations ? invitations.emails.slice() : [];
+  return whileBusy(async () => {
+    renderInvitations(await call("saveInvitations", emails));
+    const added = emails.filter((email) => !before.includes(email));
+    $("inviteEmail").value = "";
+    $("adminMessage").textContent = added.length
+      ? "Zugriff gespeichert. Teile jetzt das Skriptprojekt mit " +
+        added.join(", ") +
+        " als Betrachter und gib danach den App-Link weiter."
+      : "Zugriff gespeichert.";
+  }, showIn("adminMessage"));
+}
+function openInvitations() {
+  return whileBusy(
+    async () => {
+      renderInvitations(await call("getInvitations"));
+      $("adminPanel").scrollIntoView({ behavior: "smooth" });
+    },
+    (text) => message(text, true)
+  );
+}
+
+function openMigration() {
+  $("migrationPanel").hidden = false;
+  $("migrationPanel").scrollIntoView({ behavior: "smooth" });
+}
+function copyMigration() {
+  return whileBusy(async () => {
+    const copied = await copyText(await call("getMigrationSnippet"), $("migrationSnippet"));
+    $("migrationMessage").textContent = copied
+      ? "Kopiert. In eine neue Datei der alten Kopie einfügen und prepareSharedAppMigration ausführen."
+      : "Den markierten Text kopieren und unverändert in eine neue Datei der alten Kopie einfügen.";
+  }, showIn("migrationMessage"));
+}
+function importMigration() {
+  return whileBusy(async () => {
+    const state = await call("importLegacyCopy", {
+      code: $("migrationCode").value,
+      replaceExisting: $("replaceMigration").checked
+    });
+    $("migrationCode").value = "";
+    $("migrationPanel").hidden = true;
+    render(state);
+    showSettings(true);
+    message(
+      "Einstellungen und Zugangsdaten übernommen. Prüfe Verbindung, Zielkalender und Vorschau. Danach kannst du den neuen Sync aktivieren."
+    );
+  }, showIn("migrationMessage"));
+}
+
+// Source: src/web/client/annual/duties.js
+function annualStationKey(name) {
+  return name.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("de-DE");
+}
+function annualStationFromVehicle(vehicle) {
+  // The station precedes the vehicle type, e.g. Würselen 2 RTW 1 -> Würselen 2.
+  const match = /^(.+?\s+\d+)\s+(?:RTW|KTW|NEF|ITW|NAW|NKTW|MZF)\b/iu.exec(vehicle.trim());
+  return match ? match[1].replace(/\s+/g, " ") : "";
+}
+function annualStationForVehicle(vehicle) {
+  return annualVehicleStations.has(vehicle)
+    ? annualVehicleStations.get(vehicle)
+    : annualStationFromVehicle(vehicle);
+}
+function annualStationsForDuty(row) {
+  const actual = annualDutyStations.get(row.key);
+  if (actual) return [actual];
+  return Array.from(
+    new Map(
+      row.vehicles.map((vehicle) => {
+        const name = annualStationForVehicle(vehicle);
+        return [annualStationKey(name), name];
+      })
+    ).values()
+  );
+}
+function annualClass(row) {
+  const first = annualStationKey($("annualFirstStation").value);
+  const stations = annualStationsForDuty(row);
+  if (!first) return "Erste Tätigkeitsstätte fehlt";
+  if (!stations.length || stations.some((name) => !name)) return "Wache zuordnen / prüfen";
+  if (stations.length > 1) return "Mehrere Wachen / prüfen";
+  return annualStationKey(stations[0]) === first
+    ? "Erste Tätigkeitsstätte"
+    : "Andere Rettungswache / prüfen";
+}
+function renderAnnualStationChoices() {
+  const names = annualReport.rows.flatMap((row) => annualStationsForDuty(row));
+  const stations = new Map(names.filter(Boolean).map((name) => [annualStationKey(name), name]));
+  $("annualStationNames").replaceChildren(
+    ...Array.from(stations.values())
+      .sort()
+      .map((name) => new Option(name, name))
+  );
+}
+function renderAnnualStationMap() {
+  $("annualVehicleStations").replaceChildren();
+  const vehicles = Array.from(new Set(annualReport.rows.flatMap((row) => row.vehicles))).sort();
+  vehicles
+    .filter((vehicle) => vehicle !== "Fahrzeug fehlt")
+    .forEach((vehicle) => {
+      const station = input("text", annualStationForVehicle(vehicle));
+      station.maxLength = 120;
+      station.setAttribute("list", "annualStationNames");
+      station.className = "annual-vehicle-station";
+      station.placeholder = "Rettungswache zuordnen";
+      station.oninput = () => {
+        annualVehicleStations.set(vehicle, station.value.trim());
+        markAnnualStationChanges();
+      };
+      field($("annualVehicleStations"), vehicle, station);
+    });
+  renderAnnualStationChoices();
+}
+
+function markAnnualStationChanges() {
+  if (!annualReport) return;
+  $("annualStationMessage").textContent =
+    "Zuordnung für " + annualReport.year + " geändert. Mit „Wachenzuordnung speichern“ übernehmen.";
+  if (annualVisibleInputsValid()) renderAnnualDuties();
+  renderAnnualAnnotations();
+}
+async function saveAnnualStations() {
+  if (!annualReport) return;
+  await whileBusy(async () => {
+    const saved = await call("saveAnnualStationSettings", {
+      year: annualReport.year,
+      firstStation: $("annualFirstStation").value.trim(),
+      vehicles: Array.from(annualVehicleStations)
+    });
+    annualReport.stationSettings = saved;
+    $("annualStationMessage").textContent = "Wachenzuordnung für " + saved.year + " gespeichert.";
+  }, showIn("annualStationMessage"));
+}
+
+function annualDutyMatchesFilter(row) {
+  if (annualDutyFilter === "other") return annualClass(row) === "Andere Rettungswache / prüfen";
+  if (annualDutyFilter === "unclear")
+    return [
+      "Erste Tätigkeitsstätte fehlt",
+      "Wache zuordnen / prüfen",
+      "Mehrere Wachen / prüfen"
+    ].includes(annualClass(row));
+  if (annualDutyFilter === "edited")
+    return annualAbsence.has(row.key) || annualDutyStations.has(row.key);
+  return true;
+}
+function annualVisibleInputsValid() {
+  for (const field of document.querySelectorAll(".annual-absence"))
+    if (!field.reportValidity()) return false;
+  return true;
+}
+function changeAnnualDutyFilter() {
+  if (!annualVisibleInputsValid()) {
+    $("annualDutyFilter").value = annualDutyFilter;
+    return;
+  }
+  annualDutyFilter = $("annualDutyFilter").value;
+  annualDutyPage = 0;
+  renderAnnualDuties();
+}
+function changeAnnualDutyPage(offset) {
+  if (!annualVisibleInputsValid()) return;
+  annualDutyPage += offset;
+  renderAnnualDuties();
+}
+function renderAnnualDuties() {
+  if (!annualReport) return;
+  const rows = annualPrinting
+    ? annualReport.rows
+    : annualReport.rows.filter(annualDutyMatchesFilter);
+  const size = 20;
+  if (!annualPrinting)
+    annualDutyPage = Math.max(0, Math.min(annualDutyPage, Math.ceil(rows.length / size) - 1));
+  const start = annualPrinting ? 0 : annualDutyPage * size;
+  const visible = annualPrinting ? rows : rows.slice(start, start + size);
+  $("annualRows").replaceChildren(...visible.map(createAnnualDutyRow));
+  const range =
+    visible.length === 1 ? String(start + 1) : start + 1 + "–" + (start + visible.length);
+  $("annualDutyPageStatus").textContent = rows.length
+    ? range + " von " + rows.length + (rows.length === 1 ? " Dienst" : " Diensten")
+    : "Keine Dienste für diesen Filter.";
+  $("annualDutyPrevious").disabled = annualDutyPage === 0;
+  $("annualDutyNext").disabled = start + visible.length >= rows.length;
+}
+function createAnnualDutyRow(row) {
+  const line = element("tr"),
+    dates = element("td");
+  line.dataset.annualKey = row.key;
+  dates.append(element("small", row.startLocal), element("small", row.endLocal));
+  line.append(dates);
+  const vehicle = element("td", row.vehicles.join(", "));
+  vehicle.append(element("small", row.codes.join(", ")));
+  line.append(vehicle);
+  const place = element("td");
+  const stationName = element("small"),
+    classification = element("small");
+  stationName.dataset.annualStations = "";
+  classification.dataset.annualClass = "";
+  const actualStation = input("text", annualDutyStations.get(row.key) || "");
+  actualStation.maxLength = 120;
+  actualStation.className = "annual-duty-station";
+  actualStation.placeholder = "Abweichende Wache";
+  actualStation.setAttribute("list", "annualStationNames");
+  actualStation.setAttribute("aria-label", "Abweichende Rettungswache ab " + row.startLocal);
+  actualStation.oninput = () => {
+    const value = actualStation.value.trim();
+    if (value) annualDutyStations.set(row.key, value);
+    else annualDutyStations.delete(row.key);
+    renderAnnualAnnotations();
+  };
+  stationName.textContent = annualStationsForDuty(row)
+    .map((name) => name || "Wache nicht zugeordnet")
+    .join(", ");
+  classification.textContent = annualClass(row);
+  actualStation.onchange = () => {
+    if (annualVisibleInputsValid()) renderAnnualDuties();
+  };
+  place.append(stationName, classification, actualStation);
+  line.append(place);
+  [row.fullMinutes, row.minutes, row.nightMinutes].forEach((value) =>
+    line.append(element("td", annualHours(value), "numeric"))
+  );
+  const cell = element("td"),
+    absence = input("number", annualAbsence.get(row.key) ?? "");
+  absence.min = "0";
+  absence.max = "744";
+  absence.step = "any";
+  absence.className = "annual-absence";
+  absence.setAttribute("aria-label", "Abwesenheit in Stunden ab " + row.startLocal);
+  absence.oninput = () => {
+    absence.setCustomValidity("");
+    if (absence.value === "") annualAbsence.delete(row.key);
+    else if (
+      Number.isFinite(absence.valueAsNumber) &&
+      absence.valueAsNumber >= 0 &&
+      absence.valueAsNumber <= 744
+    )
+      annualAbsence.set(row.key, absence.valueAsNumber);
+    else {
+      annualAbsence.delete(row.key);
+      absence.setCustomValidity("Bitte eine Dauer zwischen 0 und 744 Stunden eingeben.");
+      absence.reportValidity();
+      return;
+    }
+    renderAnnualAnnotations();
+  };
+  absence.onchange = () => {
+    if (annualVisibleInputsValid()) renderAnnualDuties();
+  };
+  cell.append(absence);
+  line.append(cell);
+  return line;
+}
+
+// Source: src/web/client/annual/report.js
+function openAnnual() {
+  $("annualPanel").hidden = false;
+  $("annualPanel").scrollIntoView({ behavior: "smooth" });
+}
+function annualHours(minutes) {
+  return (minutes / 60).toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+function renderAnnualAnnotations() {
+  if (!annualReport) return;
+  let over8 = 0,
+    over12 = 0,
+    entered = 0;
+  const visible = new Map(
+    Array.from($("annualRows").children, (line) => [line.dataset.annualKey, line])
+  );
+  annualReport.rows.forEach((row) => {
+    const hours = annualAbsence.get(row.key);
+    if (hours !== undefined) {
+      entered++;
+      if (hours > 8) over8++;
+      if (hours > 12) over12++;
+    }
+    const line = visible.get(row.key);
+    if (!line) return;
+    line.querySelector("[data-annual-class]").textContent = annualClass(row);
+    line.querySelector("[data-annual-stations]").textContent = annualStationsForDuty(row)
+      .map((name) => name || "Wache nicht zugeordnet")
+      .join(", ");
+  });
+  $("annualAbsenceTotals").textContent =
+    entered +
+    " " +
+    (entered === 1 ? "Abwesenheit" : "Abwesenheiten") +
+    " erfasst · über 8 Stunden: " +
+    over8 +
+    " · über 12 Stunden: " +
+    over12;
+  const first = $("annualFirstStation").value.trim();
+  const away = annualReport.rows.filter(
+    (row) => annualClass(row) === "Andere Rettungswache / prüfen"
+  ).length;
+  $("annualStationSummary").textContent = first
+    ? "Erste Tätigkeitsstätte: " +
+      first +
+      ". " +
+      away +
+      " Dienstblöcke anderen Rettungswachen zugeordnet. Auswärtstätigkeit jeweils prüfen."
+    : "Wähle die vom Arbeitgeber festgelegte erste Tätigkeitsstätte. Fahrzeuge derselben Wache werden zusammengefasst.";
+  renderAnnualStationChoices();
+}
+function renderAnnualReport(report) {
+  annualReport = report;
+  const separateNightWindow = $("annualNightStart").value === "21";
+  $("annualResults").hidden = false;
+  $("annualTitle").textContent = report.year + " · Dienstzeiten laut ROSTER";
+  $("annualProvenance").textContent =
+    "Zeitzone: " +
+    report.timeZone +
+    " · Feiertage: " +
+    annualRegions.find(([code]) => code === report.region)[1] +
+    " (" +
+    report.holidayProvider +
+    ") · ROSTER abgerufen: " +
+    new Date(report.sourceLoadedAt).toLocaleString("de-DE") +
+    (report.cacheHit ? " (Zwischenspeicher)" : "") +
+    (separateNightWindow ? " · Tarifnacht: " : " · Nachtfenster: ") +
+    $("annualNightStart").value +
+    "–6 Uhr" +
+    (report.includeFuture
+      ? " · enthält geplante zukünftige Dienste"
+      : " · nur abgeschlossene Dienstblöcke");
+  const warnings = report.warnings,
+    notes = [];
+  if (warnings.planned)
+    notes.push(warnings.planned + " noch nicht abgeschlossene Blöcke ausgelassen.");
+  if (warnings.invalid) notes.push(warnings.invalid + " ungültige Zeiteinträge ausgelassen.");
+  if (warnings.duplicates) notes.push(warnings.duplicates + " doppelte Einträge entfernt.");
+  if (warnings.overlap)
+    notes.push(
+      "Überlappungen erkannt: Gesamtzeit ohne Doppelzählung; Fahrzeuge und Wachen bitte prüfen."
+    );
+  (report.holidayNotes || []).forEach((item) =>
+    notes.push(
+      item.date +
+        " " +
+        item.name +
+        ": " +
+        item.note +
+        " Nicht automatisch als Feiertag gewertet; bei Geltung am Arbeitsort als zusätzlichen Feiertag bestätigen."
+    )
+  );
+  if (report.receivedMonths !== report.requestedMonths)
+    notes.push(
+      "Die Quelle lieferte " +
+        report.receivedMonths +
+        " von " +
+        report.requestedMonths +
+        " angefragten Monatsdatensätzen. Vollständigkeit prüfen."
+    );
+  $("annualWarnings").textContent = notes.join(" ");
+  const total = report.totals;
+  $("annualMetrics").replaceChildren();
+  $("annualHeadline").textContent =
+    total.blocks +
+    " Dienstblöcke · " +
+    total.days +
+    " Kalendertage mit Dienst · " +
+    annualHours(total.minutes) +
+    " Stunden";
+  [
+    [
+      "Dienstumfang",
+      [
+        ["Blöcke über 8 h", total.over8],
+        ["Blöcke über 12 h", total.over12],
+        ["Rufbereitschaft separat", annualHours(total.standbyMinutes) + " h"]
+      ]
+    ],
+    [
+      "Nachtstunden",
+      [
+        [
+          separateNightWindow ? "Steuerlich 20–6" : "20–6 Uhr",
+          annualHours(total.nightMinutes) + " h"
+        ],
+        ...(separateNightWindow
+          ? [["DRK-RTV 21–6", annualHours(total.night21Minutes) + " h"]]
+          : []),
+        ["davon 0–4 Uhr¹", annualHours(total.night40Minutes) + " h"]
+      ]
+    ],
+    [
+      "Steuerliche SFN-Fenster",
+      [
+        ["Sonntag 50 %", annualHours(total.sunday50Minutes) + " h"],
+        ["Feiertag 125 %", annualHours(total.holiday125Minutes) + " h"],
+        ["Feiertag 150 %", annualHours(total.holiday150Minutes) + " h"]
+      ]
+    ]
+  ].forEach(([title, values]) => {
+    const group = element("div"),
+      list = element("dl");
+    group.append(element("h4", title));
+    values.forEach(([label, value]) => {
+      const row = element("div", undefined, "summary-row");
+      row.append(element("dt", label), element("dd", String(value)));
+      list.append(row);
+    });
+    group.append(list);
+    $("annualMetrics").append(group);
+  });
+  $("annualTariffHeader").hidden = !separateNightWindow;
+  $("annualNightHeader").textContent = separateNightWindow
+    ? "Nacht 20–6 h (Steuer)"
+    : "Nacht 20–6 h";
+  $("annualTariffHeader").textContent = "Nacht " + $("annualNightStart").value + "–6 h (DRK-RTV)";
+  $("annualMonths").replaceChildren();
+  report.monthly.forEach((month) => {
+    const row = element("tr");
+    [
+      month.month,
+      month.days,
+      month.blocks,
+      month.over8,
+      month.over12,
+      annualHours(month.minutes),
+      annualHours(month.nightMinutes),
+      ...(separateNightWindow ? [annualHours(month.night21Minutes)] : []),
+      annualHours(month.night40Minutes)
+    ].forEach((value) => row.append(element("td", String(value))));
+    $("annualMonths").append(row);
+  });
+  renderAnnualStationMap();
+  renderAnnualDuties();
+  renderAnnualAnnotations();
+  $("annualDownload").disabled = false;
+  $("annualPrint").disabled = false;
+}
+
+async function loadAnnualReport() {
+  const year = Number($("annualYear").value);
+  if (!Number.isInteger(year) || year < 2020 || year > 2099) {
+    $("annualMessage").textContent = "Bitte ein Jahr von 2020 bis 2099 eingeben.";
+    return;
+  }
+  $("annualProgress").hidden = false;
+  $("annualMessage").textContent = "Jahresdaten werden geladen und ausgewertet …";
+  await whileBusy(async () => {
+    const report = await call("getAnnualRosterSummary", {
+      year,
+      region: $("annualRegion").value,
+      extraDates: Array.from(annualExtraDates),
+      includeFuture: $("annualFuture").checked,
+      forceReload: $("annualRefresh").checked
+    });
+    if (!annualReport || annualReport.year !== report.year) {
+      annualDutyPage = 0;
+      annualDutyFilter = "all";
+      $("annualDutyFilter").value = "all";
+      annualVehicleStations.clear();
+      (report.stationSettings.vehicles || []).forEach(([vehicle, station]) =>
+        annualVehicleStations.set(vehicle, station)
+      );
+      $("annualFirstStation").value = report.stationSettings.firstStation;
+      $("annualStationMessage").textContent =
+        report.stationSettings.warning ||
+        (report.stationSettings.saved
+          ? "Gespeicherte Zuordnung für " + report.year + " geladen."
+          : "Die Wachenzuordnung kannst du für dieses Jahr speichern.");
+    }
+    renderAnnualReport(report);
+    $("annualMessage").textContent =
+      "Jahresübersicht erstellt. Wachenzuordnungen lassen sich speichern. Eigene Abwesenheitsangaben und Abweichungen beim einzelnen Dienst vor dem Neuladen als CSV exportieren.";
+  }, showIn("annualMessage"));
+  $("annualProgress").hidden = true;
+}
+function annualOptionsChanged() {
+  if (annualReport) {
+    $("annualDownload").disabled = true;
+    $("annualPrint").disabled = true;
+    $("annualMessage").textContent = "Optionen geändert. Bitte die Jahresübersicht neu erstellen.";
+  }
+}
+function addAnnualHoliday() {
+  const day = $("annualHoliday").value;
+  if (!day) return;
+  annualExtraDates.add(day);
+  $("annualHoliday").value = "";
+  $("annualHolidays").replaceChildren();
+  Array.from(annualExtraDates)
+    .sort()
+    .forEach((date) => {
+      const row = element("li", date + " "),
+        remove = element("button", "Entfernen", "secondary");
+      remove.type = "button";
+      remove.setAttribute("aria-label", "Feiertag " + date + " entfernen");
+      remove.onclick = () => {
+        annualExtraDates.delete(date);
+        row.remove();
+        annualOptionsChanged();
+      };
+      row.append(remove);
+      $("annualHolidays").append(row);
+    });
+  annualOptionsChanged();
+}
+
+// Source: src/web/client/annual/export.js
+function annualCsv() {
+  const separateNightWindow = $("annualNightStart").value === "21";
+  const additions = [
+    "Abfahrt_Wohnung",
+    "Rückkehr_Wohnung",
+    "Pause_gesamt_min",
+    "Pause_im_Nachtfenster_min",
+    "Auswärtstätigkeit_geprüft",
+    "Frühstück_gestellt",
+    "Mittagessen_gestellt",
+    "Abendessen_gestellt",
+    "steuerfreie_Verpflegungserstattung_EUR",
+    "Fahrt_km",
+    "Notiz"
+  ];
+  const rows = [
+    [
+      "Beginn",
+      "Ende",
+      "Zeitzone",
+      "Fahrzeuge",
+      "Rettungswachen_zugeordnet",
+      "Abweichende_Wache_eigene_Angabe",
+      "Erste_Tätigkeitsstätte_eigene_Angabe",
+      "Kürzel",
+      "Zuordnung",
+      "Feiertags_Bundesland",
+      "Quelle_abgerufen_am",
+      "Blockdauer_gesamt_h",
+      "Dienstzeit_im_Jahr_h",
+      separateNightWindow ? "Steuer_Nacht_20_06_h" : "Nacht_20_06_h",
+      ...(separateNightWindow ? ["DRK_RTV_Nacht_21_06_h"] : []),
+      "Steuer_Nacht_00_04_vor_00_h",
+      "Steuer_Sonntag_50_h",
+      "Steuer_Feiertag_125_h",
+      "Steuer_Feiertag_150_h",
+      "Abwesenheit_h_eigene_Angabe",
+      ...additions
+    ]
+  ];
+  annualReport.rows.forEach((row) =>
+    rows.push([
+      row.startLocal,
+      row.endLocal,
+      annualReport.timeZone,
+      row.vehicles.join(", "),
+      annualStationsForDuty(row)
+        .map((name) => name || "Wache nicht zugeordnet")
+        .join(", "),
+      annualDutyStations.get(row.key) || "",
+      $("annualFirstStation").value.trim(),
+      row.codes.join(", "),
+      annualClass(row),
+      annualReport.region,
+      annualReport.sourceLoadedAt,
+      annualHours(row.fullMinutes),
+      annualHours(row.minutes),
+      annualHours(row.nightMinutes),
+      ...(separateNightWindow ? [annualHours(row.night21Minutes)] : []),
+      annualHours(row.night40Minutes),
+      annualHours(row.sunday50Minutes),
+      annualHours(row.holiday125Minutes),
+      annualHours(row.holiday150Minutes),
+      annualAbsence.has(row.key) ? String(annualAbsence.get(row.key)).replace(".", ",") : "",
+      ...Array(additions.length).fill("")
+    ])
+  );
+  return (
+    "\ufeff" +
+    rows
+      .map((row) =>
+        row
+          .map((value) => {
+            let text = String(value);
+            if (/^[=+@\-\t\r]/.test(text)) text = "'" + text;
+            return '"' + text.replace(/"/g, '""') + '"';
+          })
+          .join(";")
+      )
+      .join("\r\n")
+  );
+}
+function downloadAnnualCsv() {
+  if (!annualReport) return;
+  if (!annualVisibleInputsValid()) return;
+  const url = URL.createObjectURL(new Blob([annualCsv()], { type: "text/csv;charset=utf-8" })),
+    link = element("a");
+  link.href = url;
+  link.download = "Dienstplan-" + annualReport.year + ".csv";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+let annualPrintState = null;
+function expandAnnualForPrint() {
+  if (annualPrintState) return;
+  annualPrintState = Array.from($("annualResults").querySelectorAll("details"), (node) => [
+    node,
+    node.open
+  ]);
+  annualPrintState.forEach(([node]) => (node.open = true));
+  annualPrinting = true;
+  renderAnnualDuties();
+}
+function restoreAnnualAfterPrint() {
+  if (!annualPrintState) return;
+  annualPrintState.forEach(([node, open]) => (node.open = open));
+  annualPrintState = null;
+  annualPrinting = false;
+  renderAnnualDuties();
+}
+function printAnnualReport() {
+  if (!annualVisibleInputsValid()) return;
+  expandAnnualForPrint();
+  try {
+    window.print();
+  } finally {
+    restoreAnnualAfterPrint();
+  }
+}
+
+// Source: src/web/client/bootstrap.js
+function initialize() {
+  return whileBusy(
+    async () => {
+      const [choices, state] = await Promise.all([call("getCalendarChoices"), call("getAppState")]);
+      calendarChoices = choices;
+      render(state);
+      if (state.triggersRepairedAt && Date.now() - Date.parse(state.triggersRepairedAt) < 600000)
+        message(
+          "Die automatische Synchronisierung lief seit einiger Zeit nicht mehr und wurde beim Öffnen neu eingerichtet."
+        );
+    },
+    (text) => message(text, true)
+  );
+}
+$("themeChoice").value = savedTheme();
+$("themeChoice").onchange = () => applyTheme($("themeChoice").value);
+$("copyErrorReport").onclick = copyErrorReport;
+$("annualYear").value = new Date().getFullYear() - 1;
+annualRegions.forEach(([code, name]) => $("annualRegion").add(new Option(name, code)));
+$("annualOpen").onclick = openAnnual;
+$("annualOpenSettings").onclick = openAnnual;
+$("annualClose").onclick = () => {
+  $("annualPanel").hidden = true;
+};
+$("annualLoad").onclick = loadAnnualReport;
+$("annualDownload").onclick = downloadAnnualCsv;
+$("annualPrint").onclick = printAnnualReport;
+window.addEventListener("beforeprint", expandAnnualForPrint);
+window.addEventListener("afterprint", restoreAnnualAfterPrint);
+$("annualFirstStation").oninput = markAnnualStationChanges;
+$("annualSaveStations").onclick = saveAnnualStations;
+$("annualDutyFilter").onchange = changeAnnualDutyFilter;
+$("annualDutyPrevious").onclick = () => changeAnnualDutyPage(-1);
+$("annualDutyNext").onclick = () => changeAnnualDutyPage(1);
+$("annualAddHoliday").onclick = addAnnualHoliday;
+$("annualNightStart").onchange = () => {
+  if (annualReport) renderAnnualReport(annualReport);
+};
+["annualYear", "annualRegion", "annualFuture"].forEach(
+  (id) => ($(id).onchange = annualOptionsChanged)
+);
+$("preferences").addEventListener("input", (event) => {
+  if (event.target.setCustomValidity) event.target.setCustomValidity("");
+  setDirty();
+});
+$("preferences").addEventListener("change", () => setDirty());
+$("preferences").addEventListener("submit", (event) => {
+  event.preventDefault();
+  action("saveAppSettings", "Einstellungen gespeichert.");
+});
+$("addSource").onclick = () => {
+  addSource(["", ""]);
+  setDirty();
+};
+$("addRule").onclick = () => {
+  addRule();
+  setDirty();
+};
+$("editSettings").onclick = () => showSettings(true);
+$("closeSettings").onclick = () => showSettings(false);
+function editConnection(field = "employee") {
+  $("connectionFields").hidden = false;
+  $("connectionSummary").hidden = true;
+  $("editConnection").hidden = true;
+  $(field).focus();
+}
+$("editConnection").onclick = () => editConnection();
+$("enterToken").onclick = () => {
+  showSettings(true);
+  editConnection("token");
+  $("sectionConnection").scrollIntoView({ block: "start" });
+};
+$("testConnection").onclick = () => diagnostic("test");
+$("preview").onclick = () => diagnostic("preview");
+$("dashboardPreview").onclick = () => diagnostic("preview");
+$("dashboardSync").onclick = () => action("startSync", "Sync beendet.", true);
+$("dashboardPause").onclick = () => action("stopSync", "Automatischer Sync pausiert.");
+$("dashboardEnable").onclick = () => action("install", "Automatischer Sync aktiviert.", true);
+$("repairTriggers").onclick = () => action("install", "Auslöser neu eingerichtet.");
+$("sectionNav").onclick = (event) => {
+  const target = event.target.closest("[data-section]");
+  if (!target) return;
+  const section = $(target.dataset.section);
+  if (section.tagName === "DETAILS") section.open = true;
+  section.scrollIntoView({
+    behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    block: "start"
+  });
+};
+// Relative times ("vor 10 Minuten") age while the page stays open.
+setInterval(() => {
+  if (dashboardState && !document.hidden) renderStatus(dashboardState);
+}, 60000);
+$("manageAccess").onclick = openInvitations;
+$("addInvite").onclick = () => {
+  if (!$("inviteEmail").value || !$("inviteEmail").reportValidity()) return;
+  updateInvitations(invitations.emails.concat($("inviteEmail").value));
+};
+$("migrationShortcut").onclick = openMigration;
+$("openMigration").onclick = openMigration;
+$("copyMigration").onclick = copyMigration;
+$("importMigration").onclick = importMigration;
+$("enable").onclick = () => action("install", "Automatischer Sync aktiviert.", true);
+$("sync").onclick = () => action("startSync", "Sync beendet.", true);
+$("stop").onclick = () => {
+  if (!dirty || confirm("Synchronisierung pausieren und ungespeicherte Änderungen verwerfen?"))
+    action("stopSync", "Automatischer Sync pausiert. Die Einstellungen bleiben gespeichert.");
+};
+$("disconnect").onclick = () => {
+  if (
+    confirm(
+      "Deine gespeicherten Zugangsdaten und Einstellungen wirklich löschen? Bereits importierte Kalendertermine bleiben erhalten."
+    )
+  )
+    action("disconnectApp", "Gespeicherte Daten gelöscht.");
+};
+window.addEventListener("beforeunload", (event) => {
+  if (dirty) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
+initialize();
+</script>
+  </body>
+</html>
