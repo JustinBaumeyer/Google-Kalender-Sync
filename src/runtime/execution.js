@@ -22,6 +22,28 @@ function appOwnerEmail_() {
   return scriptPrp.getProperty("appOwnerEmail");
 }
 
+/**
+ * Every log line of the app names the account, so the runs of several people can be
+ * told apart in the shared execution log. The part before the @ is enough to recognise
+ * someone without repeating whole addresses in every line.
+ */
+var logAccount = null;
+function log_(message) {
+  if (logAccount === null) {
+    try {
+      logAccount = currentUserEmail_().split("@")[0] || "?";
+    } catch (err) {
+      logAccount = "?";
+    }
+  }
+  Logger.log("[" + logAccount + "] " + message);
+}
+
+/** One log line with the time since `started`, to see where a slow run spends it. */
+function logDuration_(label, started) {
+  log_(label + ": " + ((Date.now() - started) / 1000).toFixed(1) + " s");
+}
+
 function hasTrigger_(handler) {
   return ScriptApp.getProjectTriggers().some(function (trigger) {
     return trigger.getHandlerFunction() == handler;
@@ -79,6 +101,7 @@ var teamRosterCache = {};
 var teamCrewCache = new WeakMap();
 
 var legendDutySpanCache = new Map();
+var zoneDayOffsetCache = new Map();
 
 var teamRosterTokenReady = false;
 
@@ -92,6 +115,7 @@ function resetRosterCaches_() {
   teamRosterCache = {};
   teamCrewCache = new WeakMap();
   legendDutySpanCache = new Map();
+  zoneDayOffsetCache = new Map();
   teamRosterTokenReady = false;
 }
 
@@ -126,12 +150,12 @@ function timedSyncStep_(label, action) {
   syncPhase = label;
   checkSyncBudget_();
   var started = Date.now();
-  Logger.log("Start: " + label);
+  log_("Start: " + label);
   try {
     publishSyncProgress_(label);
     return action();
   } finally {
-    Logger.log(label + ": " + ((Date.now() - started) / 1000).toFixed(1) + " s");
+    log_(label + ": " + ((Date.now() - started) / 1000).toFixed(1) + " s");
   }
 }
 

@@ -168,6 +168,27 @@ function buildLegendAssignments_(rosters) {
   return catalog;
 }
 
+/**
+ * The UTC offset (ms) of a civil day in the given zone, or null when it changes during
+ * that day (daylight saving). Google's date functions are slow in Apps Script; asking
+ * once per day instead of four times per duty saves thousands of calls per team view.
+ */
+function civilDayOffset_(day, timeZone) {
+  var midnight = function (date) {
+    var key = timeZone + "|" + date;
+    if (!zoneDayOffsetCache.has(key))
+      zoneDayOffsetCache.set(
+        key,
+        Date.parse(date + "T00:00:00Z") -
+          Utilities.parseDate(date, timeZone, "yyyy-MM-dd").getTime()
+      );
+    return zoneDayOffsetCache.get(key);
+  };
+  var next = new Date(Date.parse(day + "T00:00:00Z") + 86400000).toISOString().slice(0, 10);
+  var offset = midnight(day);
+  return offset === midnight(next) ? offset : null;
+}
+
 /** Scheduled wall-clock times from the legend; valuation/break minutes are not event bounds. */
 function legendDutySpan_(entry, date) {
   var timeZone = rosterZone_();
@@ -202,6 +223,9 @@ function legendDutySpan_(entry, date) {
         ":" +
         String(clock.minute).padStart(2, "0") +
         ":00";
+      // On days without a clock change every wall time exists exactly once.
+      var offset = civilDayOffset_(wall.slice(0, 10), timeZone);
+      if (offset !== null) return Date.parse(wall + "Z") - offset;
       var pattern = "yyyy-MM-dd'T'HH:mm:ss";
       var value = Utilities.parseDate(wall, timeZone, pattern).getTime();
       // A nonexistent local time or a repeated DST hour is not an unambiguous plan time.

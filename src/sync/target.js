@@ -43,7 +43,7 @@ function syncTargetCalendar_(calendar, migration, calendarLookup) {
   if (fetched.failedSources > 0) {
     // Proceeding with missing sources would delete all their events from the
     // target calendar, so leave this calendar untouched until the next run.
-    Logger.log(
+    log_(
       "Skipping " +
         targetCalendarName +
         ": " +
@@ -53,10 +53,9 @@ function syncTargetCalendar_(calendar, migration, calendarLookup) {
     return false;
   }
   if (responses.length == 0) {
-    Logger.log("Skipping " + targetCalendarName + ": no sources to sync");
+    log_("Skipping " + targetCalendarName + ": no sources to sync");
     return true;
   }
-  Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
 
   //------------------------ Get target calendar information------------------------
   var targetCalendar = timedSyncStep_(targetCalendarName + ": Kalender öffnen", function () {
@@ -64,12 +63,11 @@ function syncTargetCalendar_(calendar, migration, calendarLookup) {
   });
   targetCalendarId = targetCalendar.id;
   targetCalendarTimeZone = targetCalendar.timeZone;
-  Logger.log("Working on calendar: " + targetCalendarId);
 
   //------------------------ Parse existing events --------------------------
   if (addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar) {
     if (!loadTargetCalendarEvents_(migration)) {
-      Logger.log("Skipping " + targetCalendarName + ": could not list existing events");
+      log_("Skipping " + targetCalendarName + ": could not list existing events");
       return false;
     }
 
@@ -78,12 +76,13 @@ function syncTargetCalendar_(calendar, migration, calendarLookup) {
     vevents = timedSyncStep_(targetCalendarName + ": Termine auswerten", function () {
       return consolidateVevents_(parseResponses_(responses));
     });
-    Logger.log("Parsed " + vevents.length + " events from ical sources");
+    log_(
+      targetCalendarName + ": " + vevents.length + " events from " + responses.length + " source(s)"
+    );
   }
 
   //------------------------ Process ical events ------------------------
   if (addEventsToCalendar || modifyExistingEvents) {
-    Logger.log("Processing " + vevents.length + " events");
     var calendarTz =
       targetCalendarTimeZone ||
       callWithBackoff_(function () {
@@ -101,8 +100,6 @@ function syncTargetCalendar_(calendar, migration, calendarLookup) {
       vevents.length,
       vevents.length
     );
-
-    Logger.log("Done processing events");
   }
 
   //------------------------ Remove old events from calendar ------------------------
@@ -113,13 +110,10 @@ function syncTargetCalendar_(calendar, migration, calendarLookup) {
   // An inactive source's events cannot be compared with the partial feed.
   if (removeEventsFromCalendar && !fetched.inactiveSources) {
     syncPhase = targetCalendarName + ": Termine prüfen";
-    Logger.log("Checking " + calendarEvents.length + " events for removal");
     processEventCleanup_();
-    Logger.log("Done checking events for removal");
   }
 
   //------------------------ Add Recurring Event Instances ------------------------
-  Logger.log("Processing " + recurringEvents.length + " Recurrence Instances!");
   syncPhase = targetCalendarName + ": Serientermine verarbeiten";
   for (var recEvent of recurringEvents) {
     checkSyncBudget_();

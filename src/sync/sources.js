@@ -46,7 +46,6 @@ function fetchSourceCalendars_(sourceCalendarURLs, fetchRoster) {
       result.push([teamContent, colorId]);
     } else if (source[0] == "ROSTER") {
       if (!isRosterSourceActive_()) {
-        Logger.log("Skipping inactive ROSTER source");
         inactiveSources++;
         continue;
       }
@@ -62,7 +61,7 @@ function fetchSourceCalendars_(sourceCalendarURLs, fetchRoster) {
         if (err && err.syncPaused) throw err;
         // An unreachable subscription counts as a failed source: its target stays
         // untouched, while the other calendars continue.
-        Logger.log("Could not load subscription: " + ((err && err.message) || err));
+        log_("Could not load subscription: " + ((err && err.message) || err));
       }
 
       if (urlContent != null) result.push([urlContent, colorId]);
@@ -83,7 +82,11 @@ function fetchSubscription_(url) {
     if (urlResponse.getResponseCode() != 200)
       //Throw here to make callWithBackoff_ run again
       throw (
-        "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url
+        // Only the host: subscription links often carry a private key.
+        "HTTP " +
+        urlResponse.getResponseCode() +
+        " from " +
+        url.replace(/^([a-z]+:\/\/[^/?#]+).*$/i, "$1")
       );
 
     var icsContent = urlResponse.getContentText();
@@ -101,10 +104,9 @@ function fetchSubscription_(url) {
       }
       icsMatch = icsRegex.exec(icsContent);
       if (icsMatch == null) {
-        Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
+        log_("A subscription did not return a calendar file");
         return null;
       }
-      Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url);
     }
     return icsMatch[0];
   });

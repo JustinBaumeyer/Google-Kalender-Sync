@@ -93,5 +93,5 @@ function migrateLegacySettings_() {
       values[name] = scriptPrp.getProperty(name);
   });
   userPrp.setProperties(values, false);
-  Logger.log("Your settings and credentials were copied to your User Properties");
+  log_("Your settings and credentials were copied to your User Properties");
 }

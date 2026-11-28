@@ -73,7 +73,7 @@ function rosterFetchAll_(calls, strict) {
         error.rosterAuthRejected = [401, 403].indexOf(response.getResponseCode()) != -1;
         throw error;
       }
-      Logger.log(
+      log_(
         "Roster API call to " +
           calls[i].endpoint +
           " failed with HTTP " +

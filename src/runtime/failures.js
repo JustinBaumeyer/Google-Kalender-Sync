@@ -33,10 +33,10 @@ function callWithBackoff_(func, maxRetries) {
       ) {
         throw err; // The original error keeps its stack for the report.
       } else if (tries > maxRetries) {
-        Logger.log(`Error, giving up after trying ${maxRetries} times [${text}]`);
+        log_(`Error, giving up after trying ${maxRetries} times [${text}]`);
         return null;
       } else {
-        Logger.log("Error, Retrying... [" + text + "]");
+        log_("Error, Retrying... [" + text + "]");
         // Jitter of 0–99 ms keeps every delay below 8.1 s.
         var delay = Math.min(Math.pow(2, tries - 1) * 1000, 8000) + Math.floor(Math.random() * 100);
         if (syncDeadline && Date.now() + delay >= syncDeadline) {

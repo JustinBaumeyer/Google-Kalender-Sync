@@ -57,7 +57,7 @@ test('823 legacy events migrate in bounded batches without duplicate imports or 
   assert.ok(records.every(r=>r.extendedProperties.private.syncOwner===owner));
   assert.equal(app.users.get(owner).has('adoptLegacyEvents'),false);
   assert.equal(app.users.get(owner).get('syncPending'),'false');
-  assert.ok(app.logs.some(line=>line.startsWith('Start: Dienstplan: vorhandene Termine laden')));
+  assert.ok(app.logs.some(line=>line.startsWith('[owner] Start: Dienstplan: vorhandene Termine laden')),'Log lines name the account');
 });
 
 test('runtime budget defers work before cleanup and resumes with one continuation trigger', () => {

@@ -8,6 +8,10 @@ function startSync(event) {
     throw new Error("Für dein Konto läuft bereits eine Synchronisierung");
   }
 
+  // A continuation that stops at the same step without writing anything cannot finish
+  // that step either; it would repeat every minute and use up Google's daily limit.
+  var pausedBefore = null,
+    statsAtStart = "";
   try {
     syncStartedAt = Date.now();
     syncPhase = "Synchronisierung wird vorbereitet";
@@ -18,6 +22,9 @@ function startSync(event) {
       userPrp.getProperty("syncPending") == "true"
         ? JSON.parse(userPrp.getProperty("syncStats") || '{"added":0,"updated":0,"removed":0}')
         : { added: 0, updated: 0, removed: 0 };
+    if (userPrp.getProperty("syncPending") == "true")
+      pausedBefore = userPrp.getProperty("lastSyncPhase");
+    statsAtStart = JSON.stringify(syncStats);
     userPrp.deleteProperty("upcomingEvents"); // Remove the former dashboard preview cache.
     publishSyncProgress_("Synchronisierung wird vorbereitet", undefined, undefined, "running");
     if (event && event.triggerUid) {
@@ -79,8 +86,19 @@ function startSync(event) {
     }
     if (!event || !event.triggerUid) return getAppState();
   } catch (err) {
+    var noProgress =
+      err.syncPaused &&
+      pausedBefore == syncPhase &&
+      JSON.stringify(syncStats) == statsAtStart &&
+      !/alte Termine zuordnen$/.test(syncPhase);
+    if (noProgress)
+      err = new Error(
+        "„" +
+          syncPhase +
+          "“ dauert länger, als ein Lauf erlaubt, auch nach einer Fortsetzung. Der nächste geplante Lauf versucht es erneut."
+      );
     if (err.syncPaused) {
-      Logger.log(err.message);
+      log_(err.message);
       userPrp.setProperties(
         { lastSyncError: "", lastSyncPhase: syncPhase, syncStats: JSON.stringify(syncStats) },
         false
@@ -91,7 +109,7 @@ function startSync(event) {
       return;
     }
     var message = err.message || err;
-    Logger.log("Sync failed: " + message);
+    log_("Sync failed: " + message);
     if (err.rosterAuthRejected) {
       userPrp.setProperty("rosterAuthRejected", "true");
       userPrp.deleteProperty("connectionKey"); // The overview no longer claims a working connection.
@@ -140,7 +158,7 @@ function runSync_() {
       if (err && err.syncPaused) throw err;
       // Targets are independent. One broken source or calendar must not keep the
       // others from syncing; the first error is still reported for this run.
-      Logger.log("Sync of " + calendar[0] + " failed: " + ((err && err.message) || err));
+      log_("Sync of " + calendar[0] + " failed: " + ((err && err.message) || err));
       if (!firstFailure) firstFailure = { error: err, phase: syncPhase };
     }
   }
@@ -157,7 +175,15 @@ function runSync_() {
   if (migration.enabled && !migration.remaining && !migration.deferred)
     userPrp.deleteProperty("adoptLegacyEvents");
   userPrp.deleteProperty("syncResumeCalendar");
-  Logger.log("Sync finished!");
+  log_(
+    "Sync finished: " +
+      syncStats.added +
+      " added, " +
+      syncStats.updated +
+      " updated, " +
+      syncStats.removed +
+      " removed"
+  );
   return migration.remaining;
 }
 

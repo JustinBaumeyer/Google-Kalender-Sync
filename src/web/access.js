@@ -7,7 +7,7 @@ function setupSharedApp_() {
   scriptPrp.setProperty("appOwnerEmail", email);
   if (!scriptPrp.getProperty("allowedUserEmails"))
     scriptPrp.setProperty("allowedUserEmails", JSON.stringify([email]));
-  Logger.log("Owner configured. Add your group's emails to allowedUserEmails in Script Properties");
+  log_("Owner configured. Add your group's emails to allowedUserEmails in Script Properties");
 }
 
 function invitedEmails_() {

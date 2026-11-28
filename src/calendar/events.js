@@ -15,7 +15,6 @@ function processEvent_(event, calendarTz) {
   //------------------------ Save instance overrides ------------------------
   //----------- To make sure the parent event is actually created -----------
   if (event.hasProperty("recurrence-id")) {
-    Logger.log("Saving event instance for later: " + newEvent.recurringEventId);
     recurringEvents.push(newEvent);
     return;
   }
@@ -30,13 +29,11 @@ function processEvent_(event, calendarTz) {
   }
 
   if (index > -1 && modifyExistingEvents) {
-    Logger.log("Updating existing event " + eventId);
     calendarRequest_(function () {
       return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
     }, "Ein geänderter Termin konnte nicht gespeichert werden. Bestehende Termine bleiben erhalten.");
     syncStats.updated++;
   } else if (index == -1 && addEventsToCalendar) {
-    Logger.log("Adding new event " + eventId);
     calendarRequest_(function () {
       return Calendar.Events.insert(newEvent, targetCalendarId);
     }, "Ein neuer Termin konnte nicht gespeichert werden. Bestehende Termine bleiben erhalten.");
@@ -70,7 +67,7 @@ function createEvent_(event, calendarTz) {
   ).toString();
   if (calendarEventsMD5Set.has(digest)) {
     showSkipMessage &&
-      Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue("uid").toString());
+      log_("Skipping unchanged Event " + event.getFirstPropertyValue("uid").toString());
     return;
   }
 
@@ -94,17 +91,8 @@ function createEvent_(event, calendarTz) {
     //Normal (not all-day) event
     var tzid = icalEvent.startDate.timezone;
     if (tzids.indexOf(tzid) == -1) {
-      var oldTzid = tzid;
-      if (tzid in tzidreplace) {
-        tzid = tzidreplace[tzid];
-      } else {
-        //floating time
-        tzid = calendarTz;
-      }
-
-      Logger.log(
-        "Converting ICS timezone " + oldTzid + " to Google Calendar (IANA) timezone " + tzid
-      );
+      // Windows names map to IANA ones; anything else is floating time.
+      tzid = tzid in tzidreplace ? tzidreplace[tzid] : calendarTz;
     }
 
     newEvent = {
@@ -304,7 +292,6 @@ function checkSkipEvent_(event, icalEvent) {
       icalEvent.startDate.compare(startUpdateTime) < 0 &&
       icalEvent.recurrenceId.compare(startUpdateTime) < 0
     ) {
-      Logger.log("Skipping past recurrence exception");
       return true;
     }
   } else if (icalEvent.isRecurring()) {
@@ -355,7 +342,6 @@ function checkSkipEvent_(event, icalEvent) {
           var time = new ICAL.Time.fromString(value.toString(), property);
           return time.compare(startUpdateTime) >= 0 && time.compare(icalEvent.startDate) > 0;
         });
-        Logger.log("Adjusted RRule/RDate to exclude past instances");
       } else {
         //All instances are in the past
         skip = true;
@@ -369,9 +355,6 @@ function checkSkipEvent_(event, icalEvent) {
         icalEvent.except[i].startDate.compare(startUpdateTime) < 0 &&
         icalEvent.except[i].recurrenceId.compare(startUpdateTime) >= 0
       ) {
-        Logger.log(
-          "Creating EXDATE for exception at " + icalEvent.except[i].recurrenceId.toString()
-        );
         icalEvent.component.addPropertyWithValue(
           "exdate",
           icalEvent.except[i].recurrenceId.toString()
@@ -381,9 +364,6 @@ function checkSkipEvent_(event, icalEvent) {
         icalEvent.except[i].startDate.compare(startUpdateTime) >= 0 &&
         icalEvent.except[i].recurrenceId.compare(startUpdateTime) < 0
       ) {
-        Logger.log(
-          "Creating RDATE for exception at " + icalEvent.except[i].recurrenceId.toString()
-        );
         icalEvent.component.addPropertyWithValue(
           "rdate",
           icalEvent.except[i].recurrenceId.toString()
@@ -395,14 +375,12 @@ function checkSkipEvent_(event, icalEvent) {
     if (skip) {
       //Completely remove the event as all instances of it are in the past
       icsEventsIds.splice(icsEventsIds.indexOf(event.getFirstPropertyValue("uid").toString()), 1);
-      Logger.log("Skipping past recurring event " + event.getFirstPropertyValue("uid").toString());
       return true;
     }
   } else {
     //normal events
     if (icalEvent.endDate.compare(startUpdateTime) < 0) {
       icsEventsIds.splice(icsEventsIds.indexOf(event.getFirstPropertyValue("uid").toString()), 1);
-      Logger.log("Skipping previous event " + event.getFirstPropertyValue("uid").toString());
       return true;
     }
   }

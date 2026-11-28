@@ -8,7 +8,7 @@
  */
 function getValidTriggerFrequency_(origFrequency) {
   if (!origFrequency || origFrequency <= 0) {
-    Logger.log("No valid frequency specified. Defaulting to 15 minutes.");
+    log_("No valid frequency specified. Defaulting to 15 minutes.");
     return 15;
   }
 
@@ -27,7 +27,9 @@ function getValidTriggerFrequency_(origFrequency) {
   // Find the smallest acceptable value greater than or equal to the original frequency
   var roundedUpValue = acceptableValues.find((value) => value >= origFrequency);
 
-  Logger.log("Intended frequency = " + origFrequency + ", Adjusted frequency = " + roundedUpValue);
+  // Called on every page load and run; only an actual adjustment is worth a log line.
+  if (roundedUpValue != origFrequency)
+    log_("Intended frequency = " + origFrequency + ", Adjusted frequency = " + roundedUpValue);
   return roundedUpValue;
 }
 
@@ -124,7 +126,7 @@ function missingAuthorizationUrl_() {
     if (info.getAuthorizationStatus() != ScriptApp.AuthorizationStatus.REQUIRED) return null;
     return info.getAuthorizationUrl() || "";
   } catch (err) {
-    Logger.log("Could not read the authorization status: " + ((err && err.message) || err));
+    log_("Could not read the authorization status: " + ((err && err.message) || err));
     return null;
   }
 }
@@ -151,11 +153,11 @@ function repairStalledTriggers_() {
       return false;
     withUserLock_("Eine Synchronisierung läuft gerade", install_);
     userPrp.setProperty("triggersRepairedAt", new Date().toISOString());
-    Logger.log("Recreated time triggers that had stopped running");
+    log_("Recreated time triggers that had stopped running");
     return true;
   } catch (err) {
     // The page still opens; the notice in the overview offers the same repair by hand.
-    Logger.log("Could not recreate the time triggers: " + ((err && err.message) || err));
+    log_("Could not recreate the time triggers: " + ((err && err.message) || err));
     return false;
   }
 }
@@ -166,7 +168,7 @@ function checkForUpdates() {
   try {
     reviewAccountHealth_();
   } catch (err) {
-    Logger.log("Account review failed: " + ((err && err.message) || err));
+    log_("Account review failed: " + ((err && err.message) || err));
   }
   var response = UrlFetchApp.fetch(
     "https://raw.githubusercontent.com/JustinBaumeyer/Google-Kalender-Sync/refs/heads/release/Code.gs",

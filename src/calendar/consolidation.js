@@ -84,20 +84,13 @@ function consolidateVevents_(vevents) {
       var uidIndex = icsEventsIds.indexOf(uid);
       if (uidIndex > -1) icsEventsIds.splice(uidIndex, 1);
       mergedCount++;
-      Logger.log(
-        "Consolidated '" +
-          item.summary +
-          "' (" +
-          item.event.startDate.toString() +
-          ") into the preceding event"
-      );
     } else {
       result.push(item.comp);
       lastByKey[key] = item;
     }
   });
 
-  if (mergedCount > 0) Logger.log("Consolidated " + mergedCount + " overlapping event(s)");
+  if (mergedCount > 0) log_("Consolidated " + mergedCount + " overlapping event(s)");
   return result;
 }
 
