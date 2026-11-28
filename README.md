@@ -42,6 +42,14 @@ schaltet sie nicht wieder ein, und die Auslöser bleiben trotzdem gelistet. Öff
 die App und hat seit drei Intervallen (mindestens zwei Stunden) kein Lauf stattgefunden, richtet
 die App die Auslöser deshalb selbst neu ein. Pausierte Konten bleiben pausiert.
 
+Teamübersichten werden zwischen den Konten geteilt: Hat ein Konto den Dienstplan einer
+Planungsgruppe geladen, verwenden ihn andere Konten desselben Dienstplan-Servers für zehn
+Minuten mit, statt ihn erneut abzurufen. Jedes Konto fragt dabei weiterhin mit dem eigenen
+Token, welche Planungsgruppen es sehen darf; nur diese kommen aus dem gemeinsamen Speicher.
+Von Hand eingetragene Planungsgruppen werden immer selbst abgerufen. Gespeichert werden nur
+Namen, Personal-IDs, Tage, Dienstkürzel und die Dienstlegende, keine Bemerkungen oder Wünsche;
+große Übersichten werden komprimiert.
+
 Beim Zustimmen lässt Google einzelne Berechtigungen abwählen. Die App öffnet sich dann trotzdem,
 aber automatische Läufe scheitern, bevor Programmcode startet (im Google-Cloud-Projekt als
 OAuth-Fehler sichtbar). Beim Öffnen fordert die App deshalb alle Berechtigungen an
