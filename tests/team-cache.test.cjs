@@ -136,3 +136,11 @@ test('large team views are compressed to fit the cache and read back unchanged',
   assert.equal(teamRequests(b.requests), 0);
   assert.deepEqual(events(b.writes), events(a.writes));
 });
+
+test('team views are shared per installation: host case is ignored, path case is not', () => {
+  const app = shared();
+  const c = load(app, alice);
+  const key = (url) => { c.rosterUrl = url; return c.teamCacheKey_('7', '2026-12-01', '2026-12-31'); };
+  assert.equal(key('https://Roster.Example.com/TenantA/api/'), key('https://roster.example.com/TenantA/api/'));
+  assert.notEqual(key('https://roster.example.com/TenantA/api/'), key('https://roster.example.com/tenanta/api/'));
+});

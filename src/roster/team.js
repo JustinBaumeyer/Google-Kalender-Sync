@@ -68,10 +68,19 @@ function sharedTeamCache_() {
     : null;
 }
 
+/** Scheme and host are case-insensitive; the path may name a separate installation. */
+function teamCacheServer_(url) {
+  return String(url)
+    .trim()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, function (origin) {
+      return origin.toLowerCase();
+    });
+}
+
 function teamCacheKey_(groupId, from, to) {
   return (
     "team-roster:v1:" +
-    sha256Hex_(JSON.stringify([String(rosterUrl).trim().toLowerCase(), String(groupId), from, to]))
+    sha256Hex_(JSON.stringify([teamCacheServer_(rosterUrl), String(groupId), from, to]))
   );
 }
 
